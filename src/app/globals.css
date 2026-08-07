@@ -346,6 +346,17 @@ input[type='number'] { -moz-appearance: textfield; }
 .animate-spin-slow { animation: ovoz-spin 1s linear infinite; }
 .animate-marquee { animation: ovoz-marquee 42s linear infinite; }
 
+/* Public language switcher — native <details> disclosure, no JS needed to open.
+   The menu is hidden until the <details> is toggled open by the browser. */
+.lang-switch-menu {
+  display: none;
+  animation: ovoz-scale-in 0.18s var(--ease-out-quint) both;
+  transform-origin: top right;
+}
+.lang-switch[open] > .lang-switch-menu {
+  display: block;
+}
+
 .skeleton {
   position: relative;
   overflow: hidden;

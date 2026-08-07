@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { get, now, run } from '@/lib/db';
 import { audit, createSession, currentSession, destroySession, requireSession, verifyPassword } from '@/lib/auth';
 import { provisionTenant } from '@/lib/provision';
-import { LOCALES } from '@/lib/i18n';
+import { LOCALES, translator } from '@/lib/i18n';
 import type { UiLocale, User } from '@/lib/types';
 
 export interface FormState {
@@ -16,23 +16,36 @@ export interface FormState {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/** Translator bound to the visitor's `ovoz_locale` cookie (Uzbek default), so
+ *  auth error messages come back in the same language as the login form. */
+async function authTranslator() {
+  const cookieLocale = (await cookies()).get('ovoz_locale')?.value as UiLocale | undefined;
+  const locale = cookieLocale && LOCALES.includes(cookieLocale) ? cookieLocale : 'uz';
+  return translator(locale);
+}
+
 export async function signUpAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const t = await authTranslator();
   const company = String(formData.get('company') ?? '').trim();
   const fullName = String(formData.get('name') ?? '').trim();
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
   const industry = String(formData.get('industry') ?? 'other');
 
-  if (company.length < 2) return { error: 'Please enter your company name.' };
-  if (fullName.length < 2) return { error: 'Please enter your name.' };
-  if (!EMAIL_RE.test(email)) return { error: 'That email address does not look right.' };
-  if (password.length < 8) return { error: 'Use at least 8 characters for your password.' };
+  if (company.length < 2) return { error: t('auth.err.company') };
+  if (fullName.length < 2) return { error: t('auth.err.name') };
+  if (!EMAIL_RE.test(email)) return { error: t('auth.err.email') };
+  if (password.length < 8) return { error: t('auth.err.password') };
 
   let created: { tenantId: string; userId: string };
   try {
     created = provisionTenant({ company, industry, fullName, email, password });
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Could not create the account.' };
+    const message = err instanceof Error ? err.message : '';
+    if (message.toLowerCase().includes('already exists')) {
+      return { error: t('auth.err.emailExists') };
+    }
+    return { error: t('auth.err.createFailed') };
   }
 
   await createSession(created.userId, created.tenantId);
@@ -40,15 +53,16 @@ export async function signUpAction(_prev: FormState, formData: FormData): Promis
 }
 
 export async function signInAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const t = await authTranslator();
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const password = String(formData.get('password') ?? '');
 
   const user = get<User>('SELECT * FROM users WHERE email=?', email);
   if (!user || !verifyPassword(password, user.password_hash)) {
     // Same message either way — never reveal whether an address is registered.
-    return { error: 'Email or password is incorrect.' };
+    return { error: t('auth.err.credentials') };
   }
-  if (user.status === 'disabled') return { error: 'This account has been disabled.' };
+  if (user.status === 'disabled') return { error: t('auth.err.disabled') };
 
   await createSession(user.id, user.tenant_id);
   audit(user.tenant_id, { id: user.id, name: user.name }, 'auth.signin', user.id);

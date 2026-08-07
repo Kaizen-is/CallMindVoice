@@ -33,7 +33,12 @@ export const viewport: Viewport = {
 };
 
 /**
- * Applied before first paint so a dark-mode user never sees a white flash.
+ * Runs before first paint (theme applied so a dark-mode user never sees a white
+ * flash) and wires the theme toggle via a single delegated listener on the
+ * document. Doing the toggle here — rather than with a React onClick — means the
+ * light/dark switch keeps working even if a header subtree fails to hydrate
+ * (e.g. a browser extension mutating the sticky header). Any element carrying
+ * `data-theme-toggle` flips the theme when clicked.
  */
 const THEME_BOOTSTRAP = `
 (function () {
@@ -43,12 +48,18 @@ const THEME_BOOTSTRAP = `
       : window.matchMedia('(prefers-color-scheme: dark)').matches;
     if (dark) document.documentElement.classList.add('dark');
   } catch (e) {}
+  document.addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest('[data-theme-toggle]') : null;
+    if (!btn) return;
+    var isDark = document.documentElement.classList.toggle('dark');
+    try { localStorage.setItem('ovoz-theme', isDark ? 'dark' : 'light'); } catch (e) {}
+  });
 })();
 `;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="uz" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
       </head>

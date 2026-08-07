@@ -34,7 +34,7 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
       plan          TEXT NOT NULL DEFAULT 'trial',
       plan_started  TEXT,
       trial_ends_at TEXT,
-      locale        TEXT NOT NULL DEFAULT 'en',
+      locale        TEXT NOT NULL DEFAULT 'uz',
       status        TEXT NOT NULL DEFAULT 'active',
       onboarded     INTEGER NOT NULL DEFAULT 0,
       settings_json TEXT NOT NULL DEFAULT '{}',
@@ -50,7 +50,7 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
       password_hash TEXT NOT NULL,
       role          TEXT NOT NULL DEFAULT 'owner',   -- owner | admin | operator | analyst
       avatar_hue    INTEGER NOT NULL DEFAULT 210,
-      locale        TEXT NOT NULL DEFAULT 'en',
+      locale        TEXT NOT NULL DEFAULT 'uz',
       status        TEXT NOT NULL DEFAULT 'active',  -- active | invited | disabled
       presence      TEXT NOT NULL DEFAULT 'offline', -- online | away | offline
       last_seen_at  TEXT,

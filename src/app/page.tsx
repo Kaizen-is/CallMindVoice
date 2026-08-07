@@ -27,19 +27,16 @@ import {
   Wordmark,
 } from '@/components/icons';
 import { currentSession } from '@/lib/auth';
-import { cookies } from 'next/headers';
-import { LOCALES, translator, type Translate } from '@/lib/i18n';
+import { resolveUiLocale } from '@/lib/locale-server';
+import { translator, type Translate } from '@/lib/i18n';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import type { UiLocale } from '@/lib/types';
 
 export default async function LandingPage() {
   const session = await currentSession();
   // Signed-in visitors follow their saved locale; anonymous visitors follow the
-  // `ovoz_locale` cookie set by the header switcher; otherwise default to English.
-  const cookieLocale = (await cookies()).get('ovoz_locale')?.value as UiLocale | undefined;
-  const locale: UiLocale =
-    (session?.user.locale as UiLocale | undefined) ??
-    (cookieLocale && LOCALES.includes(cookieLocale) ? cookieLocale : 'en');
+  // `ovoz_locale` cookie set by the header switcher; otherwise default to Uzbek (Latin).
+  const locale = await resolveUiLocale(session?.user.locale);
   const t = translator(locale);
 
   return (

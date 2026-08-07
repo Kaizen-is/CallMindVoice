@@ -126,6 +126,53 @@ const en: Dict = {
   'reason.repeated_failure': 'Several unanswered questions',
   'reason.after_hours': 'Outside business hours',
   'reason.max_turns': 'Conversation ran long',
+
+  // Auth — login & signup (public pages; follow the header language switcher).
+  'auth.email': 'Work email',
+  'auth.password': 'Password',
+  'auth.showPassword': 'Show password',
+  'auth.hidePassword': 'Hide password',
+
+  'auth.login.title': 'Welcome back',
+  'auth.login.subtitle': 'Sign in to your Ovoz console.',
+  'auth.login.submit': 'Sign in',
+  'auth.login.noAccount': 'No account yet?',
+  'auth.login.createOne': 'Create one',
+  'auth.login.demoName': 'Demo account.',
+  'auth.login.demoUse': 'Sign in with',
+  'auth.login.demoTail': 'to explore a clinic with a month of call history already loaded.',
+
+  'auth.signup.heroTitle': 'Fourteen days to find out if this works for you.',
+  'auth.signup.heroSub':
+    'No card, no sales call. Upload one document and phone your own agent — you will know within the hour whether it can carry your calls.',
+  'auth.signup.benefit1': 'A working voice agent in the time it takes to make coffee',
+  'auth.signup.benefit2': 'Uzbek, Russian and English out of the box',
+  'auth.signup.benefit3': 'Every answer traceable to the document it came from',
+  'auth.signup.benefit4': 'Nothing to install — your team just opens a browser',
+  'auth.signup.formTitle': 'Create your agent',
+  'auth.signup.formSubtitle': 'Takes about a minute.',
+  'auth.signup.company': 'Company',
+  'auth.signup.industry': 'What do you do?',
+  'auth.signup.name': 'Your name',
+  'auth.signup.passwordHint': 'At least 8 characters.',
+  'auth.signup.submit': 'Create account',
+  'auth.signup.terms': 'By continuing you agree to the service terms and privacy policy.',
+  'auth.signup.haveAccount': 'Already have an account?',
+  'auth.signup.signin': 'Sign in',
+
+  'auth.strength.weak': 'Weak',
+  'auth.strength.fair': 'Fair',
+  'auth.strength.good': 'Good',
+  'auth.strength.strong': 'Strong',
+
+  'auth.err.company': 'Please enter your company name.',
+  'auth.err.name': 'Please enter your name.',
+  'auth.err.email': 'That email address does not look right.',
+  'auth.err.password': 'Use at least 8 characters for your password.',
+  'auth.err.createFailed': 'Could not create the account.',
+  'auth.err.emailExists': 'An account with this email already exists.',
+  'auth.err.credentials': 'Email or password is incorrect.',
+  'auth.err.disabled': 'This account has been disabled.',
 };
 
 const ru: Dict = {
@@ -224,6 +271,53 @@ const ru: Dict = {
   'reason.repeated_failure': 'Несколько вопросов без ответа',
   'reason.after_hours': 'Вне рабочего времени',
   'reason.max_turns': 'Разговор затянулся',
+
+  // Auth — login & signup.
+  'auth.email': 'Рабочая почта',
+  'auth.password': 'Пароль',
+  'auth.showPassword': 'Показать пароль',
+  'auth.hidePassword': 'Скрыть пароль',
+
+  'auth.login.title': 'С возвращением',
+  'auth.login.subtitle': 'Войдите в консоль Ovoz.',
+  'auth.login.submit': 'Войти',
+  'auth.login.noAccount': 'Ещё нет аккаунта?',
+  'auth.login.createOne': 'Создать',
+  'auth.login.demoName': 'Демо-аккаунт.',
+  'auth.login.demoUse': 'Войдите с',
+  'auth.login.demoTail': 'чтобы посмотреть клинику с уже загруженной историей звонков за месяц.',
+
+  'auth.signup.heroTitle': 'Четырнадцать дней, чтобы понять, подходит ли это вам.',
+  'auth.signup.heroSub':
+    'Без карты, без звонка от продажников. Загрузите один документ и позвоните своему агенту — в течение часа вы поймёте, справится ли он с вашими звонками.',
+  'auth.signup.benefit1': 'Рабочий голосовой агент за время, пока варится кофе',
+  'auth.signup.benefit2': 'Узбекский, русский и английский — сразу из коробки',
+  'auth.signup.benefit3': 'Каждый ответ прослеживается до документа, откуда он взят',
+  'auth.signup.benefit4': 'Ничего не нужно устанавливать — команда просто открывает браузер',
+  'auth.signup.formTitle': 'Создайте своего агента',
+  'auth.signup.formSubtitle': 'Займёт около минуты.',
+  'auth.signup.company': 'Компания',
+  'auth.signup.industry': 'Чем вы занимаетесь?',
+  'auth.signup.name': 'Ваше имя',
+  'auth.signup.passwordHint': 'Минимум 8 символов.',
+  'auth.signup.submit': 'Создать аккаунт',
+  'auth.signup.terms': 'Продолжая, вы соглашаетесь с условиями сервиса и политикой конфиденциальности.',
+  'auth.signup.haveAccount': 'Уже есть аккаунт?',
+  'auth.signup.signin': 'Войти',
+
+  'auth.strength.weak': 'Слабый',
+  'auth.strength.fair': 'Средний',
+  'auth.strength.good': 'Хороший',
+  'auth.strength.strong': 'Надёжный',
+
+  'auth.err.company': 'Пожалуйста, укажите название компании.',
+  'auth.err.name': 'Пожалуйста, укажите ваше имя.',
+  'auth.err.email': 'Похоже, адрес электронной почты неверный.',
+  'auth.err.password': 'Используйте не менее 8 символов для пароля.',
+  'auth.err.createFailed': 'Не удалось создать аккаунт.',
+  'auth.err.emailExists': 'Аккаунт с этой почтой уже существует.',
+  'auth.err.credentials': 'Неверная почта или пароль.',
+  'auth.err.disabled': 'Этот аккаунт отключён.',
 };
 
 const uz: Dict = {
@@ -322,6 +416,53 @@ const uz: Dict = {
   'reason.repeated_failure': 'Bir necha savol javobsiz qoldi',
   'reason.after_hours': 'Ish vaqtidan tashqari',
   'reason.max_turns': 'Suhbat cho‘zilib ketdi',
+
+  // Auth — login & signup.
+  'auth.email': 'Ish elektron pochtasi',
+  'auth.password': 'Parol',
+  'auth.showPassword': 'Parolni ko‘rsatish',
+  'auth.hidePassword': 'Parolni yashirish',
+
+  'auth.login.title': 'Xush kelibsiz',
+  'auth.login.subtitle': 'Ovoz konsolingizga kiring.',
+  'auth.login.submit': 'Kirish',
+  'auth.login.noAccount': 'Hali hisobingiz yo‘qmi?',
+  'auth.login.createOne': 'Yarating',
+  'auth.login.demoName': 'Demo hisob.',
+  'auth.login.demoUse': '',
+  'auth.login.demoTail': 'bilan kiring — bir oylik qo‘ng‘iroq tarixi yuklangan klinikani ko‘rasiz.',
+
+  'auth.signup.heroTitle': 'Bu sizga mos kelishini bilish uchun o‘n to‘rt kun.',
+  'auth.signup.heroSub':
+    'Kartasiz, sotuv qo‘ng‘irog‘isiz. Bitta hujjat yuklang va o‘z agentingizga qo‘ng‘iroq qiling — u qo‘ng‘iroqlaringizni uddalay oladimi, bir soat ichida bilasiz.',
+  'auth.signup.benefit1': 'Qahva damlaguncha ishlaydigan ovozli agent',
+  'auth.signup.benefit2': 'O‘zbek, rus va ingliz tillari — darhol',
+  'auth.signup.benefit3': 'Har bir javob olingan hujjatgacha izlanadi',
+  'auth.signup.benefit4': 'Hech narsa o‘rnatish shart emas — jamoangiz shunchaki brauzer ochadi',
+  'auth.signup.formTitle': 'Agentingizni yarating',
+  'auth.signup.formSubtitle': 'Bir daqiqacha vaqt oladi.',
+  'auth.signup.company': 'Kompaniya',
+  'auth.signup.industry': 'Nima bilan shug‘ullanasiz?',
+  'auth.signup.name': 'Ismingiz',
+  'auth.signup.passwordHint': 'Kamida 8 ta belgi.',
+  'auth.signup.submit': 'Hisob yaratish',
+  'auth.signup.terms': 'Davom ettirsangiz, xizmat shartlari va maxfiylik siyosatiga rozilik bildirasiz.',
+  'auth.signup.haveAccount': 'Hisobingiz bormi?',
+  'auth.signup.signin': 'Kirish',
+
+  'auth.strength.weak': 'Zaif',
+  'auth.strength.fair': 'O‘rtacha',
+  'auth.strength.good': 'Yaxshi',
+  'auth.strength.strong': 'Kuchli',
+
+  'auth.err.company': 'Iltimos, kompaniya nomini kiriting.',
+  'auth.err.name': 'Iltimos, ismingizni kiriting.',
+  'auth.err.email': 'Bu elektron pochta manzili noto‘g‘ri ko‘rinadi.',
+  'auth.err.password': 'Parol uchun kamida 8 ta belgidan foydalaning.',
+  'auth.err.createFailed': 'Hisob yaratib bo‘lmadi.',
+  'auth.err.emailExists': 'Bu pochta bilan hisob allaqachon mavjud.',
+  'auth.err.credentials': 'Pochta yoki parol noto‘g‘ri.',
+  'auth.err.disabled': 'Bu hisob o‘chirib qo‘yilgan.',
 };
 
 /**
@@ -426,6 +567,53 @@ const uzCyrl: Dict = {
   'reason.repeated_failure': 'Бир неча савол жавобсиз қолди',
   'reason.after_hours': 'Иш вақтидан ташқари',
   'reason.max_turns': 'Суҳбат чўзилиб кетди',
+
+  // Auth — login & signup.
+  'auth.email': 'Иш электрон почтаси',
+  'auth.password': 'Парол',
+  'auth.showPassword': 'Паролни кўрсатиш',
+  'auth.hidePassword': 'Паролни яшириш',
+
+  'auth.login.title': 'Хуш келибсиз',
+  'auth.login.subtitle': 'Ovoz консолингизга киринг.',
+  'auth.login.submit': 'Кириш',
+  'auth.login.noAccount': 'Ҳали ҳисобингиз йўқми?',
+  'auth.login.createOne': 'Яратинг',
+  'auth.login.demoName': 'Демо ҳисоб.',
+  'auth.login.demoUse': '',
+  'auth.login.demoTail': 'билан кириб, бир ойлик қўнғироқ тарихи юкланган клиникани кўрасиз.',
+
+  'auth.signup.heroTitle': 'Бу сизга мос келишини билиш учун ўн тўрт кун.',
+  'auth.signup.heroSub':
+    'Картасиз, сотув қўнғироғисиз. Битта ҳужжат юкланг ва ўз агентингизга қўнғироқ қилинг — у қўнғироқларингизни уддалай оладими, бир соат ичида биласиз.',
+  'auth.signup.benefit1': 'Қаҳва дамлагунча ишлайдиган овозли агент',
+  'auth.signup.benefit2': 'Ўзбек, рус ва инглиз тиллари — дарҳол',
+  'auth.signup.benefit3': 'Ҳар бир жавоб олинган ҳужжатгача изланади',
+  'auth.signup.benefit4': 'Ҳеч нарса ўрнатиш шарт эмас — жамоангиз шунчаки браузер очади',
+  'auth.signup.formTitle': 'Агентингизни яратинг',
+  'auth.signup.formSubtitle': 'Бир дақиқача вақт олади.',
+  'auth.signup.company': 'Компания',
+  'auth.signup.industry': 'Нима билан шуғулланасиз?',
+  'auth.signup.name': 'Исмингиз',
+  'auth.signup.passwordHint': 'Камида 8 та белги.',
+  'auth.signup.submit': 'Ҳисоб яратиш',
+  'auth.signup.terms': 'Давом эттирсангиз, хизмат шартлари ва махфийлик сиёсатига розилик билдирасиз.',
+  'auth.signup.haveAccount': 'Ҳисобингиз борми?',
+  'auth.signup.signin': 'Кириш',
+
+  'auth.strength.weak': 'Заиф',
+  'auth.strength.fair': 'Ўртача',
+  'auth.strength.good': 'Яхши',
+  'auth.strength.strong': 'Кучли',
+
+  'auth.err.company': 'Илтимос, компания номини киритинг.',
+  'auth.err.name': 'Илтимос, исмингизни киритинг.',
+  'auth.err.email': 'Бу электрон почта манзили нотўғри кўринади.',
+  'auth.err.password': 'Парол учун камида 8 та белгидан фойдаланинг.',
+  'auth.err.createFailed': 'Ҳисоб яратиб бўлмади.',
+  'auth.err.emailExists': 'Бу почта билан ҳисоб аллақачон мавжуд.',
+  'auth.err.credentials': 'Почта ёки парол нотўғри.',
+  'auth.err.disabled': 'Бу ҳисоб ўчириб қўйилган.',
 };
 
 const DICTS: Record<UiLocale, Dict> = {

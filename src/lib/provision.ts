@@ -55,7 +55,7 @@ export function provisionTenant(input: ProvisionInput) {
   const userId = id('usr');
   const agentId = id('agt');
   const numberId = id('num');
-  const locale = input.locale ?? 'en';
+  const locale = input.locale ?? 'uz';
   const primaryLang = input.primaryLang ?? 'uz';
   const stamp = now();
   const trialEnds = new Date(Date.now() + 14 * 864e5).toISOString();

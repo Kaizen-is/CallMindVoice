@@ -1,17 +1,23 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { currentSession } from '@/lib/auth';
+import { resolveUiLocale } from '@/lib/locale-server';
+import { translator } from '@/lib/i18n';
 import { AuthShell } from '@/components/auth/shell';
 import { LoginForm } from './form';
 
-export const metadata: Metadata = { title: 'Sign in' };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = translator(await resolveUiLocale());
+  return { title: t('auth.login.submit') };
+}
 
 export default async function LoginPage() {
   const session = await currentSession();
   if (session) redirect(session.tenant.onboarded ? '/app' : '/onboarding');
+  const locale = await resolveUiLocale();
   return (
-    <AuthShell>
-      <LoginForm />
+    <AuthShell locale={locale}>
+      <LoginForm locale={locale} />
     </AuthShell>
   );
 }

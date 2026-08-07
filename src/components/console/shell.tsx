@@ -61,7 +61,7 @@ export function ConsoleShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const locale = (user.locale ?? 'en') as UiLocale;
+  const locale = (user.locale ?? 'uz') as UiLocale;
   const t = translator(locale);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
