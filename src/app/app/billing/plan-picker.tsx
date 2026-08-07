@@ -32,11 +32,15 @@ export function PlanPicker({ current, canChange }: { current: string; canChange:
                 {active && <IconCheck size={16} className="text-brand" />}
               </div>
               <div className="mt-2 text-[24px] leading-none font-semibold text-ink tabular">
-                {p.priceUsd ? fmtMoney(p.priceUsd, 'USD', 0) : 'Free'}
+                {p.priceUsd
+                  ? fmtMoney(p.priceUsd, 'USD', 0)
+                  : p.id === 'payg'
+                    ? `${fmtMoney(p.overagePerMinute, 'USD', 3)}/min`
+                    : 'Free'}
               </div>
               <p className="mt-2 min-h-[34px] text-[12.5px] leading-relaxed text-ink-3">{p.blurb}</p>
               <ul className="mt-3 flex-1 space-y-1.5 text-[12.5px] text-ink-2">
-                <li>{fmtInt(p.callsIncluded)} calls / month</li>
+                <li>{p.minutesIncluded ? `${fmtInt(p.minutesIncluded)} min / month` : 'Billed per minute'}</li>
                 <li>{p.numbers} phone number{p.numbers === 1 ? '' : 's'}</li>
                 <li>{p.seats > 100 ? 'Unlimited' : p.seats} seats</li>
               </ul>

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { translator, LOCALE_SHORT } from '@/lib/i18n';
@@ -60,6 +60,7 @@ export function ConsoleShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const locale = (user.locale ?? 'en') as UiLocale;
   const t = translator(locale);
   const [collapsed, setCollapsed] = useState(false);
@@ -90,12 +91,7 @@ export function ConsoleShell({
       title: t('nav.section.build'),
       items: [
         { href: '/app', labelKey: 'nav.overview', icon: <IconHome size={17} /> },
-        {
-          href: '/app/knowledge',
-          labelKey: 'nav.knowledge',
-          icon: <IconBook size={17} />,
-          badge: counts.documents === 0 ? undefined : undefined,
-        },
+        { href: '/app/knowledge', labelKey: 'nav.knowledge', icon: <IconBook size={17} /> },
         { href: '/app/agent', labelKey: 'nav.agent', icon: <IconSparkle size={17} /> },
         { href: '/app/playground', labelKey: 'nav.playground', icon: <IconWave size={17} /> },
       ],
@@ -124,16 +120,16 @@ export function ConsoleShell({
       title: t('nav.section.measure'),
       items: [{ href: '/app/analytics', labelKey: 'nav.analytics', icon: <IconChart size={17} /> }],
     },
-    {
-      title: t('nav.section.manage'),
-      items: [
-        { href: '/app/numbers', labelKey: 'nav.numbers', icon: <IconGlobe size={17} /> },
-        { href: '/app/team', labelKey: 'nav.team', icon: <IconUsers size={17} /> },
-        { href: '/app/billing', labelKey: 'nav.billing', icon: <IconCreditCard size={17} /> },
-        { href: '/app/developers', labelKey: 'nav.developers', icon: <IconCode size={17} /> },
-        { href: '/app/settings', labelKey: 'nav.settings', icon: <IconSettings size={17} /> },
-      ],
-    },
+  ];
+
+  // Workspace / account management — relocated out of the sidebar into the
+  // profile menu (top-right) so the sidebar stays focused on daily work.
+  const manageNav: Array<{ href: string; labelKey: string; icon: ReactNode }> = [
+    { href: '/app/numbers', labelKey: 'nav.numbers', icon: <IconGlobe size={15} /> },
+    { href: '/app/team', labelKey: 'nav.team', icon: <IconUsers size={15} /> },
+    { href: '/app/billing', labelKey: 'nav.billing', icon: <IconCreditCard size={15} /> },
+    { href: '/app/developers', labelKey: 'nav.developers', icon: <IconCode size={15} /> },
+    { href: '/app/settings', labelKey: 'nav.settings', icon: <IconSettings size={15} /> },
   ];
 
   const isActive = (href: string) =>
@@ -141,13 +137,26 @@ export function ConsoleShell({
 
   const sidebar = (
     <div className="flex h-full flex-col">
-      <div className={cn('flex h-16 items-center gap-2.5 px-4', collapsed && 'justify-center px-0')}>
+      <div
+        className={cn(
+          'flex h-16 items-center px-4',
+          collapsed ? 'flex-col justify-center gap-1.5 px-0' : 'justify-between',
+        )}
+      >
         <Link href="/app" className="flex items-center gap-2.5">
           <Logo size={26} />
           {!collapsed && (
             <span className="text-[16px] font-semibold tracking-[-0.02em] text-ink">Ovoz</span>
           )}
         </Link>
+        <button
+          onClick={toggleCollapse}
+          title={t('shell.collapse')}
+          aria-label={t('shell.collapse')}
+          className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink lg:flex"
+        >
+          <IconChevronLeft size={16} className={cn('transition-transform', collapsed && 'rotate-180')} />
+        </button>
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 pb-4">
@@ -167,17 +176,19 @@ export function ConsoleShell({
                     href={item.href}
                     title={collapsed ? t(item.labelKey) : undefined}
                     className={cn(
-                      'group relative flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[13.5px] font-medium transition-all duration-150',
+                      'group relative flex items-center gap-2.5 rounded-[10px] px-2.5 py-[9px] text-[13.5px] font-medium transition-colors duration-150',
                       collapsed && 'justify-center px-0',
                       active
-                        ? 'bg-surface-3 text-ink'
-                        : 'text-ink-2 hover:bg-surface-3/60 hover:text-ink',
+                        ? 'bg-brand-soft text-brand-ink'
+                        : 'text-ink-2 hover:bg-surface-3 hover:text-ink',
                     )}
                   >
-                    {active && (
-                      <span className="absolute top-1/2 -left-3 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand" />
-                    )}
-                    <span className={cn('shrink-0', active ? 'text-brand' : 'text-ink-3')}>
+                    <span
+                      className={cn(
+                        'shrink-0 transition-colors',
+                        active ? 'text-brand' : 'text-ink-3 group-hover:text-ink-2',
+                      )}
+                    >
                       {item.icon}
                     </span>
                     {!collapsed && <span className="flex-1 truncate">{t(item.labelKey)}</span>}
@@ -196,19 +207,6 @@ export function ConsoleShell({
           </div>
         ))}
       </nav>
-
-      <div className={cn('px-3 pb-3', collapsed && 'px-2')}>
-        <button
-          onClick={toggleCollapse}
-          className={cn(
-            'hidden w-full items-center gap-2 rounded-[9px] px-2.5 py-2 text-[12.5px] text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink lg:flex',
-            collapsed && 'justify-center px-0',
-          )}
-        >
-          <IconChevronLeft size={15} className={cn('transition-transform', collapsed && 'rotate-180')} />
-          {!collapsed && t('shell.collapse')}
-        </button>
-      </div>
     </div>
   );
 
@@ -294,17 +292,29 @@ export function ConsoleShell({
           <ThemeToggle />
 
           <Menu
-            width={220}
+            width={236}
+            header={
+              <div className="flex items-center gap-2.5 px-2.5 pt-1 pb-1.5">
+                <Avatar name={user.name} hue={user.avatar_hue} size={34} presence="online" />
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-semibold text-ink">{user.name}</div>
+                  <div className="truncate text-[11.5px] text-ink-3">{user.email}</div>
+                </div>
+              </div>
+            }
             trigger={({ toggle }) => (
               <button onClick={toggle} className="rounded-full transition-transform active:scale-95">
                 <Avatar name={user.name} hue={user.avatar_hue} size={32} presence="online" />
               </button>
             )}
             items={[
-              { label: user.email, onClick: () => {}, disabled: true },
               { type: 'separator' },
-              { label: t('nav.settings'), icon: <IconSettings size={15} />, onClick: () => (window.location.href = '/app/settings') },
-              { label: t('nav.team'), icon: <IconUsers size={15} />, onClick: () => (window.location.href = '/app/team') },
+              { type: 'label', label: t('nav.section.manage') },
+              ...manageNav.map((it) => ({
+                label: t(it.labelKey),
+                icon: it.icon,
+                onClick: () => router.push(it.href),
+              })),
               { type: 'separator' },
               {
                 label: t('common.signOut'),

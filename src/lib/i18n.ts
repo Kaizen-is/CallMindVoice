@@ -1,4 +1,5 @@
 import type { UiLocale } from './types';
+import { landing } from './i18n-landing';
 
 /** Order shown in every language picker. Uzbek Latin then Uzbek Cyrillic. */
 export const LOCALES: UiLocale[] = ['uz', 'uz-Cyrl', 'ru', 'en'];
@@ -427,7 +428,12 @@ const uzCyrl: Dict = {
   'reason.max_turns': 'Суҳбат чўзилиб кетди',
 };
 
-const DICTS: Record<UiLocale, Dict> = { en, ru, uz, 'uz-Cyrl': uzCyrl };
+const DICTS: Record<UiLocale, Dict> = {
+  en: { ...en, ...landing.en },
+  ru: { ...ru, ...landing.ru },
+  uz: { ...uz, ...landing.uz },
+  'uz-Cyrl': { ...uzCyrl, ...landing['uz-Cyrl'] },
+};
 
 /**
  * Per-locale lookup order. Uzbek Cyrillic falls back to Uzbek Latin (same

@@ -262,14 +262,18 @@ export function Menu({
   items,
   align = 'right',
   width = 200,
+  header,
 }: {
   trigger: (props: { open: boolean; toggle: () => void }) => ReactNode;
   items: Array<
     | { type: 'separator' }
+    | { type: 'label'; label: string }
     | { type?: 'item'; label: string; icon?: ReactNode; onClick: () => void; danger?: boolean; disabled?: boolean }
   >;
   align?: 'left' | 'right';
   width?: number;
+  /** Optional non-interactive block rendered at the top (e.g. a profile card). */
+  header?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -300,30 +304,40 @@ export function Menu({
           style={{ width, transformOrigin: align === 'right' ? 'top right' : 'top left' }}
           role="menu"
         >
-          {items.map((it, i) =>
-            'type' in it && it.type === 'separator' ? (
-              <div key={i} className="my-1 h-px bg-[rgb(var(--line)/var(--line-alpha))]" />
-            ) : (
+          {header}
+          {items.map((it, i) => {
+            if (it.type === 'separator') {
+              return <div key={i} className="my-1 h-px bg-[rgb(var(--line)/var(--line-alpha))]" />;
+            }
+            if (it.type === 'label') {
+              return (
+                <div
+                  key={i}
+                  className="px-2.5 pt-2 pb-1 text-[10px] font-semibold tracking-[0.07em] text-ink-3 uppercase"
+                >
+                  {it.label}
+                </div>
+              );
+            }
+            return (
               <button
                 key={i}
                 role="menuitem"
-                disabled={(it as { disabled?: boolean }).disabled}
+                disabled={it.disabled}
                 onClick={() => {
-                  (it as { onClick: () => void }).onClick();
+                  it.onClick();
                   setOpen(false);
                 }}
                 className={cn(
                   'flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[13px] transition-colors disabled:opacity-40',
-                  (it as { danger?: boolean }).danger
-                    ? 'text-danger hover:bg-danger-soft'
-                    : 'text-ink hover:bg-surface-3',
+                  it.danger ? 'text-danger hover:bg-danger-soft' : 'text-ink hover:bg-surface-3',
                 )}
               >
-                {(it as { icon?: ReactNode }).icon}
-                {(it as { label: string }).label}
+                {it.icon}
+                {it.label}
               </button>
-            ),
-          )}
+            );
+          })}
         </div>
       )}
     </div>

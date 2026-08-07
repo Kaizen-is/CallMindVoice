@@ -1,9 +1,10 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { get, now, run } from '@/lib/db';
-import { audit, createSession, destroySession, requireSession, verifyPassword } from '@/lib/auth';
+import { audit, createSession, currentSession, destroySession, requireSession, verifyPassword } from '@/lib/auth';
 import { provisionTenant } from '@/lib/provision';
 import { LOCALES } from '@/lib/i18n';
 import type { UiLocale, User } from '@/lib/types';
@@ -71,4 +72,24 @@ export async function setLocaleAction(locale: UiLocale) {
   run('UPDATE users SET locale=?, updated_at=? WHERE id=?', locale, now(), user.id);
   run('UPDATE tenants SET locale=?, updated_at=? WHERE id=?', locale, now(), tenant.id);
   revalidatePath('/app', 'layout');
+}
+
+/**
+ * Public locale switch — usable by signed-out visitors on the marketing site.
+ * Persists to a year-long cookie, and mirrors into the user/tenant records when
+ * a session exists so the console and the landing page stay in sync.
+ */
+export async function setPublicLocaleAction(locale: UiLocale) {
+  if (!LOCALES.includes(locale)) return;
+  (await cookies()).set('ovoz_locale', locale, {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: 'lax',
+  });
+  const session = await currentSession();
+  if (session) {
+    run('UPDATE users SET locale=?, updated_at=? WHERE id=?', locale, now(), session.user.id);
+    run('UPDATE tenants SET locale=?, updated_at=? WHERE id=?', locale, now(), session.tenant.id);
+  }
+  revalidatePath('/', 'layout');
 }

@@ -24,9 +24,12 @@ export default async function BillingPage() {
   );
 
   const plan = PLANS.find((p) => p.id === tenant.plan) ?? PLANS[0];
-  const usedPct = plan.callsIncluded ? stats.totalCalls / plan.callsIncluded : 0;
-  const overageCalls = Math.max(0, stats.totalCalls - plan.callsIncluded);
-  const usageCost = stats.minutes * OVERAGE_PER_MINUTE;
+  // Bill only the minutes beyond the plan's included bundle — not every minute.
+  const minutesUsed = stats.minutes;
+  const usedPct = plan.minutesIncluded ? minutesUsed / plan.minutesIncluded : 0;
+  const overageMinutes = Math.max(0, minutesUsed - plan.minutesIncluded);
+  const overageRate = plan.overagePerMinute ?? OVERAGE_PER_MINUTE;
+  const usageCost = overageMinutes * overageRate;
   const trialLeft = tenant.trial_ends_at
     ? Math.max(0, Math.ceil((new Date(tenant.trial_ends_at).getTime() - Date.now()) / 864e5))
     : 0;
@@ -60,7 +63,7 @@ export default async function BillingPage() {
             <div>
               <h3 className="text-[15px] font-semibold text-ink">This period</h3>
               <p className="mt-0.5 text-[12.5px] text-ink-3">
-                {plan.name} plan · {fmtInt(plan.callsIncluded)} calls included
+                {plan.name} plan · {fmtInt(plan.minutesIncluded)} minutes included
               </p>
             </div>
             <div className="text-right">
@@ -73,22 +76,22 @@ export default async function BillingPage() {
 
           <div className="mt-5">
             <div className="mb-1.5 flex items-baseline justify-between text-[12.5px]">
-              <span className="text-ink-2">Calls used</span>
+              <span className="text-ink-2">Minutes used</span>
               <span className="text-ink tabular">
-                {fmtInt(stats.totalCalls)} / {fmtInt(plan.callsIncluded)}
+                {fmtInt(minutesUsed)} / {fmtInt(plan.minutesIncluded)}
               </span>
             </div>
             <Progress value={usedPct} tone={usedPct > 0.9 ? 'danger' : usedPct > 0.7 ? 'warning' : 'brand'} />
-            {overageCalls > 0 && (
+            {overageMinutes > 0 && (
               <p className="mt-2 text-[12px] text-warning">
-                {fmtInt(overageCalls)} calls beyond the plan — billed at {fmtMoney(OVERAGE_PER_MINUTE, 'USD', 3)}/minute.
+                {fmtInt(overageMinutes)} minutes beyond the plan — billed at {fmtMoney(overageRate, 'USD', 3)}/minute.
               </p>
             )}
           </div>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-3">
             <Meter label="Plan fee" value={fmtMoney(plan.priceUsd, 'USD', 0)} />
-            <Meter label="Usage" value={fmtMoney(usageCost, 'USD', 2)} sub={`${stats.minutes.toFixed(0)} min`} />
+            <Meter label="Usage" value={fmtMoney(usageCost, 'USD', 2)} sub={`${overageMinutes.toFixed(0)} min over bundle`} />
             <Meter
               label="Avoided wages"
               value={fmtMoney(stats.savingsUsd, 'USD', 0)}

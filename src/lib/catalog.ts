@@ -19,12 +19,11 @@ export const INDUSTRIES = [
   { value: 'other', label: 'Something else' },
 ] as const;
 
+// The internal Uzbek TTS server exposes exactly two voice profiles, mapped by
+// `gender` in the TTS route: female → uz_female_calm, male → uz_male_news.
 export const VOICES = [
-  { id: 'nilufar', name: 'Nilufar', gender: 'female', langs: ['uz', 'ru'], note: 'Warm, unhurried — the default for clinics' },
-  { id: 'aziz', name: 'Aziz', gender: 'male', langs: ['uz', 'ru'], note: 'Steady and clear' },
-  { id: 'kamila', name: 'Kamila', gender: 'female', langs: ['ru', 'en'], note: 'Bright, quick-paced' },
-  { id: 'timur', name: 'Timur', gender: 'male', langs: ['uz', 'en'], note: 'Low register, formal' },
-  { id: 'sevara', name: 'Sevara', gender: 'female', langs: ['uz', 'ru', 'en'], note: 'Trilingual, neutral accent' },
+  { id: 'nilufar', name: 'Nilufar', gender: 'female', langs: ['uz'], note: 'Warm, unhurried female voice' },
+  { id: 'timur', name: 'Timur', gender: 'male', langs: ['uz'], note: 'Formal, low-register male voice' },
 ] as const;
 
 export const PERSONAS = [
@@ -34,22 +33,46 @@ export const PERSONAS = [
   { value: 'empathetic', label: 'Empathetic', hint: 'Acknowledges the caller first' },
 ] as const;
 
+// Billing is denominated in MINUTES. Each plan bundles `minutesIncluded`; usage
+// above the bundle is billed at OVERAGE_PER_MINUTE. `callsIncluded` is a rounded
+// "≈ calls" figure (at ~3.3 min/call) kept only for human-friendly display —
+// minutes are the source of truth for metering and billing.
+// Prices target the Uzbek market, where a fully-loaded operator is ~$300–500/mo,
+// so the entry tier reads as "less than one salary." Bundles are sized so each
+// tier is genuinely the cheapest choice within its own volume band (base premium
+// < the overage value of the extra included minutes), not just feature-gated.
 export const PLANS = [
   {
     id: 'trial',
     name: 'Trial',
     priceUsd: 0,
-    callsIncluded: 250,
+    minutesIncluded: 500,
+    callsIncluded: 150,
+    overagePerMinute: 0.04,
     numbers: 1,
     seats: 3,
     storageMb: 100,
     blurb: '14 days to decide.',
   },
   {
+    id: 'payg',
+    name: 'Pay as you go',
+    priceUsd: 0,
+    minutesIncluded: 0,
+    callsIncluded: 0,
+    overagePerMinute: 0.05,
+    numbers: 1,
+    seats: 2,
+    storageMb: 250,
+    blurb: 'Metered from the first minute — grow into a plan.',
+  },
+  {
     id: 'start',
     name: 'Start',
-    priceUsd: 490,
-    callsIncluded: 1000,
+    priceUsd: 199,
+    minutesIncluded: 4_000,
+    callsIncluded: 1_200,
+    overagePerMinute: 0.04,
     numbers: 1,
     seats: 3,
     storageMb: 500,
@@ -58,8 +81,10 @@ export const PLANS = [
   {
     id: 'pro',
     name: 'Pro',
-    priceUsd: 1890,
-    callsIncluded: 10000,
+    priceUsd: 890,
+    minutesIncluded: 25_000,
+    callsIncluded: 7_500,
+    overagePerMinute: 0.04,
     numbers: 5,
     seats: 999,
     storageMb: 5000,
@@ -68,8 +93,10 @@ export const PLANS = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    priceUsd: 4490,
-    callsIncluded: 100000,
+    priceUsd: 2490,
+    minutesIncluded: 80_000,
+    callsIncluded: 24_000,
+    overagePerMinute: 0.035,
     numbers: 50,
     seats: 999,
     storageMb: 50000,
@@ -77,7 +104,21 @@ export const PLANS = [
   },
 ] as const;
 
-export const OVERAGE_PER_MINUTE = 0.065;
+// Customer-facing overage rate ($/min above the plan bundle). Set below the
+// per-minute cost of a human operator (a $300 operator ≈ $0.042/handled-min) so
+// the ROI is clearly positive, yet ~2x the true marginal cash cost of a minute
+// (telephony + Gemini + electricity on the self-hosted STT/TTS).
+export const OVERAGE_PER_MINUTE = 0.04;
+
+// Average call length (minutes) used only to translate minute bundles into a
+// friendly "≈ N calls" figure in marketing copy and the ROI calculator.
+export const AVG_CALL_MINUTES = 3.3;
+
+// Contact-centre operator productivity, shared by the ROI calculator (client)
+// and mirrored by the engine's OPERATOR_ASSUMPTIONS (server). 65% occupancy is a
+// healthy after-shrinkage figure (breaks, wrap-up, training, idle time).
+export const OPERATOR_OCCUPANCY = 0.65;
+export const OPERATOR_MINUTES_PER_MONTH = 22 * 8 * 60 * OPERATOR_OCCUPANCY;
 
 export const ESCALATION_REASON_LABEL: Record<string, string> = {
   low_confidence: 'Not confident enough',

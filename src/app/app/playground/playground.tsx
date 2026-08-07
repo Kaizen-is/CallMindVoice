@@ -10,6 +10,7 @@ import {
 import { translator } from '@/lib/i18n';
 import type { Locale, UiLocale } from '@/lib/types';
 import { cn, fmtLatency } from '@/lib/utils';
+import { startRecording, micSupported, type Recording } from '@/lib/audio';
 import { Badge, Button, Card, EmptyState, PageHeader, Segmented, Spinner } from '@/components/ui/primitives';
 import { Input } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
@@ -93,6 +94,7 @@ export function Playground({
   industry,
   chunks,
   engine,
+  speech,
 }: {
   agent: {
     name: string;
@@ -108,6 +110,7 @@ export function Playground({
   industry: string;
   chunks: number;
   engine: string;
+  speech: { stt: boolean; tts: boolean };
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -119,12 +122,15 @@ export function Playground({
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const [listening, setListening] = useState(false);
+  const [micBusy, setMicBusy] = useState(false);
   const [speechLang, setSpeechLang] = useState<Locale>(agent?.primaryLang ?? 'uz');
   const [speechSupported, setSpeechSupported] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [level, setLevel] = useState(0);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recorderRef = useRef<Recording | null>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
   const speechStartRef = useRef<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const suggestions = SUGGESTIONS[industry] ?? SUGGESTIONS.clinic;
@@ -161,6 +167,36 @@ export function Playground({
     [ttsEnabled, agent?.speakingRate],
   );
 
+  // Prefer the internal Uzbek TTS for Uzbek replies; fall back to the browser
+  // voice for Russian/English (the internal model is Uzbek-only).
+  const playTts = useCallback(
+    async (text: string, lang: Locale) => {
+      if (!ttsEnabled || !text.trim()) return;
+      if (speech.tts && lang === 'uz') {
+        try {
+          const res = await fetch('/api/speech/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, voice: agent?.voiceId }),
+          });
+          if (res.ok) {
+            window.speechSynthesis?.cancel();
+            const url = URL.createObjectURL(await res.blob());
+            const audio = audioElRef.current ?? (audioElRef.current = new Audio());
+            audio.src = url;
+            audio.onended = () => URL.revokeObjectURL(url);
+            void audio.play().catch(() => {});
+            return;
+          }
+        } catch {
+          /* fall through to the browser voice */
+        }
+      }
+      speak(text, lang);
+    },
+    [ttsEnabled, speech.tts, speak, agent?.voiceId],
+  );
+
   /* ── the turn ───────────────────────────────────────────────── */
 
   const send = useCallback(
@@ -180,7 +216,7 @@ export function Playground({
       }
       setCallId(res.callId ?? null);
       setMessages((m) => [...m, { role: 'agent', text: res.reply ?? '', reply: res }]);
-      speak(res.reply ?? '', (res.language as Locale) ?? speechLang);
+      void playTts(res.reply ?? '', (res.language as Locale) ?? speechLang);
       if (res.escalate) {
         toast.toast({
           tone: 'info',
@@ -189,7 +225,7 @@ export function Playground({
         });
       }
     },
-    [callId, thinking, speak, speechLang, toast],
+    [callId, thinking, playTts, speechLang, toast],
   );
 
   /* ── speech recognition ─────────────────────────────────────── */
@@ -252,6 +288,62 @@ export function Playground({
     setListening(false);
   }, []);
 
+  /* ── internal STT: record the mic, transcribe with your model ── */
+
+  const startInternalStt = useCallback(async () => {
+    try {
+      recorderRef.current = await startRecording();
+      speechStartRef.current = performance.now();
+      setListening(true);
+    } catch {
+      toast.error('Microphone problem', 'Could not access the microphone.');
+    }
+  }, [toast]);
+
+  const stopInternalStt = useCallback(async () => {
+    const rec = recorderRef.current;
+    recorderRef.current = null;
+    if (!rec) return;
+    setListening(false);
+    setThinking(true);
+    let text = '';
+    let sttMs = 0;
+    let failed = false;
+    try {
+      const { wav, durationSec, rms } = await rec.stop();
+      // Diagnostic: open DevTools → Console to see the captured level.
+      console.log('[stt] captured', { durationSec: +durationSec.toFixed(2), rms: +rms.toFixed(4), bytes: wav.size });
+      // Reject a stray tap or true silence; thresholds are low so a quiet mic passes.
+      if (durationSec < 0.35 || rms < 0.0015) {
+        setThinking(false);
+        toast.toast({
+          tone: 'info',
+          title: 'Nothing heard',
+          description: `Recorded ${durationSec.toFixed(1)}s at level ${rms.toFixed(4)}. If the level is near zero, your mic is muted or the wrong input device is selected.`,
+        });
+        return;
+      }
+      sttMs = performance.now() - speechStartRef.current;
+      const res = await fetch('/api/speech/stt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'audio/wav' },
+        body: wav,
+      });
+      if (res.ok) text = (((await res.json()) as { text?: string }).text ?? '').trim();
+      else {
+        failed = true;
+        toast.error('Transcription failed', 'The STT service returned an error.');
+      }
+    } catch (e) {
+      failed = true;
+      toast.error('Microphone problem', e instanceof Error ? e.message : 'Recording failed.');
+    }
+    setThinking(false);
+    if (text) void send(text, sttMs);
+    else if (!failed)
+      toast.toast({ tone: 'info', title: 'Nothing heard', description: 'No speech was detected — try again.' });
+  }, [send, toast]);
+
   // A simple animated level while listening — the Web Speech API gives no
   // amplitude, so this is an activity indicator rather than a real meter.
   useEffect(() => {
@@ -273,6 +365,30 @@ export function Playground({
 
   const lastReply = [...messages].reverse().find((m) => m.reply)?.reply;
 
+  // Uzbek speech goes to your STT model; RU/EN use the browser recogniser
+  // (the internal model is Uzbek-only).
+  const internalStt = speech.stt && speechLang === 'uz';
+  const micReady = internalStt ? micSupported() : speechSupported;
+  // Click-to-toggle: click once to start, again to stop. This avoids the
+  // press-and-hold race where a quick tap or release-off-button left a stuck,
+  // leaked recorder feeding the model a tiny clip.
+  const micToggle = async () => {
+    if (micBusy) return;
+    setMicBusy(true);
+    try {
+      if (listening) {
+        if (internalStt) await stopInternalStt();
+        else stopListening();
+      } else if (internalStt) {
+        await startInternalStt();
+      } else {
+        startListening();
+      }
+    } finally {
+      setMicBusy(false);
+    }
+  };
+
   if (!agent) {
     return (
       <EmptyState
@@ -284,7 +400,10 @@ export function Playground({
   }
 
   return (
-    <div className="mx-auto max-w-[1400px]">
+    // On desktop, fill the viewport (100vh − 64px top bar − 48px main padding) and
+    // lay out as a column so the chat card's own header/footer stay pinned and only
+    // the message list scrolls. On mobile the height is auto and the page flows.
+    <div className="mx-auto flex max-w-[1400px] flex-col lg:h-[calc(100vh_-_112px)]">
       <PageHeader
         title={t('play.title')}
         subtitle={t('play.subtitle')}
@@ -321,8 +440,8 @@ export function Playground({
         </Card>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-        <Card padded={false} className="flex min-h-[560px] flex-col overflow-hidden">
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_340px]">
+        <Card padded={false} className="flex min-h-[560px] flex-col overflow-hidden lg:min-h-0">
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 hairline-b">
             <div className="flex items-center gap-2.5">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-white">
@@ -346,39 +465,51 @@ export function Playground({
             />
           </div>
 
-          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-5">
-            {messages.length === 0 && !thinking && (
-              <div className="py-6">
-                <p className="mb-3 text-center text-[13px] text-ink-3">
-                  Say the greeting out loud to yourself: “{agent.greeting}”
-                </p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {suggestions.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => void send(s)}
-                      className="rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] text-ink-2 transition-colors hairline hover:text-ink"
-                    >
-                      {s}
-                    </button>
-                  ))}
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+            {/* Inner column keeps the conversation to a readable width and lets the
+                empty state center itself vertically instead of hugging the top. */}
+            <div className="mx-auto flex min-h-full max-w-3xl flex-col gap-3 p-5">
+              {messages.length === 0 && !thinking ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-5 py-8 text-center">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-soft text-brand">
+                    <IconSparkle size={22} />
+                  </span>
+                  <div className="max-w-sm">
+                    <p className="text-[15px] font-semibold text-ink">Talk to {agent.name}</p>
+                    <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">
+                      Ask anything a caller might — it answers only from your knowledge base. Try one:
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {suggestions.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => void send(s)}
+                        className="rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] text-ink-2 transition-colors hairline hover:bg-surface-3 hover:text-ink"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <>
+                  {messages.map((m, i) => (
+                    <Bubble key={i} msg={m} />
+                  ))}
 
-            {messages.map((m, i) => (
-              <Bubble key={i} msg={m} />
-            ))}
-
-            {thinking && (
-              <div className="flex items-center gap-2 text-[12.5px] text-ink-3">
-                <Spinner size={14} />
-                {t('play.thinking')}
-              </div>
-            )}
+                  {thinking && (
+                    <div className="flex items-center gap-2 text-[12.5px] text-ink-3">
+                      <Spinner size={14} />
+                      {t('play.thinking')}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
 
-          <div className="px-5 py-4 hairline-t">
+          <div className="bg-surface-2 px-5 py-4 hairline-t">
             {mode === 'text' ? (
               <form
                 onSubmit={(e) => {
@@ -399,15 +530,17 @@ export function Playground({
                 </Button>
               </form>
             ) : (
-              <div className="flex flex-col items-center gap-3">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col items-center gap-3.5">
+                <div className="flex items-center gap-1.5">
                   {agent.languages.map((l) => (
                     <button
                       key={l}
                       onClick={() => setSpeechLang(l)}
                       className={cn(
                         'rounded-full px-3 py-1 text-[12px] font-medium transition-colors',
-                        speechLang === l ? 'bg-brand text-white' : 'bg-surface-3 text-ink-2',
+                        speechLang === l
+                          ? 'bg-brand text-white shadow-e1'
+                          : 'bg-surface-3 text-ink-2 hover:text-ink',
                       )}
                     >
                       {l.toUpperCase()}
@@ -416,20 +549,16 @@ export function Playground({
                 </div>
 
                 <button
-                  onMouseDown={startListening}
-                  onMouseUp={stopListening}
-                  onTouchStart={(e) => {
-                    e.preventDefault();
-                    startListening();
-                  }}
-                  onTouchEnd={stopListening}
-                  disabled={!speechSupported || thinking}
+                  onClick={() => void micToggle()}
+                  disabled={!micReady || micBusy || (thinking && !listening)}
                   className={cn(
-                    'relative flex h-16 w-16 items-center justify-center rounded-full transition-all duration-200 disabled:opacity-40',
-                    listening ? 'animate-pulse-ring bg-danger text-white' : 'bg-brand text-white hover:brightness-110',
+                    'relative flex h-16 w-16 items-center justify-center rounded-full shadow-e2 transition-all duration-200 disabled:opacity-40',
+                    listening
+                      ? 'animate-pulse-ring bg-danger text-white'
+                      : 'bg-brand text-white hover:scale-105 hover:brightness-110',
                   )}
                 >
-                  {listening ? <IconMic size={26} /> : <IconMic size={24} />}
+                  <IconMic size={25} />
                   {listening && (
                     <span
                       className="absolute inset-0 rounded-full ring-4 ring-danger/30 transition-transform"
@@ -438,19 +567,26 @@ export function Playground({
                   )}
                 </button>
 
-                <p className="text-[12.5px] text-ink-3">
-                  {!speechSupported
-                    ? 'In-browser speech needs Chrome or Edge — switch to Type.'
-                    : listening
-                      ? t('play.listening')
-                      : t('play.speak')}
-                </p>
+                <div className="flex flex-col items-center gap-1.5">
+                  <p className="text-[12.5px] text-ink-3">
+                    {!micReady
+                      ? 'Microphone needs localhost or HTTPS — open http://localhost:3000'
+                      : listening
+                        ? 'Recording — tap the mic to stop'
+                        : 'Tap the mic and speak'}
+                  </p>
+                  {speech.stt && (
+                    <span className="rounded-full bg-surface px-2.5 py-0.5 text-[11px] text-ink-3 hairline">
+                      {internalStt ? 'Uzbek → your STT model' : `${speechLang.toUpperCase()} → browser voice`}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </div>
         </Card>
 
-        <div className="space-y-4">
+        <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto">
           <Card>
             <h3 className="text-[14px] font-semibold text-ink">Last turn</h3>
             {lastReply ? (
@@ -484,6 +620,11 @@ export function Playground({
                     label="Outcome"
                     value={lastReply.escalate ? `Escalated (${lastReply.escalate})` : 'Answered'}
                     good={!lastReply.escalate}
+                  />
+                  <MetricRow
+                    icon={<IconSparkle size={15} />}
+                    label="Engine"
+                    value={lastReply.engine ?? '—'}
                   />
                 </div>
               </div>

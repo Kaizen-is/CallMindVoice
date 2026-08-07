@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { requireSession } from '@/lib/auth';
 import { knowledgeStats } from '@/lib/analytics';
-import { engineIsHosted, engineName } from '@/lib/llm/provider';
+import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
 import { embeddingEngine } from '@/lib/rag/embed';
 import * as twilio from '@/lib/telephony/twilio';
 import { SettingsPanel } from './panel';
@@ -28,7 +28,7 @@ export default async function SettingsPage() {
       user={{ name: user.name, email: user.email, role: user.role, locale: user.locale }}
       canEdit={user.role === 'owner' || user.role === 'admin'}
       engines={{
-        generation: engineIsHosted() ? engineName().replace('claude:', 'Claude ') : 'Local extractive synthesiser',
+        generation: engineIsHosted() ? engineLabel() : 'Local extractive synthesiser',
         generationHosted: engineIsHosted(),
         embedding: embedding.id,
         embeddingHosted: embedding.hosted,

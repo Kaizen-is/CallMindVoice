@@ -16,7 +16,7 @@ export function contentLocale(ui: UiLocale): Locale {
 }
 
 export type Role = 'owner' | 'admin' | 'operator' | 'analyst';
-export type PlanId = 'trial' | 'start' | 'pro' | 'enterprise';
+export type PlanId = 'trial' | 'payg' | 'start' | 'pro' | 'enterprise';
 
 export interface Tenant {
   id: string;

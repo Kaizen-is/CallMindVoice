@@ -7,13 +7,19 @@ import type { Agent, Call, Locale, PhoneNumber, Turn } from '@/lib/types';
 import { percentile, safeJson, todayKey } from '@/lib/utils';
 import { publish } from './bus';
 
-/** Per-minute economics used for the usage meter and the ROI model. */
+/**
+ * True per-minute COGS — what a minute costs *us*, NOT the customer price (that is
+ * OVERAGE_PER_MINUTE in catalog.ts). Telephony is the only real per-minute cash
+ * cost; STT/TTS run on the self-hosted Uzbek models, so their marginal cost is
+ * amortised GPU + electricity, and the LLM is Gemini flash-lite. Kept safely below
+ * the customer overage rate so the "where a minute goes" card shows real margin.
+ */
 export const RATE_CARD = {
-  telephonyPerMin: 0.019,
-  sttPerMin: 0.012,
-  llmPerMin: 0.008,
-  ttsPerMin: 0.006,
-  platformPerMin: 0.02,
+  telephonyPerMin: 0.018,
+  sttPerMin: 0.004,
+  llmPerMin: 0.002,
+  ttsPerMin: 0.003,
+  platformPerMin: 0.005,
 } as const;
 
 export const COST_PER_MINUTE =

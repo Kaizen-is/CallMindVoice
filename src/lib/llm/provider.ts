@@ -14,6 +14,7 @@
  */
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
+import { hasGemini, geminiJson, geminiText, geminiModel } from './gemini';
 import type { RetrievalHit } from '@/lib/rag/retrieve';
 import type { Locale } from '@/lib/types';
 import {
@@ -97,7 +98,7 @@ const ANSWER_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-/* ── client ──────────────────────────────────────────────────── */
+/* ── client & provider selection ─────────────────────────────── */
 
 let client: Anthropic | null | undefined;
 
@@ -109,12 +110,40 @@ function anthropic(): Anthropic | null {
 
 const MODEL = () => process.env.ANTHROPIC_MODEL || 'claude-opus-5';
 
+type Provider = 'gemini' | 'anthropic' | 'local';
+
+/**
+ * Which answer engine is active. Set LLM_PROVIDER to force one explicitly;
+ * otherwise the first provider with a key wins (Gemini, then Claude), and the
+ * local synthesiser is the floor when no key is present.
+ */
+function provider(): Provider {
+  const pref = process.env.LLM_PROVIDER?.toLowerCase();
+  if (pref === 'gemini') return hasGemini() ? 'gemini' : 'local';
+  if (pref === 'anthropic' || pref === 'claude') return anthropic() ? 'anthropic' : 'local';
+  if (pref === 'local') return 'local';
+  if (hasGemini()) return 'gemini';
+  if (anthropic()) return 'anthropic';
+  return 'local';
+}
+
 export function engineName(): string {
-  return anthropic() ? `claude:${MODEL()}` : 'ovoz-local-synthesis';
+  const p = provider();
+  if (p === 'gemini') return `gemini:${geminiModel()}`;
+  if (p === 'anthropic') return `claude:${MODEL()}`;
+  return 'ovoz-local-synthesis';
 }
 
 export function engineIsHosted(): boolean {
-  return anthropic() !== null;
+  return provider() !== 'local';
+}
+
+/** Human-friendly label for the active engine, for the Overview/Settings cards. */
+export function engineLabel(): string {
+  const name = engineName();
+  if (name.startsWith('gemini:')) return name.replace('gemini:', 'Gemini ');
+  if (name.startsWith('claude:')) return name.replace('claude:', 'Claude ');
+  return 'Local synthesiser';
 }
 
 /* ── generation ──────────────────────────────────────────────── */
@@ -125,15 +154,57 @@ export interface GenerateInput extends SynthesisInput {
 }
 
 export async function generateAnswer(input: GenerateInput): Promise<SynthesisOutput> {
-  const claude = anthropic();
   const intent = classifyIntent(input.question);
 
   // These never need a model round-trip, and skipping it saves ~600 ms.
   if (intent === 'human' || (!input.hits.length && input.confidence < input.threshold)) {
     return synthesizeLocal(input);
   }
-  if (!claude) return synthesizeLocal(input);
 
+  const active = provider();
+  if (active === 'local') return synthesizeLocal(input);
+
+  // Prompt construction is provider-agnostic: a system prompt plus a single
+  // user turn carrying the excerpts, recent history and the question.
+  const system = systemPrompt(input);
+  const user = [
+    contextBlock(input.hits),
+    '',
+    ...(input.history ?? [])
+      .slice(-6)
+      .map((h) => `${h.role === 'caller' ? 'CALLER' : 'YOU'}: ${h.text}`),
+    `CALLER: ${input.question}`,
+  ].join('\n');
+
+  const finalize = (
+    parsed: { answer: string; answered: boolean; usedExcerpts: number[] },
+    engine: string,
+  ): SynthesisOutput => {
+    const used = new Set(parsed.usedExcerpts ?? []);
+    return {
+      answer: parsed.answer.trim(),
+      intent,
+      answered: Boolean(parsed.answered),
+      usedHits: input.hits.filter((_, i) => used.has(i + 1)).slice(0, 3),
+      engine,
+    };
+  };
+
+  // Any failure below falls through to the local engine rather than dead air.
+  if (active === 'gemini') {
+    try {
+      const raw = await geminiJson(system, user);
+      if (!raw) return synthesizeLocal(input);
+      const parsed = JSON.parse(raw) as { answer: string; answered: boolean; usedExcerpts: number[] };
+      if (!parsed.answer?.trim()) return synthesizeLocal(input);
+      return finalize(parsed, `gemini:${geminiModel()}`);
+    } catch {
+      return synthesizeLocal(input);
+    }
+  }
+
+  const claude = anthropic();
+  if (!claude) return synthesizeLocal(input);
   try {
     const message = await claude.messages.create({
       model: MODEL(),
@@ -145,45 +216,17 @@ export async function generateAnswer(input: GenerateInput): Promise<SynthesisOut
         effort: 'low',
         format: { type: 'json_schema', schema: ANSWER_SCHEMA },
       },
-      system: systemPrompt(input),
-      messages: [
-        {
-          role: 'user',
-          content: [
-            contextBlock(input.hits),
-            '',
-            ...(input.history ?? [])
-              .slice(-6)
-              .map((t) => `${t.role === 'caller' ? 'CALLER' : 'YOU'}: ${t.text}`),
-            `CALLER: ${input.question}`,
-          ].join('\n'),
-        },
-      ],
+      system,
+      messages: [{ role: 'user', content: user }],
     });
 
     if (message.stop_reason === 'refusal') return synthesizeLocal(input);
-
     const raw = message.content.find((b) => b.type === 'text');
     if (!raw || raw.type !== 'text') return synthesizeLocal(input);
-
-    const parsed = JSON.parse(raw.text) as {
-      answer: string;
-      answered: boolean;
-      usedExcerpts: number[];
-    };
+    const parsed = JSON.parse(raw.text) as { answer: string; answered: boolean; usedExcerpts: number[] };
     if (!parsed.answer?.trim()) return synthesizeLocal(input);
-
-    const used = new Set(parsed.usedExcerpts ?? []);
-    return {
-      answer: parsed.answer.trim(),
-      intent,
-      answered: Boolean(parsed.answered),
-      usedHits: input.hits.filter((_, i) => used.has(i + 1)).slice(0, 3),
-      engine: `claude:${message.model}`,
-    };
+    return finalize(parsed, `claude:${message.model}`);
   } catch {
-    // Provider outage, rate limit, malformed JSON — the caller still gets an
-    // answer from the local engine rather than dead air.
     return synthesizeLocal(input);
   }
 }
@@ -192,8 +235,7 @@ export async function generateAnswer(input: GenerateInput): Promise<SynthesisOut
 export async function* streamAnswer(
   input: GenerateInput,
 ): AsyncGenerator<{ delta?: string; done?: SynthesisOutput }> {
-  const claude = anthropic();
-  if (!claude) {
+  if (provider() === 'local') {
     const result = synthesizeLocal(input);
     // Mirror the streaming shape so the client renders identically.
     for (const word of result.answer.split(/(\s+)/)) {
@@ -219,30 +261,37 @@ export async function summarizeCall(
   language: Locale,
   reason: string,
 ): Promise<string> {
-  const claude = anthropic();
   const fallback = summarizeLocal(turns, language, reason);
-  if (!claude || turns.length < 2) return fallback;
+  if (turns.length < 2) return fallback;
 
+  const active = provider();
+  if (active === 'local') return fallback;
+
+  const system =
+    'You brief a human contact-centre operator who is about to pick up a live call ' +
+    'mid-conversation. Write 2–3 sentences: what the caller wants, what has already ' +
+    'been said, and what the operator must do next. No preamble, no markdown. ' +
+    'Do not include internal or system XML tags in your response. ' +
+    `Write in ${LANGUAGE_NAME[language] ?? 'English'}.`;
+  const user = `Escalation reason: ${reason}\n\nTranscript:\n${turns
+    .map((t) => `${t.role === 'caller' ? 'CALLER' : 'AI'}: ${t.text}`)
+    .join('\n')}`;
+
+  if (active === 'gemini') {
+    const text = await geminiText(system, user, 300);
+    return text?.trim() ? text.trim() : fallback;
+  }
+
+  const claude = anthropic();
+  if (!claude) return fallback;
   try {
     const message = await claude.messages.create({
       model: MODEL(),
       max_tokens: 300,
       thinking: { type: 'disabled' },
       output_config: { effort: 'low' },
-      system:
-        'You brief a human contact-centre operator who is about to pick up a live call ' +
-        'mid-conversation. Write 2–3 sentences: what the caller wants, what has already ' +
-        'been said, and what the operator must do next. No preamble, no markdown. ' +
-        'Do not include internal or system XML tags in your response. ' +
-        `Write in ${LANGUAGE_NAME[language] ?? 'English'}.`,
-      messages: [
-        {
-          role: 'user',
-          content: `Escalation reason: ${reason}\n\nTranscript:\n${turns
-            .map((t) => `${t.role === 'caller' ? 'CALLER' : 'AI'}: ${t.text}`)
-            .join('\n')}`,
-        },
-      ],
+      system,
+      messages: [{ role: 'user', content: user }],
     });
     if (message.stop_reason === 'refusal') return fallback;
     const block = message.content.find((b) => b.type === 'text');

@@ -4,7 +4,7 @@ import { requireSession } from '@/lib/auth';
 import { all } from '@/lib/db';
 import { daily, intents, knowledgeGaps, knowledgeStats, overview } from '@/lib/analytics';
 import { liveAgent } from '@/lib/engine/calls';
-import { engineIsHosted, engineName } from '@/lib/llm/provider';
+import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
 import * as twilio from '@/lib/telephony/twilio';
 import type { Call } from '@/lib/types';
 import { fmtInt, fmtLatency, fmtMoney, fmtPct, relativeTime } from '@/lib/utils';
@@ -173,7 +173,7 @@ export default async function DashboardPage() {
             <div className="mt-3.5 space-y-2.5 text-[12.5px]">
               <EngineRow
                 label="Answer generation"
-                value={engineIsHosted() ? engineName().replace('claude:', 'Claude ') : 'Local synthesiser'}
+                value={engineIsHosted() ? engineLabel() : 'Local synthesiser'}
                 hosted={engineIsHosted()}
               />
               <EngineRow
