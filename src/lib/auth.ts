@@ -98,11 +98,18 @@ export async function createSession(userId: string, tenantId: string) {
     now(),
     expires.toISOString(),
   );
+  // Mark the cookie Secure only when the edge connection is actually HTTPS.
+  // Tying this to NODE_ENV instead breaks login over plain HTTP in production:
+  // browsers refuse to store a Secure cookie sent over http://, so the session
+  // silently never sticks. `x-forwarded-proto` reflects the real scheme behind a
+  // reverse proxy (set `proxy_set_header X-Forwarded-Proto $scheme;`); absent it
+  // (direct HTTP) the cookie is non-Secure and works.
+  const proto = (h.get('x-forwarded-proto') ?? '').split(',')[0].trim();
   const jar = await cookies();
   jar.set(COOKIE, encode(sid), {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: proto === 'https',
     path: '/',
     expires,
   });
