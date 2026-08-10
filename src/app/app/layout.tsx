@@ -5,7 +5,13 @@ import { ConsoleShell } from '@/components/console/shell';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
+export default async function ConsoleLayout({
+  children,
+  settings,
+}: {
+  children: React.ReactNode;
+  settings: React.ReactNode;
+}) {
   const session = await currentSession();
   if (!session) redirect('/login');
   if (!session.tenant.onboarded) redirect('/onboarding');
@@ -27,8 +33,11 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   };
 
   return (
-    <ConsoleShell user={session.user} tenant={session.tenant} counts={counts}>
-      {children}
-    </ConsoleShell>
+    <>
+      <ConsoleShell user={session.user} tenant={session.tenant} counts={counts}>
+        {children}
+      </ConsoleShell>
+      {settings}
+    </>
   );
 }
