@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { translator } from '@/lib/i18n';
+import type { UiLocale } from '@/lib/types';
 import { IconCheck, IconCopy } from '@/components/icons';
 
 export function CopyField({
@@ -9,12 +11,15 @@ export function CopyField({
   value,
   mono = true,
   className,
+  locale,
 }: {
   label?: string;
   value: string;
   mono?: boolean;
   className?: string;
+  locale?: UiLocale;
 }) {
+  const t = translator(locale ?? 'uz');
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -53,7 +58,7 @@ export function CopyField({
           )}
         >
           {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
-          {copied ? 'Copied' : 'Copy'}
+          {copied ? t('copyField.copied', 'Copied') : t('copyField.copy', 'Copy')}
         </button>
       </div>
     </div>

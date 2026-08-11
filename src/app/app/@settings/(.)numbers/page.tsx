@@ -27,6 +27,7 @@ export default async function NumbersModal() {
         telephony={twilio.status()}
         canEdit={user.role === 'owner' || user.role === 'admin'}
         webhookUrl={`${process.env.TWILIO_WEBHOOK_BASE_URL ?? 'https://your-domain.example'}/api/telephony/twilio/voice`}
+        locale={user.locale}
       />
     </>
   );

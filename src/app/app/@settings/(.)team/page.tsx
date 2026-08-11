@@ -34,6 +34,7 @@ export default async function TeamModal() {
         audit={audit}
         currentUserId={user.id}
         canEdit={user.role === 'owner' || user.role === 'admin'}
+        locale={user.locale}
       />
     </>
   );

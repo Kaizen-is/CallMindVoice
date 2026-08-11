@@ -5,6 +5,23 @@
  * pickers without dragging the persistence layer into the browser bundle.
  */
 
+import type { Locale } from './types';
+
+/**
+ * Which spoken languages currently have working voice recognition (speech-to-
+ * text). Uzbek runs on our own STT model; Russian and English recognition is
+ * not shipped yet and is surfaced as "available soon" in the UI.
+ *
+ * This is the single switch — add `'ru'` / `'en'` here to light them up
+ * everywhere at once. It gates input (recognition) only; the agent can still
+ * answer in any language.
+ */
+export const VOICE_INPUT_LANGS: readonly Locale[] = ['uz'];
+
+export function voiceInputAvailable(lang: Locale): boolean {
+  return VOICE_INPUT_LANGS.includes(lang);
+}
+
 export const INDUSTRIES = [
   { value: 'clinic', label: 'Clinic / medical centre' },
   { value: 'insurance', label: 'Insurance' },

@@ -67,7 +67,7 @@ export function SignupForm({ locale = 'uz' }: { locale?: UiLocale }) {
             <Select id="industry" name="industry" defaultValue="clinic">
               {INDUSTRIES.map((i) => (
                 <option key={i.value} value={i.value}>
-                  {i.label}
+                  {t(`industry.${i.value}`, i.label)}
                 </option>
               ))}
             </Select>

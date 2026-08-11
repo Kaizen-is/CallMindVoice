@@ -18,6 +18,22 @@
  */
 
 import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { translator } from '@/lib/i18n';
+import type { UiLocale } from '@/lib/types';
+
+/** BCP-47 tag for date/number formatting from a UI locale (Uzbek Cyrillic
+ *  borrows Uzbek Latin's CLDR data). */
+export function localeTag(locale: UiLocale | undefined): string {
+  switch (locale) {
+    case 'ru':
+      return 'ru-RU';
+    case 'uz':
+    case 'uz-Cyrl':
+      return 'uz-UZ';
+    default:
+      return 'en-GB';
+  }
+}
 import { cn, fmtInt } from '@/lib/utils';
 
 const SERIES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)'];
@@ -142,12 +158,14 @@ export function TrendChart({
   height = 200,
   valueFormat = 'int',
   yLabel,
+  locale,
 }: {
   labels: string[];
   series: TrendSeries[];
   height?: number;
   valueFormat?: ValueFormat;
   yLabel?: string;
+  locale?: UiLocale;
 }) {
   const format = FORMATTERS[valueFormat] ?? FORMATTERS.int;
   const [hover, setHover] = useState<number | null>(null);
@@ -274,7 +292,7 @@ export function TrendChart({
           y={20}
           width={ref.current?.clientWidth ?? W}
         >
-          <div className="mb-1 font-medium text-ink">{longDay(labels[hover])}</div>
+          <div className="mb-1 font-medium text-ink">{longDay(labels[hover], locale)}</div>
           {series.map((s, i) => (
             <TooltipRow
               key={s.label}
@@ -296,10 +314,12 @@ export function StackedBars({
   labels,
   series,
   height = 200,
+  locale,
 }: {
   labels: string[];
   series: TrendSeries[];
   height?: number;
+  locale?: UiLocale;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -401,7 +421,7 @@ export function StackedBars({
           y={16}
           width={ref.current?.clientWidth ?? W}
         >
-          <div className="mb-1 font-medium text-ink">{longDay(labels[hover])}</div>
+          <div className="mb-1 font-medium text-ink">{longDay(labels[hover], locale)}</div>
           {series.map((s, si) => (
             <TooltipRow
               key={s.label}
@@ -467,7 +487,10 @@ export function RankBars({
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export function Heatmap({ grid }: { grid: number[][] }) {
+export function Heatmap({ grid, locale }: { grid: number[][]; locale?: UiLocale }) {
+  const t = translator(locale ?? 'en');
+  const dayName = (d: number) => t(`dow.short.${d}`, DAY_NAMES[d]);
+  const callsWord = t('chart.calls', 'calls');
   const [hover, setHover] = useState<{ d: number; h: number } | null>(null);
   const max = Math.max(1, ...grid.flat());
 
@@ -482,9 +505,9 @@ export function Heatmap({ grid }: { grid: number[][] }) {
     <div className="relative">
       <div className="flex gap-1.5">
         <div className="flex shrink-0 flex-col justify-between py-px text-[10px] text-ink-3">
-          {DAY_NAMES.map((d) => (
+          {DAY_NAMES.map((d, i) => (
             <span key={d} className="h-[15px] leading-[15px]">
-              {d}
+              {dayName(i)}
             </span>
           ))}
         </div>
@@ -498,7 +521,7 @@ export function Heatmap({ grid }: { grid: number[][] }) {
                   onMouseLeave={() => setHover(null)}
                   className="aspect-square rounded-[2.5px] transition-transform hover:scale-125"
                   style={{ background: stepFor(v) }}
-                  title={`${DAY_NAMES[d]} ${String(h).padStart(2, '0')}:00 — ${v} calls`}
+                  title={`${dayName(d)} ${String(h).padStart(2, '0')}:00 — ${v} ${callsWord}`}
                 />
               )),
             )}
@@ -512,18 +535,18 @@ export function Heatmap({ grid }: { grid: number[][] }) {
       </div>
 
       <div className="mt-3 flex items-center gap-2 text-[11px] text-ink-3">
-        <span>Fewer</span>
+        <span>{t('chart.fewer', 'Fewer')}</span>
         <div className="flex gap-[3px]">
           <span className="h-2.5 w-2.5 rounded-[2px]" style={{ background: 'rgb(var(--text)/0.05)' }} />
           {SEQ.map((c) => (
             <span key={c} className="h-2.5 w-2.5 rounded-[2px]" style={{ background: c }} />
           ))}
         </div>
-        <span>More</span>
+        <span>{t('chart.more', 'More')}</span>
         {hover && (
           <span className="ml-auto text-ink-2">
-            {DAY_NAMES[hover.d]} {String(hover.h).padStart(2, '0')}:00 ·{' '}
-            <span className="font-medium text-ink tabular">{grid[hover.d][hover.h]}</span> calls
+            {dayName(hover.d)} {String(hover.h).padStart(2, '0')}:00 ·{' '}
+            <span className="font-medium text-ink tabular">{grid[hover.d][hover.h]}</span> {callsWord}
           </span>
         )}
       </div>
@@ -627,10 +650,13 @@ export function Donut({
 export function LatencyBars({
   buckets,
   target = 1000,
+  locale,
 }: {
   buckets: Array<{ label: string; ms: number }>;
   target?: number;
+  locale?: UiLocale;
 }) {
+  const t = translator(locale ?? 'en');
   const max = Math.max(target * 1.1, ...buckets.map((b) => b.ms));
   return (
     <div className="space-y-3">
@@ -667,7 +693,10 @@ export function LatencyBars({
         );
       })}
       <p className="text-[11.5px] text-ink-3">
-        The hairline marks the {target} ms target — past it a caller starts to feel the pause.
+        {t(
+          'chart.latencyTarget',
+          'The hairline marks the {ms} ms target — past it a caller starts to feel the pause.',
+        ).replace('{ms}', String(target))}
       </p>
     </div>
   );
@@ -686,11 +715,15 @@ function shortDay(iso: string) {
   return Number.isNaN(d.getTime()) ? iso : `${d.getDate()}/${d.getMonth() + 1}`;
 }
 
-function longDay(iso: string) {
+function longDay(iso: string, locale?: UiLocale) {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? iso
-    : new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).format(d);
+    : new Intl.DateTimeFormat(localeTag(locale), {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      }).format(d);
 }
 
 export const SERIES_COLORS = SERIES;

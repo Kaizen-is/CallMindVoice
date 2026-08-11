@@ -1,4 +1,5 @@
 import { requireSession } from '@/lib/auth';
+import { translator } from '@/lib/i18n';
 import { knowledgeStats } from '@/lib/analytics';
 import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
 import { embeddingEngine } from '@/lib/rag/embed';
@@ -12,6 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function SettingsModal() {
   const { tenant, user } = await requireSession();
   const embedding = embeddingEngine();
+  const t = translator(user.locale);
 
   return (
     <>
@@ -30,11 +32,11 @@ export default async function SettingsModal() {
       user={{ name: user.name, email: user.email, role: user.role, locale: user.locale }}
       canEdit={user.role === 'owner' || user.role === 'admin'}
       engines={{
-        generation: engineIsHosted() ? engineLabel() : 'Local extractive synthesiser',
+        generation: engineIsHosted() ? engineLabel() : t('settings.engine.localGeneration', 'Local extractive synthesiser'),
         generationHosted: engineIsHosted(),
         embedding: embedding.id,
         embeddingHosted: embedding.hosted,
-        telephony: twilio.isConfigured() ? 'Twilio Elastic SIP' : 'Built-in simulator',
+        telephony: twilio.isConfigured() ? 'Twilio Elastic SIP' : t('settings.engine.builtinSimulator', 'Built-in simulator'),
         telephonyHosted: twilio.isConfigured(),
       }}
       stats={knowledgeStats(tenant.id)}

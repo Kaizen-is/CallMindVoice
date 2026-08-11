@@ -258,7 +258,7 @@ export function ConsoleShell({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2.5">
               <span className="truncate text-[14px] font-semibold text-ink">{tenant.name}</span>
-              {tenant.plan === 'trial' && <Badge tone="brand">Trial</Badge>}
+              {tenant.plan === 'trial' && <Badge tone="brand">{t('common.trial', 'Trial')}</Badge>}
             </div>
             <div className="flex items-center gap-2 text-[11.5px] text-ink-3">
               <StatusDot tone={counts.activeCalls > 0 ? 'success' : 'neutral'} pulse={counts.activeCalls > 0} />

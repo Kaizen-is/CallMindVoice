@@ -13,7 +13,7 @@ import {
   uploadDocumentsAction,
 } from '@/app/actions/knowledge';
 import type { Document, UiLocale } from '@/lib/types';
-import { translator } from '@/lib/i18n';
+import { translator, type Translate } from '@/lib/i18n';
 import { cn, fmtBytes, fmtInt, relativeTime } from '@/lib/utils';
 import {
   Badge,
@@ -55,15 +55,18 @@ interface Props {
 
 type AddMode = 'file' | 'url' | 'text' | 'faq';
 
-const TYPE_LABEL: Record<string, string> = {
-  pdf: 'PDF',
-  docx: 'Word',
-  txt: 'Text',
-  md: 'Markdown',
-  csv: 'Spreadsheet',
-  url: 'Web page',
-  faq: 'FAQ',
-};
+function typeLabel(t: Translate, type: string): string {
+  const map: Record<string, string> = {
+    pdf: 'PDF',
+    docx: 'Word',
+    txt: t('kb.type.txt', 'Text'),
+    md: 'Markdown',
+    csv: t('kb.type.csv', 'Spreadsheet'),
+    url: t('kb.type.url', 'Web page'),
+    faq: 'FAQ',
+  };
+  return map[type] ?? type;
+}
 
 export function KnowledgeManager({ documents, stats, locale, packTitle, packDescription, canEdit }: Props) {
   const router = useRouter();
@@ -86,11 +89,11 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
     const res = await uploadDocumentsAction(fd);
     setBusy(false);
     if (res.ok) {
-      toast.success('Indexed', res.message);
+      toast.success(t('kb.toast.indexed', 'Indexed'), res.message);
       setAdding(false);
       refresh();
     } else {
-      toast.error('Upload failed', res.message);
+      toast.error(t('kb.toast.uploadFailed', 'Upload failed'), res.message);
     }
   };
 
@@ -102,7 +105,7 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
         actions={
           <>
             <Button variant="secondary" icon={<IconSearch size={15} />} onClick={() => setInspecting(true)}>
-              Test retrieval
+              {t('kb.inspect.open', 'Test retrieval')}
             </Button>
             {canEdit && (
               <Button variant="primary" icon={<IconPlus size={15} />} onClick={() => setAdding(true)}>
@@ -114,10 +117,10 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MiniStat label="Documents" value={fmtInt(stats.documents)} icon={<IconFileText size={16} />} />
-        <MiniStat label="Indexed passages" value={fmtInt(stats.chunks)} icon={<IconDatabase size={16} />} />
-        <MiniStat label="Tokens" value={fmtInt(stats.tokens)} icon={<IconBook size={16} />} />
-        <MiniStat label="Source size" value={fmtBytes(stats.bytes)} icon={<IconFileText size={16} />} />
+        <MiniStat label={t('kb.stat.documents', 'Documents')} value={fmtInt(stats.documents)} icon={<IconFileText size={16} />} />
+        <MiniStat label={t('kb.stat.passages', 'Indexed passages')} value={fmtInt(stats.chunks)} icon={<IconDatabase size={16} />} />
+        <MiniStat label={t('kb.stat.tokens', 'Tokens')} value={fmtInt(stats.tokens)} icon={<IconBook size={16} />} />
+        <MiniStat label={t('kb.stat.size', 'Source size')} value={fmtBytes(stats.bytes)} icon={<IconFileText size={16} />} />
       </div>
 
       <Card className="mt-4" padded={false}>
@@ -127,12 +130,14 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
               <DocumentRow
                 key={d.id}
                 doc={d}
+                t={t}
+                locale={locale}
                 canEdit={canEdit}
                 onDelete={() => setConfirm(d)}
                 onReindex={async () => {
                   const res = await reindexDocumentAction(d.id);
-                  if (res.ok) toast.success('Reindexed', res.message);
-                  else toast.error('Could not reindex', res.message);
+                  if (res.ok) toast.success(t('kb.toast.reindexed', 'Reindexed'), res.message);
+                  else toast.error(t('kb.toast.reindexFailed', 'Could not reindex'), res.message);
                   refresh();
                 }}
               />
@@ -155,15 +160,15 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
                       const res = await addStarterPackAction();
                       setBusy(false);
                       if (res.ok) {
-                        toast.success('Starter pack loaded', res.message);
+                        toast.success(t('kb.toast.packLoaded', 'Starter pack loaded'), res.message);
                         refresh();
-                      } else toast.error('Failed', res.message);
+                      } else toast.error(t('kb.toast.failed', 'Failed'), res.message);
                     }}
                   >
-                    Load {packTitle}
+                    {t('kb.loadPack', 'Load {name}').replace('{name}', packTitle)}
                   </Button>
                   <Button variant="secondary" onClick={() => setAdding(true)}>
-                    Upload my own
+                    {t('kb.uploadOwn', 'Upload my own')}
                   </Button>
                 </div>
               ) : undefined
@@ -174,8 +179,10 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
 
       {documents.length > 0 && canEdit && (
         <p className="mt-3 text-[12.5px] text-ink-3">
-          Tip: {packDescription.toLowerCase()} — the starter pack is safe to delete once your own
-          documents are in.
+          {t(
+            'kb.tip',
+            'Tip: {desc} — the starter pack is safe to delete once your own documents are in.',
+          ).replace('{desc}', packDescription.toLowerCase())}
         </p>
       )}
 
@@ -184,7 +191,7 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
         open={adding}
         onClose={() => setAdding(false)}
         title={t('kb.add')}
-        description="Anything you add here becomes something your agent is allowed to say."
+        description={t('kb.add.desc', 'Anything you add here becomes something your agent is allowed to say.')}
         size="lg"
       >
         <Segmented
@@ -192,15 +199,23 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
           value={mode}
           onChange={setMode}
           options={[
-            { value: 'file', label: 'Files' },
-            { value: 'url', label: 'Web page' },
-            { value: 'text', label: 'Paste text' },
+            { value: 'file', label: t('kb.add.files', 'Files') },
+            { value: 'url', label: t('kb.type.url', 'Web page') },
+            { value: 'text', label: t('kb.add.text', 'Paste text') },
             { value: 'faq', label: 'FAQ' },
           ]}
         />
-        {mode === 'file' && <FileDrop onFiles={handleUpload} busy={busy} />}
+        {mode === 'file' && (
+          <FileDrop
+            onFiles={handleUpload}
+            busy={busy}
+            dropLabel={t('filedrop.drop', 'Drop files or')}
+            browseLabel={t('filedrop.browse', 'browse')}
+          />
+        )}
         {mode === 'url' && (
           <UrlForm
+            t={t}
             onDone={() => {
               setAdding(false);
               refresh();
@@ -209,6 +224,7 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
         )}
         {mode === 'text' && (
           <TextForm
+            t={t}
             onDone={() => {
               setAdding(false);
               refresh();
@@ -217,6 +233,7 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
         )}
         {mode === 'faq' && (
           <FaqForm
+            t={t}
             onDone={() => {
               setAdding(false);
               refresh();
@@ -225,20 +242,23 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
         )}
       </Modal>
 
-      <RetrievalInspector open={inspecting} onClose={() => setInspecting(false)} />
+      <RetrievalInspector t={t} open={inspecting} onClose={() => setInspecting(false)} />
 
       <ConfirmDialog
         open={Boolean(confirm)}
         onClose={() => setConfirm(null)}
         danger
-        confirmLabel="Delete"
-        title={`Delete “${confirm?.title ?? ''}”?`}
-        description="Its passages are removed from the index immediately. Your agent will stop answering from it."
+        confirmLabel={t('common.delete', 'Delete')}
+        title={t('kb.confirm.title', 'Delete “{title}”?').replace('{title}', confirm?.title ?? '')}
+        description={t(
+          'kb.confirm.desc',
+          'Its passages are removed from the index immediately. Your agent will stop answering from it.',
+        )}
         onConfirm={async () => {
           if (!confirm) return;
           const res = await deleteDocumentAction(confirm.id);
-          if (res.ok) toast.success('Deleted', res.message);
-          else toast.error('Could not delete', res.message);
+          if (res.ok) toast.success(t('kb.toast.deleted', 'Deleted'), res.message);
+          else toast.error(t('kb.toast.deleteFailed', 'Could not delete'), res.message);
           refresh();
         }}
       />
@@ -264,11 +284,15 @@ function MiniStat({ label, value, icon }: { label: string; value: string; icon: 
 
 function DocumentRow({
   doc,
+  t,
+  locale,
   canEdit,
   onDelete,
   onReindex,
 }: {
   doc: Document;
+  t: Translate;
+  locale: UiLocale;
   canEdit: boolean;
   onDelete: () => void;
   onReindex: () => void;
@@ -298,7 +322,7 @@ function DocumentRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-[13.5px] font-medium text-ink">{doc.title}</span>
-          <Badge tone="neutral">{TYPE_LABEL[doc.source_type] ?? doc.source_type}</Badge>
+          <Badge tone="neutral">{typeLabel(t, doc.source_type)}</Badge>
           {doc.language !== 'auto' && <Badge tone="brand">{doc.language.toUpperCase()}</Badge>}
         </div>
         {indexing ? (
@@ -310,8 +334,9 @@ function DocumentRow({
           <p className="mt-0.5 truncate text-[12px] text-danger">{doc.error}</p>
         ) : (
           <p className="mt-0.5 truncate text-[12px] text-ink-3">
-            {fmtInt(doc.chunk_count)} passages · {fmtInt(doc.token_count)} tokens ·{' '}
-            {doc.source_ref ?? 'pasted'} · {relativeTime(doc.created_at)}
+            {fmtInt(doc.chunk_count)} {t('kb.row.passages', 'passages')} · {fmtInt(doc.token_count)}{' '}
+            {t('kb.row.tokens', 'tokens')} · {doc.source_ref ?? t('kb.row.pasted', 'pasted')} ·{' '}
+            {relativeTime(doc.created_at, locale)}
           </p>
         )}
       </div>
@@ -321,14 +346,14 @@ function DocumentRow({
           width={190}
           align="right"
           trigger={({ toggle }) => (
-            <IconButton label="Document actions" size="sm" onClick={toggle}>
+            <IconButton label={t('kb.row.actions', 'Document actions')} size="sm" onClick={toggle}>
               <IconMore size={17} />
             </IconButton>
           )}
           items={[
-            { label: 'Rebuild index', icon: <IconRefresh size={15} />, onClick: onReindex },
+            { label: t('kb.row.reindex', 'Rebuild index'), icon: <IconRefresh size={15} />, onClick: onReindex },
             { type: 'separator' },
-            { label: 'Delete', icon: <IconTrash size={15} />, danger: true, onClick: onDelete },
+            { label: t('common.delete', 'Delete'), icon: <IconTrash size={15} />, danger: true, onClick: onDelete },
           ]}
         />
       )}
@@ -338,15 +363,15 @@ function DocumentRow({
 
 /* ── add forms ───────────────────────────────────────────────── */
 
-function UrlForm({ onDone }: { onDone: () => void }) {
+function UrlForm({ t, onDone }: { t: Translate; onDone: () => void }) {
   const toast = useToast();
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   return (
     <div className="space-y-4">
       <Field
-        label="Page address"
-        hint="We fetch the page, strip the navigation and index the readable text."
+        label={t('kb.url.address', 'Page address')}
+        hint={t('kb.url.hint', 'We fetch the page, strip the navigation and index the readable text.')}
       >
         <Input
           value={url}
@@ -364,30 +389,34 @@ function UrlForm({ onDone }: { onDone: () => void }) {
           const res = await addUrlAction(url);
           setBusy(false);
           if (res.ok) {
-            toast.success('Imported', res.message);
+            toast.success(t('kb.toast.imported', 'Imported'), res.message);
             onDone();
-          } else toast.error('Could not import', res.message);
+          } else toast.error(t('kb.toast.importFailed', 'Could not import'), res.message);
         }}
       >
-        Import page
+        {t('kb.url.submit', 'Import page')}
       </Button>
     </div>
   );
 }
 
-function TextForm({ onDone }: { onDone: () => void }) {
+function TextForm({ t, onDone }: { t: Translate; onDone: () => void }) {
   const toast = useToast();
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   return (
     <div className="space-y-4">
-      <Field label="Title">
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Opening hours and prices" />
+      <Field label={t('kb.form.title', 'Title')}>
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder={t('kb.text.titlePlaceholder', 'Opening hours and prices')}
+        />
       </Field>
       <Field
-        label="Text"
-        hint="One fact per line works best — the indexer keeps each line retrievable on its own."
+        label={t('kb.text.body', 'Text')}
+        hint={t('kb.text.hint', 'One fact per line works best — the indexer keeps each line retrievable on its own.')}
       >
         <Textarea
           rows={10}
@@ -405,36 +434,39 @@ function TextForm({ onDone }: { onDone: () => void }) {
           const res = await addTextAction(title, text);
           setBusy(false);
           if (res.ok) {
-            toast.success('Indexed', res.message);
+            toast.success(t('kb.toast.indexed', 'Indexed'), res.message);
             onDone();
-          } else toast.error('Could not index', res.message);
+          } else toast.error(t('kb.toast.indexFailed', 'Could not index'), res.message);
         }}
       >
-        Add to knowledge base
+        {t('kb.text.submit', 'Add to knowledge base')}
       </Button>
     </div>
   );
 }
 
-function FaqForm({ onDone }: { onDone: () => void }) {
+function FaqForm({ t, onDone }: { t: Translate; onDone: () => void }) {
   const toast = useToast();
-  const [title, setTitle] = useState('Frequently asked questions');
+  const [title, setTitle] = useState(t('kb.faq.defaultTitle', 'Frequently asked questions'));
   const [pairs, setPairs] = useState([{ q: '', a: '' }]);
   const [busy, setBusy] = useState(false);
+  const answered = pairs.filter((p) => p.q.trim()).length;
 
   return (
     <div className="space-y-4">
-      <Field label="Title">
+      <Field label={t('kb.form.title', 'Title')}>
         <Input value={title} onChange={(e) => setTitle(e.target.value)} />
       </Field>
       <div className="space-y-3">
         {pairs.map((p, i) => (
           <div key={i} className="rounded-[11px] bg-surface-2 p-3.5">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[12px] font-medium text-ink-3">Question {i + 1}</span>
+              <span className="text-[12px] font-medium text-ink-3">
+                {t('kb.faq.question', 'Question {n}').replace('{n}', String(i + 1))}
+              </span>
               {pairs.length > 1 && (
                 <IconButton
-                  label="Remove"
+                  label={t('kb.faq.remove', 'Remove')}
                   size="xs"
                   onClick={() => setPairs((ps) => ps.filter((_, j) => j !== i))}
                 >
@@ -447,7 +479,7 @@ function FaqForm({ onDone }: { onDone: () => void }) {
               onChange={(e) =>
                 setPairs((ps) => ps.map((x, j) => (j === i ? { ...x, q: e.target.value } : x)))
               }
-              placeholder="What a caller actually says"
+              placeholder={t('kb.faq.qPlaceholder', 'What a caller actually says')}
               className="mb-2"
             />
             <Textarea
@@ -456,7 +488,7 @@ function FaqForm({ onDone }: { onDone: () => void }) {
               onChange={(e) =>
                 setPairs((ps) => ps.map((x, j) => (j === i ? { ...x, a: e.target.value } : x)))
               }
-              placeholder="The answer, phrased the way you would say it out loud"
+              placeholder={t('kb.faq.aPlaceholder', 'The answer, phrased the way you would say it out loud')}
             />
           </div>
         ))}
@@ -467,7 +499,7 @@ function FaqForm({ onDone }: { onDone: () => void }) {
         icon={<IconPlus size={14} />}
         onClick={() => setPairs((ps) => [...ps, { q: '', a: '' }])}
       >
-        Add another
+        {t('kb.faq.addAnother', 'Add another')}
       </Button>
       <Button
         variant="primary"
@@ -478,13 +510,16 @@ function FaqForm({ onDone }: { onDone: () => void }) {
           const res = await addFaqAction(title, pairs);
           setBusy(false);
           if (res.ok) {
-            toast.success('Indexed', res.message);
+            toast.success(t('kb.toast.indexed', 'Indexed'), res.message);
             onDone();
-          } else toast.error('Could not index', res.message);
+          } else toast.error(t('kb.toast.indexFailed', 'Could not index'), res.message);
         }}
       >
-        Add {pairs.filter((p) => p.q.trim()).length || ''} question
-        {pairs.filter((p) => p.q.trim()).length === 1 ? '' : 's'}
+        {answered === 0
+          ? t('kb.faq.submitEmpty', 'Add questions')
+          : answered === 1
+            ? t('kb.faq.submitOne', 'Add 1 question')
+            : t('kb.faq.submitOther', 'Add {n} questions').replace('{n}', String(answered))}
       </Button>
     </div>
   );
@@ -502,7 +537,7 @@ interface Hit {
   dense: number;
 }
 
-function RetrievalInspector({ open, onClose }: { open: boolean; onClose: () => void }) {
+function RetrievalInspector({ t, open, onClose }: { t: Translate; open: boolean; onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{
@@ -525,8 +560,11 @@ function RetrievalInspector({ open, onClose }: { open: boolean; onClose: () => v
       open={open}
       onClose={onClose}
       size="xl"
-      title="Retrieval inspector"
-      description="See exactly which passages a question pulls, and how confident the engine is. This is the same path a live call takes."
+      title={t('kb.inspect.title', 'Retrieval inspector')}
+      description={t(
+        'kb.inspect.desc',
+        'See exactly which passages a question pulls, and how confident the engine is. This is the same path a live call takes.',
+      )}
     >
       <form
         onSubmit={(e) => {
@@ -539,12 +577,12 @@ function RetrievalInspector({ open, onClose }: { open: boolean; onClose: () => v
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Type a question a caller would ask…"
+          placeholder={t('kb.inspect.placeholder', 'Type a question a caller would ask…')}
           icon={<IconSearch size={15} />}
           className="flex-1"
         />
         <Button type="submit" variant="primary" loading={busy}>
-          Search
+          {t('common.search', 'Search')}
         </Button>
       </form>
 
@@ -552,11 +590,13 @@ function RetrievalInspector({ open, onClose }: { open: boolean; onClose: () => v
         <div className="mt-5">
           <div className="mb-4 flex flex-wrap gap-2">
             <Badge tone={result.confidence >= 0.55 ? 'success' : 'warning'}>
-              confidence {result.confidence.toFixed(2)}
+              {t('kb.inspect.confidence', 'confidence')} {result.confidence.toFixed(2)}
             </Badge>
             <Badge tone="neutral">{result.tookMs} ms</Badge>
             <Badge tone="neutral">{result.strategy}</Badge>
-            <Badge tone="neutral">{fmtInt(result.totalChunks)} passages searched</Badge>
+            <Badge tone="neutral">
+              {t('kb.inspect.searched', '{n} passages searched').replace('{n}', fmtInt(result.totalChunks))}
+            </Badge>
           </div>
 
           {result.hits.length ? (
@@ -569,9 +609,9 @@ function RetrievalInspector({ open, onClose }: { open: boolean; onClose: () => v
                       {h.heading && <span className="text-ink-3"> › {h.heading}</span>}
                     </span>
                     <div className="flex items-center gap-1.5">
-                      <ScorePill label="fused" value={h.score} tone="brand" />
-                      <ScorePill label="lexical" value={h.lexical} />
-                      <ScorePill label="dense" value={h.dense} />
+                      <ScorePill label={t('kb.inspect.fused', 'fused')} value={h.score} tone="brand" />
+                      <ScorePill label={t('kb.inspect.lexical', 'lexical')} value={h.lexical} />
+                      <ScorePill label={t('kb.inspect.dense', 'dense')} value={h.dense} />
                     </div>
                   </div>
                   <p className="text-[13px] leading-relaxed whitespace-pre-line text-ink-2">
@@ -583,8 +623,11 @@ function RetrievalInspector({ open, onClose }: { open: boolean; onClose: () => v
           ) : (
             <EmptyState
               icon={<IconAlert size={20} />}
-              title="Nothing matched"
-              description="A live caller asking this would be handed to a person. Add a document or an FAQ entry to cover it."
+              title={t('kb.inspect.emptyTitle', 'Nothing matched')}
+              description={t(
+                'kb.inspect.emptyDesc',
+                'A live caller asking this would be handed to a person. Add a document or an FAQ entry to cover it.',
+              )}
             />
           )}
         </div>

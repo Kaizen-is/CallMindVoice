@@ -3,6 +3,7 @@ import { requireSession } from '@/lib/auth';
 import { liveAgent } from '@/lib/engine/calls';
 import { agentEscalation, agentHours } from '@/lib/engine/conversation';
 import { knowledgeStats } from '@/lib/analytics';
+import { translator } from '@/lib/i18n';
 import type { Locale } from '@/lib/types';
 import { safeJson } from '@/lib/utils';
 import { AgentStudio } from './studio';
@@ -12,14 +13,18 @@ export const dynamic = 'force-dynamic';
 
 export default async function AgentPage() {
   const { tenant, user } = await requireSession();
+  const t = translator(user.locale);
   const agent = liveAgent(tenant.id);
 
   if (!agent) {
     return (
       <div className="mx-auto max-w-2xl py-20 text-center">
-        <h1 className="text-[22px] font-semibold text-ink">No agent yet</h1>
+        <h1 className="text-[22px] font-semibold text-ink">{t('agent.noAgent.title', 'No agent yet')}</h1>
         <p className="mt-2 text-[14px] text-ink-2">
-          Something went wrong during setup. Contact support and we will re-provision your agent.
+          {t(
+            'agent.noAgent.body',
+            'Something went wrong during setup. Contact support and we will re-provision your agent.',
+          )}
         </p>
       </div>
     );

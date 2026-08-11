@@ -8,7 +8,7 @@ import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
 import * as twilio from '@/lib/telephony/twilio';
 import type { Call } from '@/lib/types';
 import { fmtInt, fmtLatency, fmtMoney, fmtPct, relativeTime } from '@/lib/utils';
-import { translator } from '@/lib/i18n';
+import { translator, type Translate } from '@/lib/i18n';
 import { StatCard } from '@/components/console/stat-card';
 import { ChartFrame, RankBars, TrendChart } from '@/components/charts';
 import { Badge, Card, EmptyState, LinkButton, PageHeader } from '@/components/ui/primitives';
@@ -75,13 +75,13 @@ export default async function DashboardPage() {
         }
       />
 
-      {setupRemaining > 0 && <SetupChecklist done={setupDone} />}
+      {setupRemaining > 0 && <SetupChecklist done={setupDone} t={t} />}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label={t('kpi.calls')}
           value={fmtInt(stats.totalCalls)}
-          sub="Last 30 days"
+          sub={t('dash.stat.last30', 'Last 30 days')}
           delta={callsDelta}
           icon={<IconPhone size={16} />}
           spark={trend.map((d) => d.calls)}
@@ -89,19 +89,24 @@ export default async function DashboardPage() {
         <StatCard
           label={t('kpi.deflection')}
           value={stats.totalCalls ? fmtPct(stats.deflectionRate) : '—'}
-          sub={`${fmtInt(stats.aiResolved)} of ${fmtInt(stats.totalCalls)} calls`}
+          sub={t('dash.stat.ofCalls', '{a} of {b} calls')
+            .replace('{a}', fmtInt(stats.aiResolved))
+            .replace('{b}', fmtInt(stats.totalCalls))}
           icon={<IconSparkle size={16} />}
         />
         <StatCard
           label={t('kpi.latency')}
           value={stats.avgLatencyMs ? fmtLatency(stats.avgLatencyMs) : '—'}
-          sub={stats.p95LatencyMs ? `p95 ${fmtLatency(stats.p95LatencyMs)}` : 'No calls yet'}
+          sub={stats.p95LatencyMs ? `p95 ${fmtLatency(stats.p95LatencyMs)}` : t('dash.noCallsYet', 'No calls yet')}
           icon={<IconZap size={16} />}
         />
         <StatCard
           label={t('kpi.savings')}
           value={stats.savingsUsd > 0 ? fmtMoney(stats.savingsUsd, 'USD', 0) : '—'}
-          sub={`${stats.operatorHoursSaved.toFixed(1)} operator hours avoided`}
+          sub={t('dash.stat.hoursAvoided', '{n} operator hours avoided').replace(
+            '{n}',
+            stats.operatorHoursSaved.toFixed(1),
+          )}
           icon={<IconChart size={16} />}
         />
       </div>
@@ -109,27 +114,34 @@ export default async function DashboardPage() {
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <ChartFrame
           className="lg:col-span-2"
-          title="Call volume"
-          subtitle="Handled entirely by the AI versus handed to a person."
+          title={t('dash.callVolume', 'Call volume')}
+          subtitle={t('dash.callVolumeSub', 'Handled entirely by the AI versus handed to a person.')}
           legend={[
-            { label: 'Resolved by AI', color: 'var(--series-1)' },
-            { label: 'Escalated', color: 'var(--series-2)' },
+            { label: t('kpi.deflection', 'Resolved by AI'), color: 'var(--series-1)' },
+            { label: t('dash.escalated', 'Escalated'), color: 'var(--series-2)' },
           ]}
-          footnote="Escalation is not failure — it is the agent deciding a person should take this one."
+          footnote={t(
+            'dash.escalationFootnote',
+            'Escalation is not failure — it is the agent deciding a person should take this one.',
+          )}
         >
           {stats.totalCalls ? (
             <TrendChart
               labels={trend.map((d) => d.day)}
               series={[
-                { label: 'Resolved by AI', values: trend.map((d) => d.aiResolved), slot: 0 },
-                { label: 'Escalated', values: trend.map((d) => d.escalated), slot: 1 },
+                { label: t('kpi.deflection', 'Resolved by AI'), values: trend.map((d) => d.aiResolved), slot: 0 },
+                { label: t('dash.escalated', 'Escalated'), values: trend.map((d) => d.escalated), slot: 1 },
               ]}
+              locale={user.locale}
             />
           ) : (
             <EmptyState
               icon={<IconPhone size={20} />}
-              title="No calls yet"
-              description="Run a simulated call, or point a number at your agent to see real traffic here."
+              title={t('dash.noCallsYet', 'No calls yet')}
+              description={t(
+                'dash.noCallsDesc',
+                'Run a simulated call, or point a number at your agent to see real traffic here.',
+              )}
               action={<SimulateButton />}
             />
           )}
@@ -137,7 +149,7 @@ export default async function DashboardPage() {
 
         <div className="space-y-4">
           <Card>
-            <h3 className="text-[14.5px] font-semibold text-ink">Right now</h3>
+            <h3 className="text-[14.5px] font-semibold text-ink">{t('dash.rightNow', 'Right now')}</h3>
             <div className="mt-4 space-y-3">
               <LiveRow
                 icon={<IconHeadset size={16} />}
@@ -154,14 +166,14 @@ export default async function DashboardPage() {
               />
               <LiveRow
                 icon={<IconBook size={16} />}
-                label="Indexed passages"
+                label={t('dash.indexedPassages', 'Indexed passages')}
                 value={fmtInt(kb.chunks)}
                 tone="neutral"
                 href="/app/knowledge"
               />
               <LiveRow
                 icon={<IconClock size={16} />}
-                label="Avg call length"
+                label={t('dash.avgCallLength', 'Avg call length')}
                 value={stats.avgHandleSec ? `${Math.round(stats.avgHandleSec)}s` : '—'}
                 tone="neutral"
               />
@@ -169,27 +181,29 @@ export default async function DashboardPage() {
           </Card>
 
           <Card>
-            <h3 className="text-[14.5px] font-semibold text-ink">Engines</h3>
+            <h3 className="text-[14.5px] font-semibold text-ink">{t('dash.engines', 'Engines')}</h3>
             <div className="mt-3.5 space-y-2.5 text-[12.5px]">
               <EngineRow
-                label="Answer generation"
-                value={engineIsHosted() ? engineLabel() : 'Local synthesiser'}
+                label={t('dash.engine.answer', 'Answer generation')}
+                value={engineIsHosted() ? engineLabel() : t('dash.engine.localSynth', 'Local synthesiser')}
                 hosted={engineIsHosted()}
               />
               <EngineRow
-                label="Telephony"
-                value={twilio.isConfigured() ? 'Twilio SIP' : 'Built-in simulator'}
+                label={t('dash.engine.telephony', 'Telephony')}
+                value={twilio.isConfigured() ? 'Twilio SIP' : t('dash.engine.simulator', 'Built-in simulator')}
                 hosted={twilio.isConfigured()}
               />
               <EngineRow
-                label="Retrieval"
-                value="Hybrid BM25 + dense"
+                label={t('dash.engine.retrieval', 'Retrieval')}
+                value={t('dash.engine.hybrid', 'Hybrid BM25 + dense')}
                 hosted
               />
             </div>
             <p className="mt-3 text-[11.5px] leading-relaxed text-ink-3">
-              Local engines need no API keys and never leave this machine. Add credentials in
-              settings to switch any row to a hosted provider.
+              {t(
+                'dash.engine.note',
+                'Local engines need no API keys and never leave this machine. Add credentials in settings to switch any row to a hosted provider.',
+              )}
             </p>
           </Card>
         </div>
@@ -227,8 +241,8 @@ export default async function DashboardPage() {
                       {c.caller_name ?? c.from_e164}
                     </div>
                     <div className="truncate text-[12px] text-ink-3">
-                      {c.intent ?? 'General enquiry'} · {c.language.toUpperCase()} ·{' '}
-                      {relativeTime(c.started_at)}
+                      {c.intent ? t(`intent.${c.intent}`, c.intent) : t('dash.generalEnquiry', 'General enquiry')} · {c.language.toUpperCase()} ·{' '}
+                      {relativeTime(c.started_at, user.locale)}
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
@@ -245,23 +259,26 @@ export default async function DashboardPage() {
           ) : (
             <EmptyState
               icon={<IconPhone size={20} />}
-              title="Nothing has come in yet"
-              description="Every call will show up here with its transcript and the passages the AI used."
+              title={t('dash.nothingIn', 'Nothing has come in yet')}
+              description={t(
+                'dash.nothingInDesc',
+                'Every call will show up here with its transcript and the passages the AI used.',
+              )}
             />
           )}
         </Card>
 
         <ChartFrame
-          title="What people ask about"
-          subtitle="Top intents in the last 30 days."
+          title={t('dash.intentsTitle', 'What people ask about')}
+          subtitle={t('dash.intentsSub', 'Top intents in the last 30 days.')}
         >
           <RankBars
             rows={topIntents.map((i) => ({
-              label: i.label,
+              label: t(`intent.${i.intent}`, i.label),
               value: i.count,
-              sub: `${fmtPct(i.resolvedRate)} solved`,
+              sub: t('dash.solved', '{n} solved').replace('{n}', fmtPct(i.resolvedRate)),
             }))}
-            emptyLabel="Intents appear once calls come in."
+            emptyLabel={t('dash.intentsEmpty', 'Intents appear once calls come in.')}
           />
         </ChartFrame>
       </div>
@@ -271,7 +288,7 @@ export default async function DashboardPage() {
           <h3 className="text-[14.5px] font-semibold text-ink">{t('dash.gaps')}</h3>
           <p className="mt-0.5 text-[12.5px] text-ink-3">{t('dash.gapsHint')}</p>
         </div>
-        <GapList gaps={gaps} />
+        <GapList gaps={gaps} locale={user.locale} />
       </Card>
     </div>
   );
@@ -279,20 +296,22 @@ export default async function DashboardPage() {
 
 /* ── pieces ──────────────────────────────────────────────────── */
 
-function SetupChecklist({ done }: { done: Record<string, boolean> }) {
+function SetupChecklist({ done, t }: { done: Record<string, boolean>; t: Translate }) {
   const items = [
-    { key: 'knowledge', label: 'Add knowledge', href: '/app/knowledge', hint: 'Upload documents your agent can answer from' },
-    { key: 'agent', label: 'Take the agent live', href: '/app/agent', hint: 'Set the voice, languages and escalation rules' },
-    { key: 'number', label: 'Connect a number', href: '/app/numbers', hint: 'A simulator line is already assigned' },
-    { key: 'tested', label: 'Handle a first call', href: '/app/playground', hint: 'Talk to it yourself before your callers do' },
+    { key: 'knowledge', label: t('kb.add', 'Add knowledge'), href: '/app/knowledge', hint: t('dash.setup.knowledgeHint', 'Upload documents your agent can answer from') },
+    { key: 'agent', label: t('dash.setup.agent', 'Take the agent live'), href: '/app/agent', hint: t('dash.setup.agentHint', 'Set the voice, languages and escalation rules') },
+    { key: 'number', label: t('dash.setup.number', 'Connect a number'), href: '/app/numbers', hint: t('dash.setup.numberHint', 'A simulator line is already assigned') },
+    { key: 'tested', label: t('dash.setup.tested', 'Handle a first call'), href: '/app/playground', hint: t('dash.setup.testedHint', 'Talk to it yourself before your callers do') },
   ];
   return (
     <Card className="mb-4 bg-brand-soft" padded={false}>
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
         <div>
-          <h3 className="text-[14px] font-semibold text-brand-ink">Finish setting up</h3>
+          <h3 className="text-[14px] font-semibold text-brand-ink">{t('dash.setup.title', 'Finish setting up')}</h3>
           <p className="text-[12.5px] text-brand-ink/70">
-            {Object.values(done).filter(Boolean).length} of {items.length} done
+            {t('dash.setup.progress', '{a} of {b} done')
+              .replace('{a}', String(Object.values(done).filter(Boolean).length))
+              .replace('{b}', String(items.length))}
           </p>
         </div>
       </div>

@@ -142,7 +142,9 @@ export function OperatorInbox({
                       {item.caller_name ?? maskPhone(item.from_e164)}
                     </span>
                   </span>
-                  <Badge tone={PRIORITY_TONE[item.priority] ?? 'neutral'}>{item.priority}</Badge>
+                  <Badge tone={PRIORITY_TONE[item.priority] ?? 'neutral'}>
+                    {t(`inbox.priority.${item.priority}`, item.priority)}
+                  </Badge>
                 </div>
                 <p className="mt-1 truncate text-[12px] text-ink-3">
                   {t(`reason.${item.reason}`, ESCALATION_REASON_LABEL[item.reason] ?? item.reason)}
@@ -165,6 +167,7 @@ export function OperatorInbox({
             onChanged={refresh}
             toast={toast}
             t={t}
+            locale={locale}
           />
         )}
       </div>
@@ -180,12 +183,14 @@ function CallWorkspace({
   onChanged,
   toast,
   t,
+  locale,
 }: {
   item: InboxItem;
   operatorId: string;
   onChanged: () => void;
   toast: ReturnType<typeof useToast>;
   t: (k: string, f?: string) => string;
+  locale: UiLocale;
 }) {
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState('');
@@ -213,14 +218,15 @@ function CallWorkspace({
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Avatar name={item.caller_name ?? 'Caller'} hue={200} size={44} />
+            <Avatar name={item.caller_name ?? t('inbox.caller', 'Caller')} hue={200} size={44} />
             <div>
               <h2 className="text-[16px] font-semibold text-ink">
                 {item.caller_name ?? maskPhone(item.from_e164)}
               </h2>
               <p className="text-[12.5px] text-ink-3">
-                {item.from_e164} · {item.language.toUpperCase()} · {item.turns} turns ·{' '}
-                {relativeTime(item.started_at)}
+                {item.from_e164} · {item.language.toUpperCase()} ·{' '}
+                {t('inbox.turnsCount', '{n} turns').replace('{n}', String(item.turns))} ·{' '}
+                {relativeTime(item.started_at, locale)}
               </p>
             </div>
           </div>
@@ -234,8 +240,8 @@ function CallWorkspace({
                   setBusy(true);
                   const res = await acceptEscalationAction(item.id);
                   setBusy(false);
-                  if (res.ok) toast.success('Connected', res.message);
-                  else toast.error('Too late', res.message);
+                  if (res.ok) toast.success(t('inbox.toast.connected', 'Connected'), res.message);
+                  else toast.error(t('inbox.toast.tooLate', 'Too late'), res.message);
                   onChanged();
                 }}
               >
@@ -243,21 +249,28 @@ function CallWorkspace({
               </Button>
             ) : (
               <Badge tone="info" dot>
-                {mine ? 'You are handling this' : `${item.operator_name ?? 'Someone'} is handling this`}
+                {mine
+                  ? t('inbox.handlingYou', 'You are handling this')
+                  : t('inbox.handlingOther', '{name} is handling this').replace(
+                      '{name}',
+                      item.operator_name ?? t('inbox.someone', 'Someone'),
+                    )}
               </Badge>
             )}
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Badge tone={PRIORITY_TONE[item.priority] ?? 'neutral'}>{item.priority}</Badge>
+          <Badge tone={PRIORITY_TONE[item.priority] ?? 'neutral'}>
+                    {t(`inbox.priority.${item.priority}`, item.priority)}
+                  </Badge>
           <Badge tone="warning">
             {t(`reason.${item.reason}`, ESCALATION_REASON_LABEL[item.reason] ?? item.reason)}
           </Badge>
-          {item.intent && <Badge tone="neutral">{item.intent}</Badge>}
+          {item.intent && <Badge tone="neutral">{t(`intent.${item.intent}`, item.intent)}</Badge>}
           {item.sentiment != null && item.sentiment < -0.2 && (
             <Badge tone="danger" icon={<IconAlert size={12} />}>
-              Caller sounds unhappy
+              {t('inbox.unhappy', 'Caller sounds unhappy')}
             </Badge>
           )}
         </div>
@@ -270,7 +283,7 @@ function CallWorkspace({
             <div>
               <h3 className="text-[13.5px] font-semibold text-brand-ink">{t('inbox.summary')}</h3>
               <p className="mt-1 text-[13.5px] leading-relaxed text-brand-ink/85">
-                {item.summary ?? 'Generating…'}
+                {item.summary ?? t('inbox.generating', 'Generating…')}
               </p>
             </div>
           </div>
@@ -280,11 +293,11 @@ function CallWorkspace({
             icon={<IconRefresh size={13} />}
             onClick={async () => {
               const res = await refreshSummaryAction(item.id);
-              if (res.ok) toast.success('Summary refreshed');
+              if (res.ok) toast.success(t('inbox.toast.summaryRefreshed', 'Summary refreshed'));
               onChanged();
             }}
           >
-            Redo
+            {t('inbox.redo', 'Redo')}
           </Button>
         </div>
       </Card>
@@ -319,8 +332,13 @@ function CallWorkspace({
                       turn.role !== 'caller' ? 'text-right' : 'text-left',
                     )}
                   >
-                    {turn.role === 'caller' ? 'Caller' : turn.role === 'operator' ? 'Operator' : 'AI'}
-                    {turn.confidence != null && ` · conf ${turn.confidence.toFixed(2)}`}
+                    {turn.role === 'caller'
+                      ? t('inbox.caller', 'Caller')
+                      : turn.role === 'operator'
+                        ? t('inbox.operator', 'Operator')
+                        : 'AI'}
+                    {turn.confidence != null &&
+                      ` · ${t('inbox.conf', 'conf')} ${turn.confidence.toFixed(2)}`}
                   </div>
                 </div>
               </div>
@@ -342,15 +360,18 @@ function CallWorkspace({
                 <Input
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
-                  placeholder="Type what you told the caller…"
+                  placeholder={t('inbox.replyPlaceholder', 'Type what you told the caller…')}
                   className="flex-1"
                 />
                 <Button type="submit" variant="primary" icon={<IconSend size={15} />}>
-                  Log
+                  {t('inbox.log', 'Log')}
                 </Button>
               </form>
               <p className="mt-2 text-[11.5px] text-ink-3">
-                Logging what you said keeps the transcript complete for quality review.
+                {t(
+                  'inbox.logHint',
+                  'Logging what you said keeps the transcript complete for quality review.',
+                )}
               </p>
             </div>
           )}
@@ -376,27 +397,34 @@ function CallWorkspace({
               </div>
             ) : (
               <p className="mt-2.5 text-[12.5px] text-ink-3">
-                The AI found nothing relevant — which is exactly why this reached you.
+                {t(
+                  'inbox.noSources',
+                  'The AI found nothing relevant — which is exactly why this reached you.',
+                )}
               </p>
             )}
           </Card>
 
           {item.status === 'assigned' && mine && (
             <Card>
-              <h3 className="text-[13.5px] font-semibold text-ink">Close the call</h3>
+              <h3 className="text-[13.5px] font-semibold text-ink">{t('inbox.close', 'Close the call')}</h3>
               <div className="mt-3 space-y-3">
                 <Select value={resolution} onChange={(e) => setResolution(e.target.value)}>
-                  <option value="answered">Answered the caller</option>
-                  <option value="booked">Booked an appointment</option>
-                  <option value="escalated_internally">Passed to a colleague</option>
-                  <option value="complaint_logged">Logged a complaint</option>
-                  <option value="no_action">No action needed</option>
+                  <option value="answered">{t('inbox.resolution.answered', 'Answered the caller')}</option>
+                  <option value="booked">{t('inbox.resolution.booked', 'Booked an appointment')}</option>
+                  <option value="escalated_internally">
+                    {t('inbox.resolution.escalated', 'Passed to a colleague')}
+                  </option>
+                  <option value="complaint_logged">
+                    {t('inbox.resolution.complaint', 'Logged a complaint')}
+                  </option>
+                  <option value="no_action">{t('inbox.resolution.noAction', 'No action needed')}</option>
                 </Select>
                 <Textarea
                   rows={3}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Anything worth recording…"
+                  placeholder={t('inbox.notesPlaceholder', 'Anything worth recording…')}
                 />
                 <Button
                   variant="success"
@@ -407,8 +435,8 @@ function CallWorkspace({
                     setBusy(true);
                     const res = await resolveEscalationAction(item.id, resolution, notes, 5);
                     setBusy(false);
-                    if (res.ok) toast.success('Closed', res.message);
-                    else toast.error('Could not close', res.message);
+                    if (res.ok) toast.success(t('inbox.toast.closed', 'Closed'), res.message);
+                    else toast.error(t('inbox.toast.closeFailed', 'Could not close'), res.message);
                     onChanged();
                   }}
                 >

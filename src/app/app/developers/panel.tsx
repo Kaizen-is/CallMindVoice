@@ -8,7 +8,8 @@ import {
   revokeApiKeyAction,
   saveWebhookAction,
 } from '@/app/actions/ops';
-import type { ApiKey, Webhook } from '@/lib/types';
+import type { ApiKey, UiLocale, Webhook } from '@/lib/types';
+import { translator } from '@/lib/i18n';
 import { fmtDateTime, relativeTime } from '@/lib/utils';
 import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Segmented } from '@/components/ui/primitives';
 import { Field, Input, Select } from '@/components/ui/forms';
@@ -21,6 +22,7 @@ const ENDPOINTS = [
     method: 'POST',
     path: '/v1/answer',
     desc: 'Ask the agent a question and get a grounded answer with citations.',
+    descKey: 'developers.endpoint.answer',
     body: `{
   "question": "Kardiolog qabuli qancha turadi?",
   "language": "uz",
@@ -43,6 +45,7 @@ const ENDPOINTS = [
     method: 'GET',
     path: '/v1/calls',
     desc: 'List calls with transcripts, outcomes and latency.',
+    descKey: 'developers.endpoint.calls',
     body: '?limit=50&outcome=escalated&from=2026-08-01',
     response: `{
   "data": [
@@ -57,6 +60,7 @@ const ENDPOINTS = [
     method: 'POST',
     path: '/v1/documents',
     desc: 'Push a document into the knowledge base and index it.',
+    descKey: 'developers.endpoint.documents',
     body: `{
   "title": "August price list",
   "text": "Terapevt qabuli — 120 000 so'm...",
@@ -80,13 +84,16 @@ export function DevelopersPanel({
   tenantId,
   exampleNumber,
   canEdit,
+  locale,
 }: {
   keys: ApiKey[];
   hooks: Webhook[];
   tenantId: string;
   exampleNumber: string;
   canEdit: boolean;
+  locale: UiLocale;
 }) {
+  const t = translator(locale);
   const router = useRouter();
   const toast = useToast();
   const [, start] = useTransition();
@@ -125,8 +132,11 @@ export function DevelopersPanel({
   return (
     <div className="mx-auto max-w-[1100px]">
       <PageHeader
-        title="Developers"
-        subtitle="Keys, webhooks and the REST surface for wiring the agent into whatever your team already uses."
+        title={t('nav.developers', 'Developers')}
+        subtitle={t(
+          'developers.subtitle',
+          'Keys, webhooks and the REST surface for wiring the agent into whatever your team already uses.',
+        )}
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -134,11 +144,11 @@ export function DevelopersPanel({
           <div className="flex items-center justify-between gap-3 px-5 py-4 hairline-b">
             <div className="flex items-center gap-2">
               <IconKey size={16} className="text-ink-3" />
-              <h3 className="text-[14px] font-semibold text-ink">API keys</h3>
+              <h3 className="text-[14px] font-semibold text-ink">{t('developers.keys.title', 'API keys')}</h3>
             </div>
             {canEdit && (
               <Button size="xs" variant="secondary" icon={<IconPlus size={13} />} onClick={() => setCreating(true)}>
-                New key
+                {t('developers.keys.new', 'New key')}
               </Button>
             )}
           </div>
@@ -150,12 +160,12 @@ export function DevelopersPanel({
                     <div className="flex items-center gap-2">
                       <span className="text-[13px] font-medium text-ink">{k.name}</span>
                       <Badge tone={k.revoked_at ? 'danger' : 'success'}>
-                        {k.revoked_at ? 'Revoked' : k.scopes}
+                        {k.revoked_at ? t('developers.keys.revoked', 'Revoked') : k.scopes}
                       </Badge>
                     </div>
                     <p className="mt-0.5 font-mono text-[11.5px] text-ink-3">
-                      {k.prefix}••••••••  · created {relativeTime(k.created_at)}
-                      {k.last_used && ` · used ${relativeTime(k.last_used)}`}
+                      {k.prefix}••••••••  · {t('developers.keys.created', 'created')} {relativeTime(k.created_at, locale)}
+                      {k.last_used && ` · ${t('developers.keys.used', 'used')} ${relativeTime(k.last_used, locale)}`}
                     </p>
                   </div>
                   {canEdit && !k.revoked_at && (
@@ -169,8 +179,8 @@ export function DevelopersPanel({
           ) : (
             <EmptyState
               icon={<IconKey size={20} />}
-              title="No keys yet"
-              description="Create one to call the API from your own systems."
+              title={t('developers.keys.emptyTitle', 'No keys yet')}
+              description={t('developers.keys.emptyDesc', 'Create one to call the API from your own systems.')}
             />
           )}
         </Card>
@@ -183,7 +193,7 @@ export function DevelopersPanel({
             </div>
             {canEdit && (
               <Button size="xs" variant="secondary" icon={<IconPlus size={13} />} onClick={() => setHookOpen(true)}>
-                Add
+                {t('developers.hooks.add', 'Add')}
               </Button>
             )}
           </div>
@@ -216,7 +226,7 @@ export function DevelopersPanel({
                     ))}
                   </div>
                   <p className="mt-1.5 font-mono text-[11px] text-ink-3">
-                    signing secret {h.secret.slice(0, 14)}••••
+                    {t('developers.hooks.signingSecret', 'signing secret')} {h.secret.slice(0, 14)}••••
                   </p>
                 </div>
               ))}
@@ -224,8 +234,8 @@ export function DevelopersPanel({
           ) : (
             <EmptyState
               icon={<IconLink size={20} />}
-              title="No webhooks"
-              description="Get a signed POST whenever a call completes or escalates."
+              title={t('developers.hooks.emptyTitle', 'No webhooks')}
+              description={t('developers.hooks.emptyDesc', 'Get a signed POST whenever a call completes or escalates.')}
             />
           )}
         </Card>
@@ -268,11 +278,11 @@ export function DevelopersPanel({
           </div>
 
           <div className="p-5">
-            <p className="text-[13px] text-ink-2">{active.desc}</p>
+            <p className="text-[13px] text-ink-2">{t(active.descKey, active.desc)}</p>
             <div className="mt-4 space-y-4">
               <div>
                 <div className="mb-1.5 text-[11.5px] font-semibold tracking-wide text-ink-3 uppercase">
-                  Request
+                  {t('developers.rest.request', 'Request')}
                 </div>
                 <pre className="overflow-x-auto rounded-[10px] bg-surface-3 p-3.5 font-mono text-[11.5px] leading-relaxed text-ink">
                   {snippet()}
@@ -280,7 +290,7 @@ export function DevelopersPanel({
               </div>
               <div>
                 <div className="mb-1.5 text-[11.5px] font-semibold tracking-wide text-ink-3 uppercase">
-                  Response
+                  {t('developers.rest.response', 'Response')}
                 </div>
                 <pre className="overflow-x-auto rounded-[10px] bg-surface-3 p-3.5 font-mono text-[11.5px] leading-relaxed text-ink">
                   {active.response}
@@ -293,12 +303,15 @@ export function DevelopersPanel({
 
       <Card className="mt-4">
         <CardHeader
-          title="Tenant identifiers"
-          subtitle="You will need these when opening a support ticket or wiring an integration."
+          title={t('developers.ids.title', 'Tenant identifiers')}
+          subtitle={t(
+            'developers.ids.subtitle',
+            'You will need these when opening a support ticket or wiring an integration.',
+          )}
         />
         <div className="mt-4 space-y-3">
-          <CopyField label="Tenant ID" value={tenantId} />
-          <CopyField label="Primary number" value={exampleNumber} />
+          <CopyField label={t('developers.ids.tenantId', 'Tenant ID')} value={tenantId} locale={locale} />
+          <CopyField label={t('developers.ids.primaryNumber', 'Primary number')} value={exampleNumber} locale={locale} />
         </div>
       </Card>
 
@@ -309,11 +322,11 @@ export function DevelopersPanel({
           setCreating(false);
           setNewKey(null);
         }}
-        title={newKey ? 'Copy your key now' : 'Create an API key'}
+        title={newKey ? t('developers.newKey.copyTitle', 'Copy your key now') : t('developers.newKey.createTitle', 'Create an API key')}
         description={
           newKey
-            ? 'This is the only time it will be shown. We store a hash, not the key itself.'
-            : 'Scope it to what the integration actually needs.'
+            ? t('developers.newKey.copyDesc', 'This is the only time it will be shown. We store a hash, not the key itself.')
+            : t('developers.newKey.createDesc', 'Scope it to what the integration actually needs.')
         }
         footer={
           newKey ? (
@@ -326,12 +339,12 @@ export function DevelopersPanel({
                 refresh();
               }}
             >
-              Done
+              {t('developers.newKey.done', 'Done')}
             </Button>
           ) : (
             <>
               <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </Button>
               <Button
                 size="sm"
@@ -342,31 +355,31 @@ export function DevelopersPanel({
                   const res = await createApiKeyAction(keyName, scopes);
                   setBusy(false);
                   if (res.ok && res.key) setNewKey(res.key);
-                  else toast.error('Could not create the key');
+                  else toast.error(t('developers.newKey.createError', 'Could not create the key'));
                 }}
               >
-                Create
+                {t('developers.newKey.create', 'Create')}
               </Button>
             </>
           )
         }
       >
         {newKey ? (
-          <CopyField value={newKey} />
+          <CopyField value={newKey} locale={locale} />
         ) : (
           <div className="space-y-4">
-            <Field label="Name">
+            <Field label={t('developers.newKey.name', 'Name')}>
               <Input
                 value={keyName}
                 onChange={(e) => setKeyName(e.target.value)}
-                placeholder="CRM integration"
+                placeholder={t('developers.newKey.namePlaceholder', 'CRM integration')}
               />
             </Field>
-            <Field label="Scope">
+            <Field label={t('developers.newKey.scope', 'Scope')}>
               <Select value={scopes} onChange={(e) => setScopes(e.target.value)}>
-                <option value="read">Read only — calls, analytics, documents</option>
-                <option value="read,write">Read and write — also index documents</option>
-                <option value="read,write,admin">Full access</option>
+                <option value="read">{t('developers.newKey.scopeRead', 'Read only — calls, analytics, documents')}</option>
+                <option value="read,write">{t('developers.newKey.scopeWrite', 'Read and write — also index documents')}</option>
+                <option value="read,write,admin">{t('developers.newKey.scopeAdmin', 'Full access')}</option>
               </Select>
             </Field>
           </div>
@@ -377,12 +390,15 @@ export function DevelopersPanel({
       <Modal
         open={hookOpen}
         onClose={() => setHookOpen(false)}
-        title="Add a webhook"
-        description="We POST a signed JSON payload. Verify the signature with the secret shown afterwards."
+        title={t('developers.hook.title', 'Add a webhook')}
+        description={t(
+          'developers.hook.desc',
+          'We POST a signed JSON payload. Verify the signature with the secret shown afterwards.',
+        )}
         footer={
           <>
             <Button size="sm" variant="ghost" onClick={() => setHookOpen(false)}>
-              Cancel
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button
               size="sm"
@@ -393,34 +409,34 @@ export function DevelopersPanel({
                 const res = await saveWebhookAction(hookUrl, hookEvents);
                 setBusy(false);
                 if (res.ok) {
-                  toast.success('Registered', res.message);
+                  toast.success(t('developers.hook.registered', 'Registered'), res.message);
                   setHookOpen(false);
                   setHookUrl('');
                   refresh();
-                } else toast.error('Could not register', res.message);
+                } else toast.error(t('developers.hook.registerError', 'Could not register'), res.message);
               }}
             >
-              Register
+              {t('developers.hook.register', 'Register')}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <Field label="Endpoint URL" hint="Must be HTTPS.">
+          <Field label={t('developers.hook.url', 'Endpoint URL')} hint={t('developers.hook.urlHint', 'Must be HTTPS.')}>
             <Input
               value={hookUrl}
               onChange={(e) => setHookUrl(e.target.value)}
               placeholder="https://crm.yourcompany.uz/hooks/ovoz"
             />
           </Field>
-          <Field label="Event">
+          <Field label={t('developers.hook.event', 'Event')}>
             <Select value={hookEvents} onChange={(e) => setHookEvents(e.target.value)}>
               {WEBHOOK_EVENTS.map((e) => (
                 <option key={e} value={e}>
                   {e}
                 </option>
               ))}
-              <option value={WEBHOOK_EVENTS.join(',')}>All events</option>
+              <option value={WEBHOOK_EVENTS.join(',')}>{t('developers.hook.allEvents', 'All events')}</option>
             </Select>
           </Field>
         </div>
@@ -430,13 +446,13 @@ export function DevelopersPanel({
         open={Boolean(confirmKey)}
         onClose={() => setConfirmKey(null)}
         danger
-        confirmLabel="Revoke"
-        title={`Revoke “${confirmKey?.name ?? ''}”?`}
-        description="Any integration using this key stops working immediately."
+        confirmLabel={t('developers.revoke.confirm', 'Revoke')}
+        title={t('developers.revoke.title', 'Revoke “{name}”?').replace('{name}', confirmKey?.name ?? '')}
+        description={t('developers.revoke.desc', 'Any integration using this key stops working immediately.')}
         onConfirm={async () => {
           if (!confirmKey) return;
           await revokeApiKeyAction(confirmKey.id);
-          toast.success('Revoked');
+          toast.success(t('developers.revoke.done', 'Revoked'));
           refresh();
         }}
       />

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useLive } from '@/components/console/use-live';
 import { SimulateButton } from '@/components/console/simulate-button';
-import { translator } from '@/lib/i18n';
+import { translator, type Translate } from '@/lib/i18n';
 import type { Call, UiLocale } from '@/lib/types';
 import { CALL_STATUS_LABEL } from '@/lib/catalog';
 import { cn, fmtInt, fmtPct, maskPhone } from '@/lib/utils';
@@ -55,39 +55,41 @@ export function LiveBoard({
       <PageHeader
         title={t('live.title')}
         subtitle={t('live.subtitle')}
-        actions={<SimulateButton />}
+        actions={<SimulateButton locale={locale} />}
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <span className="inline-flex items-center gap-2 rounded-full bg-surface px-3 py-1.5 text-[12.5px] shadow-e1 hairline">
           <StatusDot tone={connected ? 'success' : 'danger'} pulse={connected} />
-          <span className="text-ink-2">{connected ? 'Live feed connected' : 'Reconnecting…'}</span>
+          <span className="text-ink-2">{connected ? t('live.feedConnected', 'Live feed connected') : t('live.reconnecting', 'Reconnecting…')}</span>
         </span>
         <span className="inline-flex items-center gap-2 rounded-full bg-surface px-3 py-1.5 text-[12.5px] shadow-e1 hairline">
           <IconGlobe size={13} className="text-ink-3" />
           <span className="text-ink-2">
-            {telephony.configured ? 'Twilio SIP trunk' : 'Simulator transport'}
+            {telephony.configured
+              ? t('live.twilioTrunk', 'Twilio SIP trunk')
+              : t('live.simulatorTransport', 'Simulator transport')}
           </span>
         </span>
         {simulated > 0 && (
           <Badge tone="brand" dot>
-            {simulated} simulated in flight
+            {t('live.simulatedInFlight', '{n} simulated in flight').replace('{n}', String(simulated))}
           </Badge>
         )}
         {waiting > 0 && (
           <Link href="/app/inbox">
             <Badge tone="danger" dot>
-              {waiting} waiting for an operator
+              {t('live.waitingForOperator', '{n} waiting for an operator').replace('{n}', String(waiting))}
             </Badge>
           </Link>
         )}
       </div>
 
       <div className="mb-4 grid gap-4 sm:grid-cols-3">
-        <Tile label="On the line now" value={fmtInt(calls.length)} tone={calls.length ? 'success' : 'neutral'} icon={<IconHeadset size={16} />} />
-        <Tile label="Calls today" value={fmtInt(todayCalls)} icon={<IconPhoneIn size={16} />} />
+        <Tile label={t('live.onLineNow', 'On the line now')} value={fmtInt(calls.length)} tone={calls.length ? 'success' : 'neutral'} icon={<IconHeadset size={16} />} />
+        <Tile label={t('live.callsToday', 'Calls today')} value={fmtInt(todayCalls)} icon={<IconPhoneIn size={16} />} />
         <Tile
-          label="Resolved by AI today"
+          label={t('live.resolvedToday', 'Resolved by AI today')}
           value={todayCalls ? fmtPct(todayDeflection) : '—'}
           icon={<IconSparkle size={16} />}
         />
@@ -96,7 +98,7 @@ export function LiveBoard({
       {calls.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {calls.map((row) => (
-            <CallCard key={row.call.id} row={row} />
+            <CallCard key={row.call.id} row={row} t={t} />
           ))}
         </div>
       ) : (
@@ -104,8 +106,8 @@ export function LiveBoard({
           <EmptyState
             icon={<IconWave size={20} />}
             title={t('live.noCalls')}
-            description="Start a simulated call, or point a real number at your agent. Everything appears here the moment it rings."
-            action={<SimulateButton />}
+            description={t('live.emptyHint', 'Start a simulated call, or point a real number at your agent. Everything appears here the moment it rings.')}
+            action={<SimulateButton locale={locale} />}
           />
         </Card>
       )}
@@ -142,7 +144,7 @@ function Tile({
   );
 }
 
-function CallCard({ row }: { row: Row }) {
+function CallCard({ row, t }: { row: Row; t: Translate }) {
   const { call, recent } = row;
   const [elapsed, setElapsed] = useState(() => Date.now() - new Date(call.started_at).getTime());
 
@@ -186,7 +188,7 @@ function CallCard({ row }: { row: Row }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3">
-          <Badge tone={tone}>{CALL_STATUS_LABEL[call.status] ?? call.status}</Badge>
+          <Badge tone={tone}>{t(`status.${call.status}`, CALL_STATUS_LABEL[call.status] ?? call.status)}</Badge>
           <Badge tone="neutral">{call.language.toUpperCase()}</Badge>
           {call.intent && <Badge tone="neutral">{call.intent}</Badge>}
           {call.confidence != null && (
@@ -207,7 +209,11 @@ function CallCard({ row }: { row: Row }) {
                   )}
                   style={{ width: 42 }}
                 >
-                  {tn.role === 'caller' ? 'Caller' : tn.role === 'operator' ? 'Human' : 'AI'}
+                  {tn.role === 'caller'
+                    ? t('live.roleCaller', 'Caller')
+                    : tn.role === 'operator'
+                      ? t('live.roleHuman', 'Human')
+                      : 'AI'}
                 </span>
                 <p className="min-w-0 flex-1 text-[12.5px] leading-relaxed text-ink-2">
                   {tn.text.length > 130 ? `${tn.text.slice(0, 129)}…` : tn.text}
@@ -215,14 +221,14 @@ function CallCard({ row }: { row: Row }) {
               </div>
             ))
           ) : (
-            <p className="text-[12.5px] text-ink-3">Ringing…</p>
+            <p className="text-[12.5px] text-ink-3">{t('live.ringing', 'Ringing…')}</p>
           )}
         </div>
 
         {call.status === 'escalating' && (
           <div className="flex items-center gap-2 bg-warning-soft px-4 py-2.5 text-[12px] text-warning">
             <IconAlert size={14} />
-            Waiting for an operator to pick up
+            {t('live.pickupWaiting', 'Waiting for an operator to pick up')}
           </div>
         )}
       </Card>

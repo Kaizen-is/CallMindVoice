@@ -7,9 +7,10 @@ import {
   playgroundTurnAction,
   type PlaygroundReply,
 } from '@/app/actions/agent';
-import { translator } from '@/lib/i18n';
+import { translator, type Translate } from '@/lib/i18n';
 import type { Locale, UiLocale } from '@/lib/types';
 import { cn, fmtLatency } from '@/lib/utils';
+import { voiceInputAvailable } from '@/lib/catalog';
 import { startRecording, micSupported, type Recording } from '@/lib/audio';
 import { Badge, Button, Card, EmptyState, PageHeader, Segmented, Spinner } from '@/components/ui/primitives';
 import { Input } from '@/components/ui/forms';
@@ -57,6 +58,7 @@ interface SpeechRecognitionLike {
 }
 
 const SPEECH_LANG: Record<Locale, string> = { uz: 'uz-UZ', ru: 'ru-RU', en: 'en-GB' };
+const LANG_NAME: Record<Locale, string> = { uz: 'Uzbek', ru: 'Russian', en: 'English' };
 
 interface Msg {
   role: 'caller' | 'agent';
@@ -115,6 +117,7 @@ export function Playground({
   const router = useRouter();
   const toast = useToast();
   const t = translator(locale);
+  const langName = (l: Locale) => t(`play.lang.${l}`, LANG_NAME[l]);
 
   const [mode, setMode] = useState<'voice' | 'text'>('text');
   const [callId, setCallId] = useState<string | null>(null);
@@ -123,7 +126,14 @@ export function Playground({
   const [thinking, setThinking] = useState(false);
   const [listening, setListening] = useState(false);
   const [micBusy, setMicBusy] = useState(false);
-  const [speechLang, setSpeechLang] = useState<Locale>(agent?.primaryLang ?? 'uz');
+  // Voice input is gated to languages with a working recogniser (Uzbek today).
+  // Start on the agent's primary language only if it is available, else the
+  // first available one, else Uzbek — never RU/EN, which are "available soon".
+  const [speechLang, setSpeechLang] = useState<Locale>(
+    agent?.primaryLang && voiceInputAvailable(agent.primaryLang)
+      ? agent.primaryLang
+      : agent?.languages?.find(voiceInputAvailable) ?? 'uz',
+  );
   const [speechSupported, setSpeechSupported] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [level, setLevel] = useState(0);
@@ -211,7 +221,7 @@ export function Playground({
       setThinking(false);
 
       if (!res.ok) {
-        toast.error('Could not answer', res.message);
+        toast.error(t('play.toast.answerFailTitle', 'Could not answer'), res.message);
         return;
       }
       setCallId(res.callId ?? null);
@@ -220,12 +230,12 @@ export function Playground({
       if (res.escalate) {
         toast.toast({
           tone: 'info',
-          title: 'Handed to an operator',
-          description: 'It is now waiting in the operator inbox with a summary.',
+          title: t('play.toast.handedTitle', 'Handed to an operator'),
+          description: t('play.toast.handedBody', 'It is now waiting in the operator inbox with a summary.'),
         });
       }
     },
-    [callId, thinking, playTts, speechLang, toast],
+    [callId, thinking, playTts, speechLang, toast, t],
   );
 
   /* ── speech recognition ─────────────────────────────────────── */
@@ -237,7 +247,10 @@ export function Playground({
     };
     const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!Ctor) {
-      toast.error('Speech input unavailable', 'Chrome or Edge is needed for in-browser recognition.');
+      toast.error(
+        t('play.toast.speechUnavailTitle', 'Speech input unavailable'),
+        t('play.toast.speechUnavailBody', 'Chrome or Edge is needed for in-browser recognition.'),
+      );
       return;
     }
     const rec = new Ctor();
@@ -269,7 +282,7 @@ export function Playground({
     rec.onerror = (e) => {
       setListening(false);
       if (e.error !== 'aborted' && e.error !== 'no-speech') {
-        toast.error('Microphone problem', e.error);
+        toast.error(t('play.toast.micTitle', 'Microphone problem'), e.error);
       }
       setMessages((m) => m.filter((x) => !x.interim));
     };
@@ -281,7 +294,7 @@ export function Playground({
     recognitionRef.current = rec;
     rec.start();
     setListening(true);
-  }, [speechLang, send, toast]);
+  }, [speechLang, send, toast, t]);
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop();
@@ -296,9 +309,9 @@ export function Playground({
       speechStartRef.current = performance.now();
       setListening(true);
     } catch {
-      toast.error('Microphone problem', 'Could not access the microphone.');
+      toast.error(t('play.toast.micTitle', 'Microphone problem'), t('play.toast.micNoAccess', 'Could not access the microphone.'));
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const stopInternalStt = useCallback(async () => {
     const rec = recorderRef.current;
@@ -318,8 +331,13 @@ export function Playground({
         setThinking(false);
         toast.toast({
           tone: 'info',
-          title: 'Nothing heard',
-          description: `Recorded ${durationSec.toFixed(1)}s at level ${rms.toFixed(4)}. If the level is near zero, your mic is muted or the wrong input device is selected.`,
+          title: t('play.toast.nothingTitle', 'Nothing heard'),
+          description: t(
+            'play.toast.nothingDetail',
+            'Recorded {sec}s at level {level}. If the level is near zero, your mic is muted or the wrong input device is selected.',
+          )
+            .replace('{sec}', durationSec.toFixed(1))
+            .replace('{level}', rms.toFixed(4)),
         });
         return;
       }
@@ -332,17 +350,27 @@ export function Playground({
       if (res.ok) text = (((await res.json()) as { text?: string }).text ?? '').trim();
       else {
         failed = true;
-        toast.error('Transcription failed', 'The STT service returned an error.');
+        toast.error(
+          t('play.toast.transcribeFailTitle', 'Transcription failed'),
+          t('play.toast.transcribeFailBody', 'The STT service returned an error.'),
+        );
       }
     } catch (e) {
       failed = true;
-      toast.error('Microphone problem', e instanceof Error ? e.message : 'Recording failed.');
+      toast.error(
+        t('play.toast.micTitle', 'Microphone problem'),
+        e instanceof Error ? e.message : t('play.toast.recordFail', 'Recording failed.'),
+      );
     }
     setThinking(false);
     if (text) void send(text, sttMs);
     else if (!failed)
-      toast.toast({ tone: 'info', title: 'Nothing heard', description: 'No speech was detected — try again.' });
-  }, [send, toast]);
+      toast.toast({
+        tone: 'info',
+        title: t('play.toast.nothingTitle', 'Nothing heard'),
+        description: t('play.toast.nothingRetry', 'No speech was detected — try again.'),
+      });
+  }, [send, toast, t]);
 
   // A simple animated level while listening — the Web Speech API gives no
   // amplitude, so this is an activity indicator rather than a real meter.
@@ -373,7 +401,7 @@ export function Playground({
   // press-and-hold race where a quick tap or release-off-button left a stuck,
   // leaked recorder feeding the model a tiny clip.
   const micToggle = async () => {
-    if (micBusy) return;
+    if (micBusy || !voiceInputAvailable(speechLang)) return;
     setMicBusy(true);
     try {
       if (listening) {
@@ -393,8 +421,8 @@ export function Playground({
     return (
       <EmptyState
         icon={<IconAlert size={20} />}
-        title="No agent configured"
-        description="Set one up in the agent studio first."
+        title={t('play.noAgentTitle', 'No agent configured')}
+        description={t('play.noAgentBody', 'Set one up in the agent studio first.')}
       />
     );
   }
@@ -417,10 +445,10 @@ export function Playground({
                 if (ttsEnabled) window.speechSynthesis?.cancel();
               }}
             >
-              {ttsEnabled ? 'Voice on' : 'Voice off'}
+              {ttsEnabled ? t('play.voiceOn', 'Voice on') : t('play.voiceOff', 'Voice off')}
             </Button>
             <Button variant="secondary" icon={<IconRefresh size={15} />} onClick={() => void reset()}>
-              New call
+              {t('play.newCall', 'New call')}
             </Button>
           </>
         }
@@ -431,9 +459,9 @@ export function Playground({
           <div className="flex items-start gap-3">
             <IconAlert size={18} className="mt-px shrink-0 text-warning" />
             <div>
-              <p className="text-[13.5px] font-medium text-warning">Your knowledge base is empty</p>
+              <p className="text-[13.5px] font-medium text-warning">{t('play.kbEmptyTitle', 'Your knowledge base is empty')}</p>
               <p className="mt-0.5 text-[12.5px] text-warning/80">
-                Every question will escalate until you add a document.
+                {t('play.kbEmptyBody', 'Every question will escalate until you add a document.')}
               </p>
             </div>
           </div>
@@ -450,7 +478,7 @@ export function Playground({
               <div>
                 <div className="text-[13.5px] font-semibold text-ink">{agent.name}</div>
                 <div className="text-[11.5px] text-ink-3">
-                  {agent.status === 'live' ? 'Live' : 'Draft'} · {engine}
+                  {agent.status === 'live' ? t('play.statusLive', 'Live') : t('play.statusDraft', 'Draft')} · {engine}
                 </div>
               </div>
             </div>
@@ -459,8 +487,8 @@ export function Playground({
               value={mode}
               onChange={setMode}
               options={[
-                { value: 'text', label: 'Type' },
-                { value: 'voice', label: 'Speak' },
+                { value: 'text', label: t('play.modeType', 'Type') },
+                { value: 'voice', label: t('play.modeSpeak', 'Speak') },
               ]}
             />
           </div>
@@ -475,9 +503,14 @@ export function Playground({
                     <IconSparkle size={22} />
                   </span>
                   <div className="max-w-sm">
-                    <p className="text-[15px] font-semibold text-ink">Talk to {agent.name}</p>
+                    <p className="text-[15px] font-semibold text-ink">
+                      {t('play.emptyTitle', 'Talk to {name}').replace('{name}', agent.name)}
+                    </p>
                     <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">
-                      Ask anything a caller might — it answers only from your knowledge base. Try one:
+                      {t(
+                        'play.emptyBody',
+                        'Ask anything a caller might — it answers only from your knowledge base. Try one:',
+                      )}
                     </p>
                   </div>
                   <div className="flex flex-wrap justify-center gap-2">
@@ -495,7 +528,7 @@ export function Playground({
               ) : (
                 <>
                   {messages.map((m, i) => (
-                    <Bubble key={i} msg={m} />
+                    <Bubble key={i} msg={m} t={t} />
                   ))}
 
                   {thinking && (
@@ -521,32 +554,62 @@ export function Playground({
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask exactly what a caller would ask…"
+                  placeholder={t('play.inputPlaceholder', 'Ask exactly what a caller would ask…')}
                   className="flex-1"
                   disabled={thinking}
                 />
                 <Button type="submit" variant="primary" icon={<IconSend size={15} />} disabled={thinking}>
-                  Send
+                  {t('play.send', 'Send')}
                 </Button>
               </form>
             ) : (
               <div className="flex flex-col items-center gap-3.5">
                 <div className="flex items-center gap-1.5">
-                  {agent.languages.map((l) => (
-                    <button
-                      key={l}
-                      onClick={() => setSpeechLang(l)}
-                      className={cn(
-                        'rounded-full px-3 py-1 text-[12px] font-medium transition-colors',
-                        speechLang === l
-                          ? 'bg-brand text-white shadow-e1'
-                          : 'bg-surface-3 text-ink-2 hover:text-ink',
-                      )}
-                    >
-                      {l.toUpperCase()}
-                    </button>
-                  ))}
+                  {agent.languages.map((l) => {
+                    const available = voiceInputAvailable(l);
+                    const active = speechLang === l && available;
+                    return (
+                      <button
+                        key={l}
+                        type="button"
+                        onClick={() => available && setSpeechLang(l)}
+                        disabled={!available}
+                        aria-disabled={!available}
+                        title={
+                          available
+                            ? undefined
+                            : t('play.voiceSoonTitle', '{lang} voice recognition — available soon').replace(
+                                '{lang}',
+                                langName(l),
+                              )
+                        }
+                        className={cn(
+                          'inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium transition-colors',
+                          active
+                            ? 'bg-brand text-white shadow-e1'
+                            : available
+                              ? 'bg-surface-3 text-ink-2 hover:text-ink'
+                              : 'cursor-not-allowed bg-surface-3/40 text-ink-3 opacity-60',
+                        )}
+                      >
+                        {l.toUpperCase()}
+                        {!available && (
+                          <span className="rounded-full bg-surface px-1 py-[1px] text-[8.5px] font-semibold tracking-wide uppercase text-ink-3 hairline">
+                            {t('play.soon', 'soon')}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
+                {agent.languages.some((l) => !voiceInputAvailable(l)) && (
+                  <p className="max-w-[15rem] text-center text-[11px] leading-snug text-ink-3">
+                    {t(
+                      'play.voiceUzOnly',
+                      'Voice input is Uzbek-only for now — Russian and English recognition are coming soon.',
+                    )}
+                  </p>
+                )}
 
                 <button
                   onClick={() => void micToggle()}
@@ -570,14 +633,16 @@ export function Playground({
                 <div className="flex flex-col items-center gap-1.5">
                   <p className="text-[12.5px] text-ink-3">
                     {!micReady
-                      ? 'Microphone needs localhost or HTTPS — open http://localhost:3000'
+                      ? t('play.micHttps', 'Microphone needs localhost or HTTPS — open http://localhost:3000')
                       : listening
-                        ? 'Recording — tap the mic to stop'
-                        : 'Tap the mic and speak'}
+                        ? t('play.micRecording', 'Recording — tap the mic to stop')
+                        : t('play.micTap', 'Tap the mic and speak')}
                   </p>
                   {speech.stt && (
                     <span className="rounded-full bg-surface px-2.5 py-0.5 text-[11px] text-ink-3 hairline">
-                      {internalStt ? 'Uzbek → your STT model' : `${speechLang.toUpperCase()} → browser voice`}
+                      {internalStt
+                        ? t('play.sttInternal', 'Uzbek → your STT model')
+                        : t('play.sttBrowser', '{lang} → browser voice').replace('{lang}', speechLang.toUpperCase())}
                     </span>
                   )}
                 </div>
@@ -588,55 +653,59 @@ export function Playground({
 
         <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto">
           <Card>
-            <h3 className="text-[14px] font-semibold text-ink">Last turn</h3>
+            <h3 className="text-[14px] font-semibold text-ink">{t('play.lastTurn', 'Last turn')}</h3>
             {lastReply ? (
               <div className="mt-4 space-y-3">
                 <MetricRow
                   icon={<IconZap size={15} />}
-                  label="Total"
+                  label={t('play.metric.total', 'Total')}
                   value={fmtLatency(lastReply.timings?.totalMs)}
                   good={(lastReply.timings?.totalMs ?? 0) < 1000}
                 />
-                <StageBar timings={lastReply.timings ?? {}} />
+                <StageBar timings={lastReply.timings ?? {}} t={t} />
                 <div className="space-y-2 pt-2">
                   <MetricRow
                     icon={<IconCheckCircle size={15} />}
-                    label="Confidence"
+                    label={t('play.metric.confidence', 'Confidence')}
                     value={(lastReply.confidence ?? 0).toFixed(2)}
                     good={(lastReply.confidence ?? 0) >= agent.threshold}
                   />
                   <MetricRow
                     icon={<IconBook size={15} />}
-                    label="Passages searched"
+                    label={t('play.metric.passages', 'Passages searched')}
                     value={String(lastReply.retrieval?.totalChunks ?? 0)}
                   />
                   <MetricRow
                     icon={<IconSparkle size={15} />}
-                    label="Intent"
+                    label={t('play.metric.intent', 'Intent')}
                     value={lastReply.intent ?? '—'}
                   />
                   <MetricRow
                     icon={<IconHeadset size={15} />}
-                    label="Outcome"
-                    value={lastReply.escalate ? `Escalated (${lastReply.escalate})` : 'Answered'}
+                    label={t('play.metric.outcome', 'Outcome')}
+                    value={
+                      lastReply.escalate
+                        ? t('play.escalated', 'Escalated ({reason})').replace('{reason}', lastReply.escalate)
+                        : t('play.answered', 'Answered')
+                    }
                     good={!lastReply.escalate}
                   />
                   <MetricRow
                     icon={<IconSparkle size={15} />}
-                    label="Engine"
+                    label={t('play.metric.engine', 'Engine')}
                     value={lastReply.engine ?? '—'}
                   />
                 </div>
               </div>
             ) : (
               <p className="mt-3 text-[13px] text-ink-3">
-                Ask something and the full pipeline breakdown appears here.
+                {t('play.metricEmpty', 'Ask something and the full pipeline breakdown appears here.')}
               </p>
             )}
           </Card>
 
           <Card>
-            <h3 className="text-[14px] font-semibold text-ink">Sources used</h3>
+            <h3 className="text-[14px] font-semibold text-ink">{t('play.sourcesUsed', 'Sources used')}</h3>
             {lastReply?.citations?.length ? (
               <div className="mt-3 space-y-2.5">
                 {lastReply.citations.map((c, i) => (
@@ -654,7 +723,7 @@ export function Playground({
               </div>
             ) : (
               <p className="mt-3 text-[13px] text-ink-3">
-                Each answer lists the exact passages it came from.
+                {t('play.sourcesEmpty', 'Each answer lists the exact passages it came from.')}
               </p>
             )}
           </Card>
@@ -666,7 +735,7 @@ export function Playground({
 
 /* ── pieces ──────────────────────────────────────────────────── */
 
-function Bubble({ msg }: { msg: Msg }) {
+function Bubble({ msg, t }: { msg: Msg; t: Translate }) {
   const isCaller = msg.role === 'caller';
   return (
     <div className={cn('flex', isCaller ? 'justify-end' : 'justify-start')}>
@@ -690,10 +759,12 @@ function Bubble({ msg }: { msg: Msg }) {
             )}
           >
             <span className="tabular">{fmtLatency(msg.reply.timings?.totalMs)}</span>
-            <span className="tabular">conf {(msg.reply.confidence ?? 0).toFixed(2)}</span>
+            <span className="tabular">
+              {t('play.confShort', 'conf')} {(msg.reply.confidence ?? 0).toFixed(2)}
+            </span>
             {msg.reply.escalate && (
               <span className="rounded-full bg-warning-soft px-2 py-0.5 text-warning">
-                → operator
+                {t('play.toOperator', '→ operator')}
               </span>
             )}
           </div>
@@ -726,13 +797,13 @@ function MetricRow({
 }
 
 const STAGES = [
-  { key: 'sttMs', label: 'Speech', color: 'var(--series-1)' },
-  { key: 'retrievalMs', label: 'Retrieval', color: 'var(--series-3)' },
-  { key: 'llmMs', label: 'Generation', color: 'var(--series-2)' },
-  { key: 'ttsMs', label: 'Synthesis', color: 'var(--series-4)' },
+  { key: 'sttMs', labelKey: 'play.stage.speech', label: 'Speech', color: 'var(--series-1)' },
+  { key: 'retrievalMs', labelKey: 'play.stage.retrieval', label: 'Retrieval', color: 'var(--series-3)' },
+  { key: 'llmMs', labelKey: 'play.stage.generation', label: 'Generation', color: 'var(--series-2)' },
+  { key: 'ttsMs', labelKey: 'play.stage.synthesis', label: 'Synthesis', color: 'var(--series-4)' },
 ];
 
-function StageBar({ timings }: { timings: Record<string, number> }) {
+function StageBar({ timings, t }: { timings: Record<string, number>; t: Translate }) {
   const total = STAGES.reduce((a, s) => a + (timings[s.key] ?? 0), 0) || 1;
   return (
     <div>
@@ -744,7 +815,7 @@ function StageBar({ timings }: { timings: Record<string, number> }) {
             <div
               key={s.key}
               style={{ width: `${(v / total) * 100}%`, background: s.color }}
-              title={`${s.label} ${Math.round(v)} ms`}
+              title={`${t(s.labelKey, s.label)} ${Math.round(v)} ms`}
             />
           );
         })}
@@ -754,7 +825,7 @@ function StageBar({ timings }: { timings: Record<string, number> }) {
           <div key={s.key} className="flex items-center justify-between text-[11.5px]">
             <span className="inline-flex items-center gap-1.5 text-ink-3">
               <span className="h-2 w-2 rounded-[2px]" style={{ background: s.color }} />
-              {s.label}
+              {t(s.labelKey, s.label)}
             </span>
             <span className="text-ink-2 tabular">{Math.round(timings[s.key] ?? 0)} ms</span>
           </div>

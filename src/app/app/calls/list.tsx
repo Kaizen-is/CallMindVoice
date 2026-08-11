@@ -38,7 +38,10 @@ export function CallList({
     <div className="mx-auto max-w-[1400px]">
       <PageHeader
         title={t('nav.calls')}
-        subtitle="Every call, with the transcript and the passages behind each answer."
+        subtitle={t(
+          'calls.subtitle',
+          'Every call, with the transcript and the passages behind each answer.',
+        )}
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -52,7 +55,7 @@ export function CallList({
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search number, caller, intent or summary…"
+            placeholder={t('calls.searchPlaceholder', 'Search number, caller, intent or summary…')}
             icon={<IconSearch size={15} />}
             suffix={q ? undefined : undefined}
           />
@@ -61,10 +64,10 @@ export function CallList({
           value={filters.outcome}
           onChange={(v) => apply({ outcome: v })}
           options={[
-            { value: 'all', label: 'All' },
-            { value: 'resolved_by_ai', label: 'AI' },
-            { value: 'escalated', label: 'Escalated' },
-            { value: 'abandoned', label: 'Abandoned' },
+            { value: 'all', label: t('common.all', 'All') },
+            { value: 'resolved_by_ai', label: t('calls.filter.ai', 'AI') },
+            { value: 'escalated', label: t('calls.filter.escalated', 'Escalated') },
+            { value: 'abandoned', label: t('calls.filter.abandoned', 'Abandoned') },
           ]}
         />
         <Select
@@ -72,10 +75,10 @@ export function CallList({
           onChange={(e) => apply({ lang: e.target.value })}
           className="w-auto min-w-[120px]"
         >
-          <option value="all">All languages</option>
-          <option value="uz">Uzbek</option>
-          <option value="ru">Russian</option>
-          <option value="en">English</option>
+          <option value="all">{t('calls.allLanguages', 'All languages')}</option>
+          <option value="uz">{t('calls.lang.uz', 'Uzbek')}</option>
+          <option value="ru">{t('calls.lang.ru', 'Russian')}</option>
+          <option value="en">{t('calls.lang.en', 'English')}</option>
         </Select>
         {(filters.q || filters.outcome !== 'all' || filters.lang !== 'all') && (
           <button
@@ -86,7 +89,7 @@ export function CallList({
             className="inline-flex items-center gap-1 rounded-[9px] px-2.5 py-2 text-[12.5px] text-ink-3 transition-colors hover:text-ink"
           >
             <IconX size={14} />
-            Clear
+            {t('calls.clear', 'Clear')}
           </button>
         )}
       </div>
@@ -97,15 +100,15 @@ export function CallList({
             <table className="w-full min-w-[820px]">
               <thead>
                 <tr className="text-left text-[11.5px] font-medium tracking-wide text-ink-3 uppercase hairline-b">
-                  <th className="px-5 py-3">Caller</th>
-                  <th className="px-3 py-3">Outcome</th>
-                  <th className="px-3 py-3">Intent</th>
-                  <th className="px-3 py-3">Lang</th>
-                  <th className="px-3 py-3 text-right">Turns</th>
-                  <th className="px-3 py-3 text-right">Length</th>
-                  <th className="px-3 py-3 text-right">Latency</th>
-                  <th className="px-3 py-3 text-right">CSAT</th>
-                  <th className="px-5 py-3 text-right">When</th>
+                  <th className="px-5 py-3">{t('calls.col.caller', 'Caller')}</th>
+                  <th className="px-3 py-3">{t('calls.col.outcome', 'Outcome')}</th>
+                  <th className="px-3 py-3">{t('calls.col.intent', 'Intent')}</th>
+                  <th className="px-3 py-3">{t('calls.col.lang', 'Lang')}</th>
+                  <th className="px-3 py-3 text-right">{t('calls.col.turns', 'Turns')}</th>
+                  <th className="px-3 py-3 text-right">{t('calls.col.length', 'Length')}</th>
+                  <th className="px-3 py-3 text-right">{t('calls.col.latency', 'Latency')}</th>
+                  <th className="px-3 py-3 text-right">{t('calls.col.csat', 'CSAT')}</th>
+                  <th className="px-5 py-3 text-right">{t('calls.col.when', 'When')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[rgb(var(--line)/var(--line-alpha))]">
@@ -146,11 +149,11 @@ export function CallList({
                         }
                       >
                         {c.outcome
-                          ? (OUTCOME_LABEL[c.outcome] ?? c.outcome)
-                          : (CALL_STATUS_LABEL[c.status] ?? c.status)}
+                          ? t(`outcome.${c.outcome}`, OUTCOME_LABEL[c.outcome] ?? c.outcome)
+                          : t(`status.${c.status}`, CALL_STATUS_LABEL[c.status] ?? c.status)}
                       </Badge>
                     </td>
-                    <td className="px-3 py-3 text-[12.5px] text-ink-2">{c.intent ?? '—'}</td>
+                    <td className="px-3 py-3 text-[12.5px] text-ink-2">{c.intent ? t(`intent.${c.intent}`, c.intent) : '—'}</td>
                     <td className="px-3 py-3 text-[12.5px] text-ink-2">{c.language.toUpperCase()}</td>
                     <td className="px-3 py-3 text-right text-[12.5px] text-ink-2 tabular">{c.turns}</td>
                     <td className="px-3 py-3 text-right text-[12.5px] text-ink-2 tabular">
@@ -169,7 +172,7 @@ export function CallList({
                       {c.csat ? `${c.csat}/5` : '—'}
                     </td>
                     <td className="px-5 py-3 text-right text-[12px] whitespace-nowrap text-ink-3">
-                      {fmtDateTime(c.started_at)}
+                      {fmtDateTime(c.started_at, locale)}
                     </td>
                   </tr>
                 ))}
@@ -179,15 +182,21 @@ export function CallList({
         ) : (
           <EmptyState
             icon={<IconPhone size={20} />}
-            title="No calls match"
-            description="Adjust the filters, or run a simulated call to populate the history."
+            title={t('calls.emptyTitle', 'No calls match')}
+            description={t(
+              'calls.emptyHint',
+              'Adjust the filters, or run a simulated call to populate the history.',
+            )}
           />
         )}
       </Card>
 
       {calls.length >= 200 && (
         <p className="mt-3 text-center text-[12px] text-ink-3">
-          Showing the 200 most recent calls. Narrow the filters to see older ones.
+          {t(
+            'calls.limitNote',
+            'Showing the 200 most recent calls. Narrow the filters to see older ones.',
+          )}
         </p>
       )}
     </div>

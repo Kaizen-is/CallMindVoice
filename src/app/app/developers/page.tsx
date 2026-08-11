@@ -27,6 +27,7 @@ export default async function DevelopersPage() {
       tenantId={tenant.id}
       exampleNumber={number?.e164 ?? '+998712000000'}
       canEdit={user.role === 'owner' || user.role === 'admin'}
+      locale={user.locale}
     />
   );
 }

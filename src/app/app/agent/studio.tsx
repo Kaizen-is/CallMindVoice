@@ -116,9 +116,15 @@ export function AgentStudio({
     const res = await saveAgentAction(agent.id, draft);
     setSaving(false);
     if (res.ok) {
-      toast.success('Saved', `Version ${res.version} is now the active configuration.`);
+      toast.success(
+        t('common.saved', 'Saved'),
+        t('agent.saveToast.body', 'Version {n} is now the active configuration.').replace(
+          '{n}',
+          String(res.version),
+        ),
+      );
       start(() => router.refresh());
-    } else toast.error('Could not save', res.message);
+    } else toast.error(t('agent.saveError', 'Could not save'), res.message);
   };
 
   const toggleStatus = async () => {
@@ -141,10 +147,12 @@ export function AgentStudio({
                 icon={agent.status === 'live' ? <IconPause size={15} /> : <IconPlay size={15} />}
                 onClick={() => void toggleStatus()}
               >
-                {agent.status === 'live' ? 'Pause agent' : 'Take live'}
+                {agent.status === 'live'
+                  ? t('agent.pause', 'Pause agent')
+                  : t('agent.takeLive', 'Take live')}
               </Button>
               <Button variant="primary" loading={saving} disabled={!dirty} onClick={() => void save()}>
-                {dirty ? 'Save changes' : 'Saved'}
+                {dirty ? t('agent.saveChanges', 'Save changes') : t('common.saved', 'Saved')}
               </Button>
             </>
           ) : undefined
@@ -153,15 +161,19 @@ export function AgentStudio({
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <Badge tone={agent.status === 'live' ? 'success' : agent.status === 'paused' ? 'warning' : 'neutral'} dot>
-          {agent.status === 'live' ? 'Answering calls' : agent.status === 'paused' ? 'Paused' : 'Draft'}
+          {agent.status === 'live'
+            ? t('agent.status.answering', 'Answering calls')
+            : agent.status === 'paused'
+              ? t('agent.status.paused', 'Paused')
+              : t('agent.status.draft', 'Draft')}
         </Badge>
         <Badge tone="neutral">v{agent.version}</Badge>
         <Badge tone={knowledgeChunks > 0 ? 'neutral' : 'danger'}>
-          {knowledgeChunks} passages indexed
+          {t('agent.passagesIndexed', '{n} passages indexed').replace('{n}', String(knowledgeChunks))}
         </Badge>
         {knowledgeChunks === 0 && (
           <span className="text-[12.5px] text-danger">
-            With an empty knowledge base every call escalates.
+            {t('agent.emptyKbWarning', 'With an empty knowledge base every call escalates.')}
           </span>
         )}
       </div>
@@ -171,10 +183,10 @@ export function AgentStudio({
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: 'voice', label: 'Voice & language', icon: <IconVolume size={15} /> },
-          { value: 'behaviour', label: 'Behaviour', icon: <IconSparkle size={15} /> },
-          { value: 'escalation', label: 'Escalation', icon: <IconHeadset size={15} /> },
-          { value: 'hours', label: 'Business hours', icon: <IconClock size={15} /> },
+          { value: 'voice', label: t('agent.tab.voice', 'Voice & language'), icon: <IconVolume size={15} /> },
+          { value: 'behaviour', label: t('agent.tab.behaviour', 'Behaviour'), icon: <IconSparkle size={15} /> },
+          { value: 'escalation', label: t('agent.tab.escalation', 'Escalation'), icon: <IconHeadset size={15} /> },
+          { value: 'hours', label: t('agent.tab.hours', 'Business hours'), icon: <IconClock size={15} /> },
         ]}
       />
 
@@ -182,12 +194,15 @@ export function AgentStudio({
         {tab === 'voice' && (
           <>
             <Card>
-              <CardHeader title="Identity" subtitle="What the agent is called internally and how it opens a call." />
+              <CardHeader
+                title={t('agent.identity.title', 'Identity')}
+                subtitle={t('agent.identity.subtitle', 'What the agent is called internally and how it opens a call.')}
+              />
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <Field label="Agent name">
+                <Field label={t('agent.field.name', 'Agent name')}>
                   <Input value={draft.name} onChange={(e) => set('name', e.target.value)} />
                 </Field>
-                <Field label="Voice">
+                <Field label={t('agent.field.voice', 'Voice')}>
                   <Select value={draft.voiceId} onChange={(e) => set('voiceId', e.target.value)}>
                     {VOICES.map((v) => (
                       <option key={v.id} value={v.id}>
@@ -199,15 +214,15 @@ export function AgentStudio({
               </div>
               <Field
                 className="mt-4"
-                label="Opening line"
-                hint="Spoken before the caller says anything. Keep it under about fifteen words."
+                label={t('agent.field.opening', 'Opening line')}
+                hint={t('agent.field.openingHint', 'Spoken before the caller says anything. Keep it under about fifteen words.')}
               >
                 <Textarea rows={2} value={draft.greeting} onChange={(e) => set('greeting', e.target.value)} />
               </Field>
               <Field
                 className="mt-4"
-                label="When it cannot answer"
-                hint="Said just before handing the caller to a person."
+                label={t('agent.field.fallback', 'When it cannot answer')}
+                hint={t('agent.field.fallbackHint', 'Said just before handing the caller to a person.')}
               >
                 <Textarea
                   rows={2}
@@ -218,7 +233,10 @@ export function AgentStudio({
             </Card>
 
             <Card>
-              <CardHeader title="Languages" subtitle="The agent answers in whichever of these the caller uses." />
+              <CardHeader
+                title={t('agent.languages.title', 'Languages')}
+                subtitle={t('agent.languages.subtitle', 'The agent answers in whichever of these the caller uses.')}
+              />
               <div className="mt-4 flex flex-wrap gap-2">
                 {LANGS.map((l) => {
                   const on = draft.languages.includes(l.value);
@@ -246,7 +264,7 @@ export function AgentStudio({
                   );
                 })}
               </div>
-              <Field className="mt-4 max-w-xs" label="Greets in">
+              <Field className="mt-4 max-w-xs" label={t('agent.field.greetsIn', 'Greets in')}>
                 <Select
                   value={draft.primaryLang}
                   onChange={(e) => set('primaryLang', e.target.value as Locale)}
@@ -260,7 +278,7 @@ export function AgentStudio({
               </Field>
               <Slider
                 className="mt-5 max-w-sm"
-                label="Speaking rate"
+                label={t('agent.field.speakingRate', 'Speaking rate')}
                 min={0.7}
                 max={1.4}
                 step={0.05}
@@ -275,7 +293,10 @@ export function AgentStudio({
         {tab === 'behaviour' && (
           <>
             <Card>
-              <CardHeader title="Manner" subtitle="How it carries itself on the phone." />
+              <CardHeader
+                title={t('agent.manner.title', 'Manner')}
+                subtitle={t('agent.manner.subtitle', 'How it carries itself on the phone.')}
+              />
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 {PERSONAS.map((p) => (
                   <button
@@ -298,35 +319,41 @@ export function AgentStudio({
 
             <Card>
               <CardHeader
-                title="House rules"
-                subtitle="Extra instructions layered on top of your documents. Say what to do, not what to say."
+                title={t('agent.houseRules.title', 'House rules')}
+                subtitle={t('agent.houseRules.subtitle', 'Extra instructions layered on top of your documents. Say what to do, not what to say.')}
               />
               <Textarea
                 className="mt-4"
                 rows={6}
                 value={draft.instructions}
                 onChange={(e) => set('instructions', e.target.value)}
-                placeholder={
-                  'Never quote a price for surgery — always pass those to a coordinator.\nIf someone describes chest pain, tell them to call 103 immediately and offer to transfer.'
-                }
+                placeholder={t(
+                  'agent.houseRules.placeholder',
+                  'Never quote a price for surgery — always pass those to a coordinator.\nIf someone describes chest pain, tell them to call 103 immediately and offer to transfer.',
+                )}
               />
               <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
-                These never override your documents — the agent still only states facts it can find in
-                the knowledge base.
+                {t(
+                  'agent.houseRules.note',
+                  'These never override your documents — the agent still only states facts it can find in the knowledge base.',
+                )}
               </p>
             </Card>
 
             <Card>
-              <CardHeader title="Limits" subtitle="Guard rails on how long a conversation can run." />
+              <CardHeader
+                title={t('agent.limits.title', 'Limits')}
+                subtitle={t('agent.limits.subtitle', 'Guard rails on how long a conversation can run.')}
+              />
               <div className="mt-5 space-y-5">
                 <Slider
-                  label="Maximum turns before handing over"
+                  label={t('agent.field.maxTurns', 'Maximum turns before handing over')}
                   min={6}
                   max={40}
                   step={1}
                   value={draft.maxTurns}
                   onChange={(v) => set('maxTurns', v)}
-                  format={(v) => `${v} turns`}
+                  format={(v) => t('agent.turnsFmt', '{n} turns').replace('{n}', String(v))}
                 />
               </div>
             </Card>
@@ -337,13 +364,13 @@ export function AgentStudio({
           <>
             <Card>
               <CardHeader
-                title="Confidence threshold"
-                subtitle="The single most important setting. Below this, a person takes the call."
+                title={t('agent.confidence.title', 'Confidence threshold')}
+                subtitle={t('agent.confidence.subtitle', 'The single most important setting. Below this, a person takes the call.')}
                 icon={<IconAlert size={16} />}
               />
               <div className="mt-5">
                 <Slider
-                  label="Minimum confidence to answer"
+                  label={t('agent.field.minConfidence', 'Minimum confidence to answer')}
                   min={0.2}
                   max={0.9}
                   step={0.01}
@@ -354,55 +381,58 @@ export function AgentStudio({
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
                   <ThresholdHint
                     active={draft.confidenceThreshold < 0.45}
-                    title="Loose"
-                    body="Answers more, hands over less. Raises the risk of a confidently wrong answer."
+                    title={t('agent.threshold.loose.title', 'Loose')}
+                    body={t('agent.threshold.loose.body', 'Answers more, hands over less. Raises the risk of a confidently wrong answer.')}
                   />
                   <ThresholdHint
                     active={draft.confidenceThreshold >= 0.45 && draft.confidenceThreshold <= 0.68}
-                    title="Balanced"
-                    body="What most contact centres settle on after a week of real calls."
+                    title={t('agent.threshold.balanced.title', 'Balanced')}
+                    body={t('agent.threshold.balanced.body', 'What most contact centres settle on after a week of real calls.')}
                   />
                   <ThresholdHint
                     active={draft.confidenceThreshold > 0.68}
-                    title="Cautious"
-                    body="Escalates readily. Right for medical, legal and financial lines."
+                    title={t('agent.threshold.cautious.title', 'Cautious')}
+                    body={t('agent.threshold.cautious.body', 'Escalates readily. Right for medical, legal and financial lines.')}
                   />
                 </div>
               </div>
             </Card>
 
             <Card>
-              <CardHeader title="Hand over when…" subtitle="Any of these sends the caller to a person." />
+              <CardHeader
+                title={t('agent.handover.title', 'Hand over when…')}
+                subtitle={t('agent.handover.subtitle', 'Any of these sends the caller to a person.')}
+              />
               <div className="mt-4 space-y-4">
                 <Switch
                   checked={draft.escalation.onExplicitRequest}
                   onChange={(v) => set('escalation', { ...draft.escalation, onExplicitRequest: v })}
-                  label="The caller asks for a human"
-                  description="Recognised in all three languages, however it is phrased."
+                  label={t('agent.esc.explicit.label', 'The caller asks for a human')}
+                  description={t('agent.esc.explicit.desc', 'Recognised in all three languages, however it is phrased.')}
                 />
                 <Switch
                   checked={draft.escalation.onLowConfidence}
                   onChange={(v) => set('escalation', { ...draft.escalation, onLowConfidence: v })}
-                  label="Confidence falls below the threshold"
-                  description="The knowledge base does not clearly cover the question."
+                  label={t('agent.esc.lowConf.label', 'Confidence falls below the threshold')}
+                  description={t('agent.esc.lowConf.desc', 'The knowledge base does not clearly cover the question.')}
                 />
                 <Switch
                   checked={draft.escalation.onNegativeSentiment}
                   onChange={(v) => set('escalation', { ...draft.escalation, onNegativeSentiment: v })}
-                  label="The caller sounds unhappy"
-                  description="Frustration is detected from wording and emphasis."
+                  label={t('agent.esc.negative.label', 'The caller sounds unhappy')}
+                  description={t('agent.esc.negative.desc', 'Frustration is detected from wording and emphasis.')}
                 />
                 <Switch
                   checked={draft.escalation.onRepeatedFailure}
                   onChange={(v) => set('escalation', { ...draft.escalation, onRepeatedFailure: v })}
-                  label="Several questions in a row go unanswered"
-                  description="Stops a caller from being stonewalled twice."
+                  label={t('agent.esc.repeated.label', 'Several questions in a row go unanswered')}
+                  description={t('agent.esc.repeated.desc', 'Stops a caller from being stonewalled twice.')}
                 />
               </div>
               {draft.escalation.onRepeatedFailure && (
                 <Slider
                   className="mt-5 max-w-sm"
-                  label="Unanswered questions before handing over"
+                  label={t('agent.field.failedTurns', 'Unanswered questions before handing over')}
                   min={1}
                   max={5}
                   step={1}
@@ -414,11 +444,14 @@ export function AgentStudio({
             </Card>
 
             <Card>
-              <CardHeader title="Where the call goes" subtitle="Who picks up when the agent steps aside." />
+              <CardHeader
+                title={t('agent.destination.title', 'Where the call goes')}
+                subtitle={t('agent.destination.subtitle', 'Who picks up when the agent steps aside.')}
+              />
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field
-                  label="Fallback number"
-                  hint="Left empty, the call is queued in the operator inbox instead of being transferred."
+                  label={t('agent.field.fallbackNumber', 'Fallback number')}
+                  hint={t('agent.field.fallbackNumberHint', 'Left empty, the call is queued in the operator inbox instead of being transferred.')}
                 >
                   <Input
                     value={draft.escalation.fallbackNumber}
@@ -428,7 +461,7 @@ export function AgentStudio({
                     placeholder="+998 71 200 00 00"
                   />
                 </Field>
-                <Field label="Ring timeout">
+                <Field label={t('agent.field.ringTimeout', 'Ring timeout')}>
                   <Input
                     type="number"
                     value={draft.escalation.ringTimeoutSec}
@@ -438,7 +471,7 @@ export function AgentStudio({
                         ringTimeoutSec: Number(e.target.value) || 30,
                       })
                     }
-                    suffix="sec"
+                    suffix={t('agent.unit.sec', 'sec')}
                   />
                 </Field>
               </div>
@@ -449,8 +482,8 @@ export function AgentStudio({
         {tab === 'hours' && (
           <Card>
             <CardHeader
-              title="Business hours"
-              subtitle="Outside these hours the agent can still answer, take a message, or offer a callback."
+              title={t('agent.tab.hours', 'Business hours')}
+              subtitle={t('agent.hours.subtitle', 'Outside these hours the agent can still answer, take a message, or offer a callback.')}
               action={
                 <Switch
                   checked={draft.hours.enabled}
@@ -463,7 +496,7 @@ export function AgentStudio({
                 const spec = draft.hours.days[d.key] ?? { open: '09:00', close: '18:00', closed: false };
                 return (
                   <div key={d.key} className="flex flex-wrap items-center gap-3 rounded-[10px] bg-surface-2 px-3.5 py-2.5">
-                    <span className="w-[92px] shrink-0 text-[13px] font-medium text-ink">{d.label}</span>
+                    <span className="w-[92px] shrink-0 text-[13px] font-medium text-ink">{t(`dow.long.${d.key}`, d.label)}</span>
                     <Checkbox
                       checked={!spec.closed}
                       onChange={(v) =>
@@ -472,7 +505,7 @@ export function AgentStudio({
                           days: { ...draft.hours.days, [d.key]: { ...spec, closed: !v } },
                         })
                       }
-                      label="Open"
+                      label={t('agent.day.open', 'Open')}
                     />
                     <div className={cn('flex items-center gap-2', spec.closed && 'opacity-40')}>
                       <Input
@@ -506,7 +539,7 @@ export function AgentStudio({
               })}
             </div>
 
-            <Field className="mt-5 max-w-sm" label="Outside business hours">
+            <Field className="mt-5 max-w-sm" label={t('reason.after_hours', 'Outside business hours')}>
               <Select
                 value={draft.escalation.afterHoursAction}
                 onChange={(e) =>
@@ -516,9 +549,11 @@ export function AgentStudio({
                   })
                 }
               >
-                <option value="answer_anyway">Answer normally — the knowledge base is always true</option>
-                <option value="voicemail">Take a message</option>
-                <option value="callback">Offer a callback next working day</option>
+                <option value="answer_anyway">
+                  {t('agent.afterHours.answer', 'Answer normally — the knowledge base is always true')}
+                </option>
+                <option value="voicemail">{t('agent.afterHours.voicemail', 'Take a message')}</option>
+                <option value="callback">{t('agent.afterHours.callback', 'Offer a callback next working day')}</option>
               </Select>
             </Field>
           </Card>
@@ -527,7 +562,7 @@ export function AgentStudio({
 
       {dirty && canEdit && (
         <div className="animate-fade-up sticky bottom-4 z-30 mt-5 flex items-center justify-between gap-4 rounded-[13px] bg-overlay px-4 py-3 shadow-e3 hairline">
-          <span className="text-[13px] text-ink-2">You have unsaved changes.</span>
+          <span className="text-[13px] text-ink-2">{t('agent.unsaved', 'You have unsaved changes.')}</span>
           <div className="flex gap-2">
             <Button
               size="sm"
@@ -551,10 +586,10 @@ export function AgentStudio({
                 })
               }
             >
-              Discard
+              {t('agent.discard', 'Discard')}
             </Button>
             <Button size="sm" variant="primary" loading={saving} onClick={() => void save()}>
-              Save
+              {t('common.save', 'Save')}
             </Button>
           </div>
         </div>

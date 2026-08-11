@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { addNumberAction, removeNumberAction } from '@/app/actions/ops';
-import type { PhoneNumber } from '@/lib/types';
+import type { PhoneNumber, UiLocale } from '@/lib/types';
+import { translator } from '@/lib/i18n';
 import { fmtInt, fmtMoney } from '@/lib/utils';
 import { Badge, Button, Card, CardHeader, EmptyState, IconButton, PageHeader } from '@/components/ui/primitives';
 import { Field, Input, Select } from '@/components/ui/forms';
@@ -25,12 +26,15 @@ export function NumbersManager({
   telephony,
   canEdit,
   webhookUrl,
+  locale,
 }: {
   numbers: Row[];
   telephony: { configured: boolean; mode: string; accountSid: string | null };
   canEdit: boolean;
   webhookUrl: string;
+  locale: UiLocale;
 }) {
+  const t = translator(locale);
   const router = useRouter();
   const toast = useToast();
   const [, start] = useTransition();
@@ -42,12 +46,15 @@ export function NumbersManager({
   return (
     <div className="mx-auto max-w-[1100px]">
       <PageHeader
-        title="Phone numbers"
-        subtitle="The lines your agent answers. Connect a Twilio number, a carrier SIP trunk, or run on the simulator while you test."
+        title={t('nav.numbers', 'Phone numbers')}
+        subtitle={t(
+          'numbers.subtitle',
+          'The lines your agent answers. Connect a Twilio number, a carrier SIP trunk, or run on the simulator while you test.',
+        )}
         actions={
           canEdit ? (
             <Button variant="primary" icon={<IconPlus size={15} />} onClick={() => setAdding(true)}>
-              Connect a number
+              {t('numbers.connect', 'Connect a number')}
             </Button>
           ) : undefined
         }
@@ -65,16 +72,25 @@ export function NumbersManager({
           <div className="min-w-0 flex-1">
             <h3 className="text-[13.5px] font-semibold text-ink">
               {telephony.configured
-                ? `Twilio connected (${telephony.accountSid})`
-                : 'Running on the built-in simulator'}
+                ? t('numbers.twilioConnected', 'Twilio connected ({sid})').replace(
+                    '{sid}',
+                    telephony.accountSid ?? '',
+                  )
+                : t('numbers.simulatorTitle', 'Running on the built-in simulator')}
             </h3>
             <p className="mt-1 text-[12.5px] leading-relaxed text-ink-2">
               {telephony.configured
-                ? 'Point your Twilio number at the webhook below and real calls will flow through the same engine.'
-                : 'Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN to take real calls. Until then, simulated traffic exercises the identical pipeline — retrieval, generation and escalation are all real.'}
+                ? t(
+                    'numbers.twilioDesc',
+                    'Point your Twilio number at the webhook below and real calls will flow through the same engine.',
+                  )
+                : t(
+                    'numbers.simulatorDesc',
+                    'Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN to take real calls. Until then, simulated traffic exercises the identical pipeline — retrieval, generation and escalation are all real.',
+                  )}
             </p>
             <div className="mt-3">
-              <CopyField label="Voice webhook (HTTP POST)" value={webhookUrl} />
+              <CopyField label={t('numbers.webhookLabel', 'Voice webhook (HTTP POST)')} value={webhookUrl} />
             </div>
           </div>
         </div>
@@ -91,16 +107,22 @@ export function NumbersManager({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-[14px] font-medium text-ink">{n.e164}</span>
-                    <Badge tone={n.provider === 'twilio' ? 'success' : 'neutral'}>{n.provider}</Badge>
+                    <Badge tone={n.provider === 'twilio' ? 'success' : 'neutral'}>{t(`provider.${n.provider}`, n.provider)}</Badge>
                     <Badge tone="neutral">{n.region}</Badge>
                   </div>
                   <p className="mt-0.5 text-[12.5px] text-ink-3">
-                    {n.label} · routed to {n.agent_name ?? 'no agent'} · {fmtInt(n.call_count)} calls ·{' '}
-                    {fmtMoney(n.monthly_cost, 'USD', 2)}/mo
+                    {n.label} ·{' '}
+                    {t('numbers.routedTo', 'routed to {n}').replace(
+                      '{n}',
+                      n.agent_name ?? t('numbers.noAgent', 'no agent'),
+                    )}{' '}
+                    · {t('numbers.callsCount', '{n} calls').replace('{n}', fmtInt(n.call_count))} ·{' '}
+                    {fmtMoney(n.monthly_cost, 'USD', 2)}
+                    {t('numbers.perMonth', '/mo')}
                   </p>
                 </div>
                 {canEdit && (
-                  <IconButton label="Release number" size="sm" onClick={() => setConfirm(n)}>
+                  <IconButton label={t('numbers.releaseNumber', 'Release number')} size="sm" onClick={() => setConfirm(n)}>
                     <IconTrash size={16} />
                   </IconButton>
                 )}
@@ -110,8 +132,8 @@ export function NumbersManager({
         ) : (
           <EmptyState
             icon={<IconGlobe size={20} />}
-            title="No numbers connected"
-            description="Add one to start taking calls."
+            title={t('numbers.emptyTitle', 'No numbers connected')}
+            description={t('numbers.emptyHint', 'Add one to start taking calls.')}
           />
         )}
       </Card>
@@ -119,12 +141,15 @@ export function NumbersManager({
       <Modal
         open={adding}
         onClose={() => setAdding(false)}
-        title="Connect a number"
-        description="The number must already exist with your carrier or Twilio — this points it at your agent."
+        title={t('numbers.connect', 'Connect a number')}
+        description={t(
+          'numbers.modalDesc',
+          'The number must already exist with your carrier or Twilio — this points it at your agent.',
+        )}
         footer={
           <>
             <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>
-              Cancel
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button
               size="sm"
@@ -135,41 +160,44 @@ export function NumbersManager({
                 const res = await addNumberAction(form);
                 setBusy(false);
                 if (res.ok) {
-                  toast.success('Connected', res.message);
+                  toast.success(t('numbers.toastConnectedTitle', 'Connected'), res.message);
                   setAdding(false);
                   setForm({ e164: '', label: '', provider: 'simulator' });
                   start(() => router.refresh());
-                } else toast.error('Could not connect', res.message);
+                } else toast.error(t('numbers.toastConnectFailed', 'Could not connect'), res.message);
               }}
             >
-              Connect
+              {t('numbers.connectShort', 'Connect')}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <Field label="Number" hint="International format, for example +998712000000.">
+          <Field
+            label={t('numbers.fieldNumber', 'Number')}
+            hint={t('numbers.fieldNumberHint', 'International format, for example +998712000000.')}
+          >
             <Input
               value={form.e164}
               onChange={(e) => setForm({ ...form, e164: e.target.value })}
               placeholder="+998712000000"
             />
           </Field>
-          <Field label="Label">
+          <Field label={t('numbers.fieldLabel', 'Label')}>
             <Input
               value={form.label}
               onChange={(e) => setForm({ ...form, label: e.target.value })}
-              placeholder="Reception line"
+              placeholder={t('numbers.labelPlaceholder', 'Reception line')}
             />
           </Field>
-          <Field label="Carrier">
+          <Field label={t('numbers.fieldCarrier', 'Carrier')}>
             <Select
               value={form.provider}
               onChange={(e) => setForm({ ...form, provider: e.target.value })}
             >
-              <option value="simulator">Simulator (no real calls)</option>
+              <option value="simulator">{t('numbers.optSimulator', 'Simulator (no real calls)')}</option>
               <option value="twilio">Twilio</option>
-              <option value="sip">Carrier SIP trunk</option>
+              <option value="sip">{t('numbers.optSip', 'Carrier SIP trunk')}</option>
             </Select>
           </Field>
         </div>
@@ -179,13 +207,16 @@ export function NumbersManager({
         open={Boolean(confirm)}
         onClose={() => setConfirm(null)}
         danger
-        confirmLabel="Release"
-        title={`Release ${confirm?.e164 ?? ''}?`}
-        description="Calls to this number stop reaching your agent immediately. Call history is kept."
+        confirmLabel={t('numbers.release', 'Release')}
+        title={t('numbers.releaseConfirmTitle', 'Release {n}?').replace('{n}', confirm?.e164 ?? '')}
+        description={t(
+          'numbers.releaseConfirmDesc',
+          'Calls to this number stop reaching your agent immediately. Call history is kept.',
+        )}
         onConfirm={async () => {
           if (!confirm) return;
           const res = await removeNumberAction(confirm.id);
-          if (res.ok) toast.success('Released', res.message);
+          if (res.ok) toast.success(t('numbers.toastReleasedTitle', 'Released'), res.message);
           start(() => router.refresh());
         }}
       />

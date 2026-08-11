@@ -9,6 +9,8 @@ import { Textarea } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
 import { IconCheckCircle, IconPlus, IconX } from '@/components/icons';
 import { relativeTime } from '@/lib/utils';
+import { translator } from '@/lib/i18n';
+import type { UiLocale } from '@/lib/types';
 
 interface Gap {
   id: string;
@@ -22,7 +24,8 @@ interface Gap {
  * Turns "the agent could not answer this" into a one-click fix: writing an
  * answer here indexes it as an FAQ entry, so the next caller gets a real reply.
  */
-export function GapList({ gaps }: { gaps: Gap[] }) {
+export function GapList({ gaps, locale }: { gaps: Gap[]; locale?: UiLocale }) {
+  const t = translator(locale ?? 'uz');
   const router = useRouter();
   const toast = useToast();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -34,27 +37,30 @@ export function GapList({ gaps }: { gaps: Gap[] }) {
     return (
       <EmptyState
         icon={<IconCheckCircle size={20} />}
-        title="No gaps right now"
-        description="Every question callers asked was answerable from your knowledge base."
+        title={t('gap.emptyTitle', 'No gaps right now')}
+        description={t(
+          'gap.emptyDesc',
+          'Every question callers asked was answerable from your knowledge base.',
+        )}
       />
     );
   }
 
   const submit = async (gap: Gap) => {
     if (answer.trim().length < 8) {
-      toast.error('Write an answer first', 'A sentence or two is enough.');
+      toast.error(t('gap.writeFirst', 'Write an answer first'), t('gap.writeFirstHint', 'A sentence or two is enough.'));
       return;
     }
     setBusy(true);
-    const res = await addFaqAction('Answers added from call gaps', [
+    const res = await addFaqAction(t('gap.faqSource', 'Answers added from call gaps'), [
       { q: gap.question, a: answer.trim() },
     ]);
     if (res.ok) await resolveGapAction(gap.id, answer.trim());
     setBusy(false);
     setOpenId(null);
     setAnswer('');
-    if (res.ok) toast.success('Indexed', 'Your agent can answer that now.');
-    else toast.error('Could not index that', res.message);
+    if (res.ok) toast.success(t('gap.indexed', 'Indexed'), t('gap.indexedHint', 'Your agent can answer that now.'));
+    else toast.error(t('gap.indexFailed', 'Could not index that'), res.message);
     start(() => router.refresh());
   };
 
@@ -67,10 +73,10 @@ export function GapList({ gaps }: { gaps: Gap[] }) {
               <p className="text-[13.5px] text-ink">“{g.question}”</p>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-[11.5px] text-ink-3">
                 <Badge tone={g.hits > 2 ? 'warning' : 'neutral'}>
-                  asked {g.hits}×
+                  {t('gap.asked', 'asked {n}×').replace('{n}', String(g.hits))}
                 </Badge>
-                <span>best match {(g.best_score * 100).toFixed(0)}%</span>
-                <span>· {relativeTime(g.last_seen)}</span>
+                <span>{t('gap.bestMatch', 'best match {n}%').replace('{n}', (g.best_score * 100).toFixed(0))}</span>
+                <span>· {relativeTime(g.last_seen, locale)}</span>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -83,12 +89,12 @@ export function GapList({ gaps }: { gaps: Gap[] }) {
                   setAnswer('');
                 }}
               >
-                Answer it
+                {t('gap.answerIt', 'Answer it')}
               </Button>
               <Button
                 size="xs"
                 variant="ghost"
-                aria-label="Dismiss"
+                aria-label={t('gap.dismiss', 'Dismiss')}
                 onClick={() => {
                   void ignoreGapAction(g.id).then(() => start(() => router.refresh()));
                 }}
@@ -105,14 +111,14 @@ export function GapList({ gaps }: { gaps: Gap[] }) {
                 rows={3}
                 value={answer}
                 onChange={(e) => setAnswer(e.target.value)}
-                placeholder="Write the answer exactly as you would say it on the phone…"
+                placeholder={t('gap.placeholder', 'Write the answer exactly as you would say it on the phone…')}
               />
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="ghost" onClick={() => setOpenId(null)}>
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </Button>
                 <Button size="sm" variant="primary" loading={busy} onClick={() => void submit(g)}>
-                  Add to knowledge base
+                  {t('gap.addToKb', 'Add to knowledge base')}
                 </Button>
               </div>
             </div>

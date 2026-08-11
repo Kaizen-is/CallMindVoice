@@ -54,32 +54,75 @@ export function fmtLatency(ms: number | null | undefined) {
   return `${(ms / 1000).toFixed(2)} s`;
 }
 
-export function relativeTime(iso: string | null | undefined, nowMs = Date.now()) {
+const REL_UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+  ['year', 31536e6],
+  ['month', 2592e6],
+  ['week', 6048e5],
+  ['day', 864e5],
+  ['hour', 36e5],
+  ['minute', 6e4],
+  ['second', 1000],
+];
+
+// Uzbek has no usable CLDR relative-time data in browsers (it emits "-5 d"),
+// so both scripts are formatted by hand. Keyed by the Intl unit name.
+const UZ_UNIT_WORD: Record<'uz' | 'uz-Cyrl', Record<string, string>> = {
+  uz: { year: 'yil', month: 'oy', week: 'hafta', day: 'kun', hour: 'soat', minute: 'daqiqa', second: 'soniya' },
+  'uz-Cyrl': { year: 'йил', month: 'ой', week: 'ҳафта', day: 'кун', hour: 'соат', minute: 'дақиқа', second: 'сония' },
+};
+
+function uzRelative(value: number, unit: Intl.RelativeTimeFormatUnit, past: boolean, script: 'uz' | 'uz-Cyrl') {
+  if (unit === 'second' && value <= 5) return script === 'uz-Cyrl' ? 'ҳозиргина' : 'hozirgina';
+  const word = UZ_UNIT_WORD[script][unit];
+  const suffix = past ? (script === 'uz-Cyrl' ? 'олдин' : 'oldin') : (script === 'uz-Cyrl' ? 'кейин' : 'keyin');
+  return `${value} ${word} ${suffix}`;
+}
+
+export function relativeTime(
+  iso: string | null | undefined,
+  locale?: 'en' | 'ru' | 'uz' | 'uz-Cyrl',
+  nowMs = Date.now(),
+) {
   if (!iso) return '—';
   const diff = nowMs - new Date(iso).getTime();
   const abs = Math.abs(diff);
-  const sign = diff >= 0 ? -1 : 1;
-  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ['year', 31536e6],
-    ['month', 2592e6],
-    ['week', 6048e5],
-    ['day', 864e5],
-    ['hour', 36e5],
-    ['minute', 6e4],
-    ['second', 1000],
-  ];
-  for (const [unit, msPer] of units) {
-    if (abs >= msPer || unit === 'second') {
-      return rtf.format(sign * Math.round(abs / msPer), unit);
+  const past = diff >= 0;
+
+  let unit: Intl.RelativeTimeFormatUnit = 'second';
+  let value = 0;
+  for (const [u, msPer] of REL_UNITS) {
+    if (abs >= msPer || u === 'second') {
+      unit = u;
+      value = Math.round(abs / msPer);
+      break;
     }
   }
-  return 'just now';
+
+  if (locale === 'uz' || locale === 'uz-Cyrl') return uzRelative(value, unit, past, locale);
+  const rtf = new Intl.RelativeTimeFormat(locale === 'ru' ? 'ru' : 'en', { numeric: 'auto' });
+  return rtf.format((past ? -1 : 1) * value, unit);
 }
 
-export function fmtDate(iso: string | null | undefined, opts?: Intl.DateTimeFormatOptions) {
+type LocaleArg = 'en' | 'ru' | 'uz' | 'uz-Cyrl';
+
+/** BCP-47 tag for date formatting from a UI locale. */
+function dateTag(locale?: LocaleArg): string {
+  return locale === 'ru'
+    ? 'ru-RU'
+    : locale === 'uz'
+      ? 'uz-UZ'
+      : locale === 'uz-Cyrl'
+        ? 'uz-Cyrl-UZ'
+        : 'en-GB';
+}
+
+export function fmtDate(
+  iso: string | null | undefined,
+  locale?: LocaleArg,
+  opts?: Intl.DateTimeFormatOptions,
+) {
   if (!iso) return '—';
-  return new Intl.DateTimeFormat('en-GB', {
+  return new Intl.DateTimeFormat(dateTag(locale), {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -87,18 +130,18 @@ export function fmtDate(iso: string | null | undefined, opts?: Intl.DateTimeForm
   }).format(new Date(iso));
 }
 
-export function fmtTime(iso: string | null | undefined) {
+export function fmtTime(iso: string | null | undefined, locale?: LocaleArg) {
   if (!iso) return '—';
-  return new Intl.DateTimeFormat('en-GB', {
+  return new Intl.DateTimeFormat(dateTag(locale), {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
   }).format(new Date(iso));
 }
 
-export function fmtDateTime(iso: string | null | undefined) {
+export function fmtDateTime(iso: string | null | undefined, locale?: LocaleArg) {
   if (!iso) return '—';
-  return `${fmtDate(iso)} · ${fmtTime(iso)}`;
+  return `${fmtDate(iso, locale)} · ${fmtTime(iso, locale)}`;
 }
 
 export function initials(name: string) {

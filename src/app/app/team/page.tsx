@@ -32,6 +32,7 @@ export default async function TeamPage() {
       audit={audit}
       currentUserId={user.id}
       canEdit={user.role === 'owner' || user.role === 'admin'}
+      locale={user.locale}
     />
   );
 }

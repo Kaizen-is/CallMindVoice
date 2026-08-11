@@ -3,6 +3,7 @@ import { requireSession } from '@/lib/auth';
 import { knowledgeStats } from '@/lib/analytics';
 import { liveAgent } from '@/lib/engine/calls';
 import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
+import { translator } from '@/lib/i18n';
 import type { Locale } from '@/lib/types';
 import { safeJson } from '@/lib/utils';
 import { Playground } from './playground';
@@ -14,13 +15,14 @@ export default async function PlaygroundPage() {
   const { tenant, user } = await requireSession();
   const agent = liveAgent(tenant.id);
   const kb = knowledgeStats(tenant.id);
+  const t = translator(user.locale);
 
   return (
     <Playground
       locale={user.locale}
       industry={tenant.industry}
       chunks={kb.chunks}
-      engine={engineIsHosted() ? engineLabel() : 'Local synthesiser'}
+      engine={engineIsHosted() ? engineLabel() : t('play.localSynth', 'Local synthesiser')}
       speech={{
         stt: Boolean(process.env.STT_TRANSCRIBE_URL),
         tts: Boolean(process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN),

@@ -235,6 +235,8 @@ export function FileDrop({
   multiple = true,
   className,
   hint,
+  dropLabel,
+  browseLabel,
   busy,
 }: {
   onFiles: (files: File[]) => void;
@@ -242,6 +244,8 @@ export function FileDrop({
   multiple?: boolean;
   className?: string;
   hint?: string;
+  dropLabel?: string;
+  browseLabel?: string;
   busy?: boolean;
 }) {
   const [over, setOver] = useState(false);
@@ -290,7 +294,7 @@ export function FileDrop({
         <IconUpload size={20} />
       </div>
       <p className="text-[14px] font-medium text-ink">
-        Drop files or <span className="text-brand">browse</span>
+        {dropLabel ?? 'Drop files or'} <span className="text-brand">{browseLabel ?? 'browse'}</span>
       </p>
       <p className="mt-1 text-[12.5px] text-ink-3">{hint ?? 'PDF, DOCX, TXT, MD, CSV — up to 25 MB each'}</p>
     </div>

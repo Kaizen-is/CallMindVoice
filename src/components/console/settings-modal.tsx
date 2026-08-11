@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { translator } from '@/lib/i18n';
+import type { UiLocale } from '@/lib/types';
 import { IconX } from '@/components/icons';
 
 export interface SettingsSection {
@@ -41,11 +43,14 @@ export function SettingsModalChrome({
   sections,
   title,
   children,
+  locale = 'uz',
 }: {
   sections: SettingsSection[];
   title: string;
   children: ReactNode;
+  locale?: UiLocale;
 }) {
+  const t = translator(locale);
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -112,7 +117,7 @@ export function SettingsModalChrome({
             <button
               type="button"
               onClick={() => router.back()}
-              aria-label="Close"
+              aria-label={t('common.close', 'Close')}
               className="flex h-8 w-8 items-center justify-center rounded-[8px] text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink"
             >
               <IconX size={18} />

@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { cn, fmtInt } from '@/lib/utils';
-import type { Locale } from '@/lib/types';
+import type { Locale, UiLocale } from '@/lib/types';
+import { translator, type Translate } from '@/lib/i18n';
 import { PERSONAS, VOICES } from '@/lib/catalog';
 import { addStarterPackAction, uploadDocumentsAction } from '@/app/actions/knowledge';
 import { completeOnboardingAction, playgroundTurnAction, skipOnboardingAction } from '@/app/actions/agent';
@@ -27,6 +28,7 @@ import {
 } from '@/components/icons';
 
 interface Props {
+  locale: UiLocale;
   company: string;
   userName: string;
   industry: string;
@@ -45,8 +47,6 @@ interface Props {
   phoneNumber: string | null;
 }
 
-const STEPS = ['Knowledge', 'Voice & language', 'Test it', 'Go live'] as const;
-
 const LANG_OPTIONS: Array<{ value: Locale; label: string; flag: React.ReactNode }> = [
   { value: 'uz', label: 'O‘zbekcha', flag: <FlagUZ size={18} /> },
   { value: 'ru', label: 'Русский', flag: <FlagRU size={18} /> },
@@ -54,9 +54,17 @@ const LANG_OPTIONS: Array<{ value: Locale; label: string; flag: React.ReactNode 
 ];
 
 export function OnboardingWizard(props: Props) {
+  const t = translator(props.locale);
   const router = useRouter();
   const toast = useToast();
   const [step, setStep] = useState(0);
+
+  const stepLabels = [
+    t('onboarding.step.knowledge', 'Knowledge'),
+    t('onboarding.step.voice', 'Voice & language'),
+    t('onboarding.step.test', 'Test it'),
+    t('onboarding.step.live', 'Go live'),
+  ];
   const [pending, startTransition] = useTransition();
 
   const [docs, setDocs] = useState(props.documents);
@@ -80,9 +88,9 @@ export function OnboardingWizard(props: Props) {
         ...res.documents!.map((x) => ({ id: x.id, title: x.title, chunks: x.chunks, status: 'ready' })),
         ...d,
       ]);
-      toast.success('Starter knowledge loaded', res.message);
+      toast.success(t('onboarding.toast.starterLoaded', 'Starter knowledge loaded'), res.message);
     } else {
-      toast.error('Could not load the starter pack', res.message);
+      toast.error(t('onboarding.toast.starterFailed', 'Could not load the starter pack'), res.message);
     }
   };
 
@@ -97,9 +105,9 @@ export function OnboardingWizard(props: Props) {
         ...res.documents!.map((x) => ({ id: x.id, title: x.title, chunks: x.chunks, status: 'ready' })),
         ...d,
       ]);
-      toast.success('Indexed', res.message);
+      toast.success(t('onboarding.toast.indexed', 'Indexed'), res.message);
     } else {
-      toast.error('Upload failed', res.message);
+      toast.error(t('onboarding.toast.uploadFailed', 'Upload failed'), res.message);
     }
   };
 
@@ -133,18 +141,24 @@ export function OnboardingWizard(props: Props) {
             variant="ghost"
             onClick={() => startTransition(() => void skipOnboardingAction())}
           >
-            Skip setup
+            {t('onboarding.skip', 'Skip setup')}
           </Button>
         </div>
       </header>
 
       <main className="relative z-10 mx-auto max-w-3xl px-5 pb-20">
-        <Stepper step={step} />
+        <Stepper step={step} labels={stepLabels} />
 
         {step === 0 && (
           <StepCard
-            title={`Give ${props.company} something to answer from`}
-            subtitle="Your agent only says what your documents say. Load a starter pack now and replace it with your real files whenever you like."
+            title={t('onboarding.kb.title', 'Give {company} something to answer from').replace(
+              '{company}',
+              props.company,
+            )}
+            subtitle={t(
+              'onboarding.kb.subtitle',
+              'Your agent only says what your documents say. Load a starter pack now and replace it with your real files whenever you like.',
+            )}
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <button
@@ -160,7 +174,7 @@ export function OnboardingWizard(props: Props) {
                   {props.packDescription}
                 </p>
                 <span className="mt-3 inline-flex items-center gap-1 text-[12.5px] font-medium text-brand-ink">
-                  Load it now
+                  {t('onboarding.loadNow', 'Load it now')}
                   <IconArrowRight size={13} />
                 </span>
               </button>
@@ -170,12 +184,19 @@ export function OnboardingWizard(props: Props) {
                 busy={busy}
                 className="min-h-[196px] py-6"
                 hint="PDF, DOCX, TXT, MD, CSV"
+                dropLabel={t('filedrop.drop', 'Drop files or')}
+                browseLabel={t('filedrop.browse', 'browse')}
               />
             </div>
 
             {docs.length > 0 && (
               <div className="mt-5 space-y-2">
-                <Divider label={`${docs.length} in your knowledge base`} />
+                <Divider
+                  label={t('onboarding.kb.count', '{n} in your knowledge base').replace(
+                    '{n}',
+                    String(docs.length),
+                  )}
+                />
                 {docs.map((d) => (
                   <div
                     key={d.id}
@@ -183,7 +204,7 @@ export function OnboardingWizard(props: Props) {
                   >
                     <IconCheckCircle size={16} className="shrink-0 text-success" />
                     <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink">{d.title}</span>
-                    <Badge tone="neutral">{fmtInt(d.chunks)} passages</Badge>
+                    <Badge tone="neutral">{fmtInt(d.chunks)} {t('kb.chunks', 'passages')}</Badge>
                   </div>
                 ))}
               </div>
@@ -197,7 +218,9 @@ export function OnboardingWizard(props: Props) {
                 onClick={() => setStep(1)}
                 iconRight={<IconArrowRight size={16} />}
               >
-                {hasKnowledge ? 'Continue' : 'Add knowledge to continue'}
+                {hasKnowledge
+                  ? t('onboarding.continue', 'Continue')
+                  : t('onboarding.addToContinue', 'Add knowledge to continue')}
               </Button>
             </div>
           </StepCard>
@@ -205,12 +228,17 @@ export function OnboardingWizard(props: Props) {
 
         {step === 1 && (
           <StepCard
-            title="How should it sound?"
-            subtitle="You can change any of this later — nothing here is permanent."
+            title={t('onboarding.voice.title', 'How should it sound?')}
+            subtitle={t(
+              'onboarding.voice.subtitle',
+              'You can change any of this later — nothing here is permanent.',
+            )}
           >
             <div className="space-y-6">
               <div>
-                <div className="mb-2 text-[12.5px] font-medium text-ink-2">Languages it answers in</div>
+                <div className="mb-2 text-[12.5px] font-medium text-ink-2">
+                  {t('onboarding.langsAnswer', 'Languages it answers in')}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {LANG_OPTIONS.map((l) => {
                     const on = languages.includes(l.value);
@@ -238,7 +266,7 @@ export function OnboardingWizard(props: Props) {
                 </div>
               </div>
 
-              <Field label="Language it greets in first" htmlFor="primary">
+              <Field label={t('onboarding.greetLang', 'Language it greets in first')} htmlFor="primary">
                 <Select
                   id="primary"
                   value={primaryLang}
@@ -253,9 +281,12 @@ export function OnboardingWizard(props: Props) {
               </Field>
 
               <Field
-                label="Opening line"
+                label={t('onboarding.openingLine', 'Opening line')}
                 htmlFor="greeting"
-                hint="The first thing a caller hears. Keep it short — it is spoken, not read."
+                hint={t(
+                  'onboarding.openingHint',
+                  'The first thing a caller hears. Keep it short — it is spoken, not read.',
+                )}
               >
                 <Textarea
                   id="greeting"
@@ -266,7 +297,9 @@ export function OnboardingWizard(props: Props) {
               </Field>
 
               <div>
-                <div className="mb-2 text-[12.5px] font-medium text-ink-2">Voice</div>
+                <div className="mb-2 text-[12.5px] font-medium text-ink-2">
+                  {t('onboarding.voice', 'Voice')}
+                </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {VOICES.map((v) => (
                     <button
@@ -297,7 +330,9 @@ export function OnboardingWizard(props: Props) {
               </div>
 
               <div>
-                <div className="mb-2 text-[12.5px] font-medium text-ink-2">Manner</div>
+                <div className="mb-2 text-[12.5px] font-medium text-ink-2">
+                  {t('onboarding.manner', 'Manner')}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {PERSONAS.map((p) => (
                     <button
@@ -320,7 +355,7 @@ export function OnboardingWizard(props: Props) {
 
             <div className="mt-7 flex justify-between">
               <Button variant="ghost" onClick={() => setStep(0)}>
-                Back
+                {t('onboarding.back', 'Back')}
               </Button>
               <Button
                 variant="primary"
@@ -328,7 +363,7 @@ export function OnboardingWizard(props: Props) {
                 onClick={() => setStep(2)}
                 iconRight={<IconArrowRight size={16} />}
               >
-                Try it
+                {t('onboarding.tryIt', 'Try it')}
               </Button>
             </div>
           </StepCard>
@@ -336,13 +371,16 @@ export function OnboardingWizard(props: Props) {
 
         {step === 2 && (
           <StepCard
-            title="Ask it something"
-            subtitle="This is the real engine running against your real knowledge base — not a canned demo."
+            title={t('onboarding.test.title', 'Ask it something')}
+            subtitle={t(
+              'onboarding.test.subtitle',
+              'This is the real engine running against your real knowledge base — not a canned demo.',
+            )}
           >
-            <MiniPlayground industry={props.industry} />
+            <MiniPlayground industry={props.industry} t={t} />
             <div className="mt-7 flex justify-between">
               <Button variant="ghost" onClick={() => setStep(1)}>
-                Back
+                {t('onboarding.back', 'Back')}
               </Button>
               <Button
                 variant="primary"
@@ -350,7 +388,7 @@ export function OnboardingWizard(props: Props) {
                 onClick={() => setStep(3)}
                 iconRight={<IconArrowRight size={16} />}
               >
-                Looks good
+                {t('onboarding.looksGood', 'Looks good')}
               </Button>
             </div>
           </StepCard>
@@ -358,31 +396,34 @@ export function OnboardingWizard(props: Props) {
 
         {step === 3 && (
           <StepCard
-            title="Ready when you are"
-            subtitle="Turning the agent live lets it answer calls on your number. You can pause it at any time."
+            title={t('onboarding.live.title', 'Ready when you are')}
+            subtitle={t(
+              'onboarding.live.subtitle',
+              'Turning the agent live lets it answer calls on your number. You can pause it at any time.',
+            )}
           >
             <div className="space-y-3">
               <SummaryRow
                 icon={<IconDatabase size={17} />}
-                label="Knowledge base"
-                value={`${docs.length} document${docs.length === 1 ? '' : 's'} · ${fmtInt(readyChunks)} passages`}
+                label={t('kb.title', 'Knowledge base')}
+                value={`${docs.length} ${t('kb.documents', 'documents')} · ${fmtInt(readyChunks)} ${t('kb.chunks', 'passages')}`}
               />
               <SummaryRow
                 icon={<IconVolume size={17} />}
-                label="Voice"
+                label={t('onboarding.voice', 'Voice')}
                 value={`${VOICES.find((v) => v.id === voiceId)?.name ?? voiceId} · ${
                   PERSONAS.find((p) => p.value === persona)?.label ?? persona
                 }`}
               />
               <SummaryRow
                 icon={<IconSparkle size={17} />}
-                label="Languages"
+                label={t('onboarding.summary.languages', 'Languages')}
                 value={languages.map((l) => l.toUpperCase()).join(' · ')}
               />
               <SummaryRow
                 icon={<IconPhone size={17} />}
-                label="Number"
-                value={props.phoneNumber ?? 'Assign one in the console'}
+                label={t('onboarding.summary.number', 'Number')}
+                value={props.phoneNumber ?? t('onboarding.assignNumber', 'Assign one in the console')}
               />
             </div>
 
@@ -395,10 +436,10 @@ export function OnboardingWizard(props: Props) {
                 icon={<IconCheck size={16} />}
                 className="sm:flex-1"
               >
-                Take it live
+                {t('onboarding.takeLive', 'Take it live')}
               </Button>
               <Button variant="secondary" size="lg" onClick={() => finish(false)} disabled={pending}>
-                Keep it as a draft
+                {t('onboarding.keepDraft', 'Keep it as a draft')}
               </Button>
             </div>
           </StepCard>
@@ -410,10 +451,10 @@ export function OnboardingWizard(props: Props) {
 
 /* ── pieces ──────────────────────────────────────────────────── */
 
-function Stepper({ step }: { step: number }) {
+function Stepper({ step, labels }: { step: number; labels: string[] }) {
   return (
     <div className="mb-8 flex items-center gap-2">
-      {STEPS.map((label, i) => (
+      {labels.map((label, i) => (
         <div key={label} className="flex flex-1 items-center gap-2">
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <div
@@ -483,7 +524,7 @@ const SUGGESTIONS: Record<string, string[]> = {
   retail: ['Yetkazib berish qancha turadi?', 'Как вернуть товар?', 'Do you offer instalments?'],
 };
 
-function MiniPlayground({ industry }: { industry: string }) {
+function MiniPlayground({ industry, t }: { industry: string; t: Translate }) {
   const [callId, setCallId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<
@@ -501,7 +542,10 @@ function MiniPlayground({ industry }: { industry: string }) {
     const res = await playgroundTurnAction({ callId, utterance: text });
     setThinking(false);
     if (!res.ok) {
-      setMessages((m) => [...m, { role: 'agent', text: res.message ?? 'Something went wrong.' }]);
+      setMessages((m) => [
+        ...m,
+        { role: 'agent', text: res.message ?? t('onboarding.play.error', 'Something went wrong.') },
+      ]);
       return;
     }
     setCallId(res.callId ?? null);
@@ -510,7 +554,7 @@ function MiniPlayground({ industry }: { industry: string }) {
       {
         role: 'agent',
         text: res.reply ?? '',
-        meta: `${Math.round(res.timings?.totalMs ?? 0)} ms · confidence ${(res.confidence ?? 0).toFixed(2)}`,
+        meta: `${Math.round(res.timings?.totalMs ?? 0)} ms · ${t('onboarding.play.confidence', 'confidence')} ${(res.confidence ?? 0).toFixed(2)}`,
         cite: res.citations?.[0]
           ? `${res.citations[0].documentTitle}${res.citations[0].heading ? ` › ${res.citations[0].heading}` : ''}`
           : undefined,
@@ -563,7 +607,7 @@ function MiniPlayground({ industry }: { industry: string }) {
         {thinking && (
           <div className="flex items-center gap-2 text-[12.5px] text-ink-3">
             <Spinner size={14} />
-            Retrieving and composing…
+            {t('onboarding.play.retrieving', 'Retrieving and composing…')}
           </div>
         )}
       </div>
@@ -578,11 +622,11 @@ function MiniPlayground({ industry }: { industry: string }) {
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask what a caller would ask…"
+          placeholder={t('onboarding.play.placeholder', 'Ask what a caller would ask…')}
           className="flex-1"
         />
         <Button type="submit" variant="primary" icon={<IconSend size={15} />} disabled={thinking}>
-          Send
+          {t('onboarding.play.send', 'Send')}
         </Button>
       </form>
     </div>
