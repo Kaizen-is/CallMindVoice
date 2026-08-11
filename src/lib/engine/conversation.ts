@@ -25,6 +25,7 @@ import type {
   Turn,
 } from '@/lib/types';
 import { safeJson } from '@/lib/utils';
+import { dispatchWebhook } from '@/lib/webhooks';
 import { publish } from './bus';
 
 export const DEFAULT_ESCALATION: EscalationPolicy = {
@@ -307,6 +308,12 @@ export async function runTurn(params: {
     const transcript = [...history, { role: 'caller', text: utterance }];
     summary = await summarizeCall(transcript, language, escalate);
     escalateCall(tenantId, callId, escalate, summary, sentiment);
+    // Fire-and-forget so a webhook consumer can never stall the turn.
+    void dispatchWebhook(tenantId, 'call.escalated', {
+      callId,
+      reason: escalate,
+      summary,
+    });
   }
 
   publish(tenantId, {

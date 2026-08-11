@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { translator, LOCALE_SHORT } from '@/lib/i18n';
@@ -60,7 +60,6 @@ export function ConsoleShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const locale = (user.locale ?? 'uz') as UiLocale;
   const t = translator(locale);
   const [collapsed, setCollapsed] = useState(false);
@@ -118,7 +117,10 @@ export function ConsoleShell({
     },
     {
       title: t('nav.section.measure'),
-      items: [{ href: '/app/analytics', labelKey: 'nav.analytics', icon: <IconChart size={17} /> }],
+      items: [
+        { href: '/app/analytics', labelKey: 'nav.analytics', icon: <IconChart size={17} /> },
+        { href: '/app/numbers', labelKey: 'nav.numbers', icon: <IconGlobe size={17} /> },
+      ],
     },
   ];
 
@@ -313,7 +315,7 @@ export function ConsoleShell({
               ...manageNav.map((it) => ({
                 label: t(it.labelKey),
                 icon: it.icon,
-                onClick: () => router.push(it.href),
+                href: it.href,
               })),
               { type: 'separator' },
               {

@@ -1,0 +1,14 @@
+{
+  "name": "ovoz-telephony-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone Asterisk AudioSocket ⇄ Ovoz voice bridge. No dependencies — Node built-ins only.",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "start": "node bridge.mjs",
+    "check": "node --check bridge.mjs"
+  }
+}

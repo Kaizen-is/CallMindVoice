@@ -72,7 +72,7 @@ function Nav({ signedIn, locale, t }: { signedIn: boolean; locale: UiLocale; t: 
     // `zn_id`) onto the sticky header before React hydrates; this stops that
     // extension noise from tripping a hydration mismatch on this element.
     <header className="sticky top-0 z-50 w-full glass hairline-b" suppressHydrationWarning>
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-5">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-5" suppressHydrationWarning>
         <Link href="/" className="shrink-0">
           <Wordmark />
         </Link>

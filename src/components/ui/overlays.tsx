@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Button, IconButton } from './primitives';
 import { IconAlert, IconCheckCircle, IconInfo, IconX } from '@/components/icons';
@@ -268,7 +269,7 @@ export function Menu({
   items: Array<
     | { type: 'separator' }
     | { type: 'label'; label: string }
-    | { type?: 'item'; label: string; icon?: ReactNode; onClick: () => void; danger?: boolean; disabled?: boolean }
+    | { type?: 'item'; label: string; icon?: ReactNode; onClick?: () => void; href?: string; danger?: boolean; disabled?: boolean }
   >;
   align?: 'left' | 'right';
   width?: number;
@@ -319,19 +320,40 @@ export function Menu({
                 </div>
               );
             }
+            const itemCls = cn(
+              'flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[13px] transition-colors disabled:opacity-40',
+              it.danger ? 'text-danger hover:bg-danger-soft' : 'text-ink hover:bg-surface-3',
+            );
+            if (it.href) {
+              // Soft-navigating Link so App Router intercepting routes (e.g. the
+              // settings modal) fire; a router.push() here bypasses the intercept
+              // and hard-navigates to the full page instead.
+              return (
+                <Link
+                  key={i}
+                  href={it.href}
+                  role="menuitem"
+                  onClick={() => {
+                    it.onClick?.();
+                    setOpen(false);
+                  }}
+                  className={itemCls}
+                >
+                  {it.icon}
+                  {it.label}
+                </Link>
+              );
+            }
             return (
               <button
                 key={i}
                 role="menuitem"
                 disabled={it.disabled}
                 onClick={() => {
-                  it.onClick();
+                  it.onClick?.();
                   setOpen(false);
                 }}
-                className={cn(
-                  'flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[13px] transition-colors disabled:opacity-40',
-                  it.danger ? 'text-danger hover:bg-danger-soft' : 'text-ink hover:bg-surface-3',
-                )}
+                className={itemCls}
               >
                 {it.icon}
                 {it.label}

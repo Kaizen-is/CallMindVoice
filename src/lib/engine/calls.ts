@@ -5,6 +5,7 @@ import 'server-only';
 import { all, get, id, now, run } from '@/lib/db';
 import type { Agent, Call, Locale, PhoneNumber, Turn } from '@/lib/types';
 import { percentile, safeJson, todayKey } from '@/lib/utils';
+import { dispatchWebhook } from '@/lib/webhooks';
 import { publish } from './bus';
 
 /**
@@ -99,6 +100,13 @@ export function startCall(params: {
     to: params.to,
     language: params.language ?? 'uz',
   });
+  // Notify subscribed webhooks without blocking the call path.
+  void dispatchWebhook(params.tenantId, 'call.started', {
+    callId,
+    from: params.from,
+    to: params.to,
+    language: params.language ?? 'uz',
+  });
   return callId;
 }
 
@@ -158,6 +166,13 @@ export function endCall(params: {
     callId: params.callId,
     outcome: params.outcome,
     durationMs,
+    csat: params.csat ?? null,
+  });
+  void dispatchWebhook(params.tenantId, 'call.completed', {
+    callId: params.callId,
+    outcome: params.outcome,
+    durationMs,
+    avgLatencyMs: avg,
     csat: params.csat ?? null,
   });
   return { durationMs, cost, avg, p95 };
