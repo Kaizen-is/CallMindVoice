@@ -3,7 +3,6 @@ import { translator } from '@/lib/i18n';
 import type { UiLocale } from '@/lib/types';
 import { SettingsModalChrome, type SettingsSection } from '@/components/console/settings-modal';
 import {
-  IconGlobe,
   IconUsers,
   IconCreditCard,
   IconCode,
@@ -22,7 +21,6 @@ export default async function SettingsSlotLayout({ children }: { children: React
   const t = translator((user.locale ?? 'uz') as UiLocale);
 
   const sections: SettingsSection[] = [
-    { href: '/app/numbers', label: t('nav.numbers'), icon: <IconGlobe size={16} /> },
     { href: '/app/team', label: t('nav.team'), icon: <IconUsers size={16} /> },
     { href: '/app/billing', label: t('nav.billing'), icon: <IconCreditCard size={16} /> },
     { href: '/app/developers', label: t('nav.developers'), icon: <IconCode size={16} /> },

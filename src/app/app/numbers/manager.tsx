@@ -25,13 +25,17 @@ export function NumbersManager({
   numbers,
   telephony,
   canEdit,
-  webhookUrl,
+  twilioWebhookUrl,
   locale,
 }: {
   numbers: Row[];
-  telephony: { configured: boolean; mode: string; accountSid: string | null };
+  telephony: {
+    configured: boolean;
+    mode: 'asterisk' | 'twilio' | 'simulator';
+    accountSid: string | null;
+  };
   canEdit: boolean;
-  webhookUrl: string;
+  twilioWebhookUrl: string;
   locale: UiLocale;
 }) {
   const t = translator(locale);
@@ -44,12 +48,12 @@ export function NumbersManager({
   const [busy, setBusy] = useState(false);
 
   return (
-    <div className="mx-auto max-w-[1100px]">
+    <div className="mx-auto max-w-[1400px]">
       <PageHeader
         title={t('nav.numbers', 'Phone numbers')}
         subtitle={t(
           'numbers.subtitle',
-          'The lines your agent answers. Connect a Twilio number, a carrier SIP trunk, or run on the simulator while you test.',
+          'The lines your agent answers. Connect Asterisk / FreePBX, Twilio, or use the simulator while you test.',
         )}
         actions={
           canEdit ? (
@@ -71,27 +75,46 @@ export function NumbersManager({
           </span>
           <div className="min-w-0 flex-1">
             <h3 className="text-[13.5px] font-semibold text-ink">
-              {telephony.configured
-                ? t('numbers.twilioConnected', 'Twilio connected ({sid})').replace(
-                    '{sid}',
-                    telephony.accountSid ?? '',
-                  )
-                : t('numbers.simulatorTitle', 'Running on the built-in simulator')}
+              {telephony.mode === 'asterisk'
+                ? t('numbers.asteriskConnected', 'Asterisk / FreePBX bridge configured')
+                : telephony.mode === 'twilio'
+                  ? t('numbers.twilioConnected', 'Twilio connected ({sid})').replace(
+                      '{sid}',
+                      telephony.accountSid ?? '',
+                    )
+                  : t('numbers.simulatorTitle', 'Running on the built-in simulator')}
             </h3>
             <p className="mt-1 text-[12.5px] leading-relaxed text-ink-2">
-              {telephony.configured
+              {telephony.mode === 'asterisk'
                 ? t(
-                    'numbers.twilioDesc',
-                    'Point your Twilio number at the webhook below and real calls will flow through the same engine.',
+                    'numbers.asteriskDesc',
+                    'The authenticated AudioSocket bridge can send live Asterisk calls through this agent.',
                   )
-                : t(
-                    'numbers.simulatorDesc',
-                    'Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN to take real calls. Until then, simulated traffic exercises the identical pipeline — retrieval, generation and escalation are all real.',
-                  )}
+                : telephony.mode === 'twilio'
+                  ? t(
+                      'numbers.twilioDesc',
+                      'Point your Twilio number at the webhook below and real calls will flow through the same engine.',
+                    )
+                  : t(
+                      'numbers.simulatorDesc',
+                      'Configure the Asterisk / FreePBX bridge or Twilio to take real calls. Until then, simulated traffic exercises the identical pipeline.',
+                    )}
             </p>
-            <div className="mt-3">
-              <CopyField label={t('numbers.webhookLabel', 'Voice webhook (HTTP POST)')} value={webhookUrl} />
-            </div>
+            {telephony.mode === 'asterisk' ? (
+              <div className="mt-3">
+                <CopyField
+                  label={t('numbers.bridgeEndpointLabel', 'Bridge turn endpoint (HTTP POST)')}
+                  value="/api/telephony/bridge/turn"
+                />
+              </div>
+            ) : telephony.mode === 'twilio' ? (
+              <div className="mt-3">
+                <CopyField
+                  label={t('numbers.webhookLabel', 'Voice webhook (HTTP POST)')}
+                  value={twilioWebhookUrl}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       </Card>
@@ -144,7 +167,7 @@ export function NumbersManager({
         title={t('numbers.connect', 'Connect a number')}
         description={t(
           'numbers.modalDesc',
-          'The number must already exist with your carrier or Twilio — this points it at your agent.',
+          'The number must already exist in Asterisk / FreePBX, with your carrier, or in Twilio — this points it at your agent.',
         )}
         footer={
           <>
@@ -196,8 +219,8 @@ export function NumbersManager({
               onChange={(e) => setForm({ ...form, provider: e.target.value })}
             >
               <option value="simulator">{t('numbers.optSimulator', 'Simulator (no real calls)')}</option>
+              <option value="sip">{t('numbers.optAsterisk', 'Asterisk / FreePBX or carrier SIP')}</option>
               <option value="twilio">Twilio</option>
-              <option value="sip">{t('numbers.optSip', 'Carrier SIP trunk')}</option>
             </Select>
           </Field>
         </div>

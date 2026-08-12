@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { requireSession } from '@/lib/auth';
 import { all } from '@/lib/db';
-import * as twilio from '@/lib/telephony/twilio';
+import { telephonyStatus } from '@/lib/telephony/status';
 import type { PhoneNumber } from '@/lib/types';
 import { NumbersManager } from './manager';
 
@@ -22,9 +22,9 @@ export default async function NumbersPage() {
   return (
     <NumbersManager
       numbers={numbers}
-      telephony={twilio.status()}
+      telephony={telephonyStatus()}
       canEdit={user.role === 'owner' || user.role === 'admin'}
-      webhookUrl={`${process.env.TWILIO_WEBHOOK_BASE_URL ?? 'https://your-domain.example'}/api/telephony/twilio/voice`}
+      twilioWebhookUrl={`${process.env.TWILIO_WEBHOOK_BASE_URL ?? 'https://your-domain.example'}/api/telephony/twilio/voice`}
       locale={user.locale}
     />
   );

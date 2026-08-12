@@ -127,7 +127,6 @@ export function ConsoleShell({
   // Workspace / account management — relocated out of the sidebar into the
   // profile menu (top-right) so the sidebar stays focused on daily work.
   const manageNav: Array<{ href: string; labelKey: string; icon: ReactNode }> = [
-    { href: '/app/numbers', labelKey: 'nav.numbers', icon: <IconGlobe size={15} /> },
     { href: '/app/team', labelKey: 'nav.team', icon: <IconUsers size={15} /> },
     { href: '/app/billing', labelKey: 'nav.billing', icon: <IconCreditCard size={15} /> },
     { href: '/app/developers', labelKey: 'nav.developers', icon: <IconCode size={15} /> },

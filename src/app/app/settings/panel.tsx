@@ -49,6 +49,7 @@ export function SettingsPanel({
     embeddingHosted: boolean;
     telephony: string;
     telephonyHosted: boolean;
+    telephonyHint: string;
   };
   stats: { documents: number; chunks: number; tokens: number; bytes: number };
 }) {
@@ -194,7 +195,7 @@ export function SettingsPanel({
               label={t('settings.engines.telephony', 'Telephony')}
               value={engines.telephony}
               hosted={engines.telephonyHosted}
-              hint="TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN"
+              hint={engines.telephonyHint}
             />
           </div>
         </Card>

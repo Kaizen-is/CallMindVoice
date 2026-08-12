@@ -5,7 +5,7 @@ import { all } from '@/lib/db';
 import { daily, intents, knowledgeGaps, knowledgeStats, overview } from '@/lib/analytics';
 import { liveAgent } from '@/lib/engine/calls';
 import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
-import * as twilio from '@/lib/telephony/twilio';
+import { telephonyStatus } from '@/lib/telephony/status';
 import type { Call } from '@/lib/types';
 import { fmtInt, fmtLatency, fmtMoney, fmtPct, relativeTime } from '@/lib/utils';
 import { translator, type Translate } from '@/lib/i18n';
@@ -42,6 +42,7 @@ export default async function DashboardPage() {
   const gaps = knowledgeGaps(tenant.id, 5);
   const topIntents = intents(tenant.id, 30, 5);
   const agent = liveAgent(tenant.id);
+  const telephony = telephonyStatus();
 
   const recent = all<Call>(
     `SELECT * FROM calls WHERE tenant_id=? ORDER BY started_at DESC LIMIT 8`,
@@ -70,7 +71,7 @@ export default async function DashboardPage() {
             <LinkButton href="/app/playground" variant="secondary" size="md" icon={<IconWave size={15} />}>
               {t('nav.playground')}
             </LinkButton>
-            <SimulateButton />
+            <SimulateButton locale={user.locale} />
           </>
         }
       />
@@ -142,7 +143,7 @@ export default async function DashboardPage() {
                 'dash.noCallsDesc',
                 'Run a simulated call, or point a number at your agent to see real traffic here.',
               )}
-              action={<SimulateButton />}
+              action={<SimulateButton locale={user.locale} />}
             />
           )}
         </ChartFrame>
@@ -190,8 +191,14 @@ export default async function DashboardPage() {
               />
               <EngineRow
                 label={t('dash.engine.telephony', 'Telephony')}
-                value={twilio.isConfigured() ? 'Twilio SIP' : t('dash.engine.simulator', 'Built-in simulator')}
-                hosted={twilio.isConfigured()}
+                value={
+                  telephony.mode === 'asterisk'
+                    ? t('dash.engine.asterisk', 'Asterisk / FreePBX bridge')
+                    : telephony.mode === 'twilio'
+                      ? 'Twilio SIP'
+                      : t('dash.engine.simulator', 'Built-in simulator')
+                }
+                hosted={telephony.configured}
               />
               <EngineRow
                 label={t('dash.engine.retrieval', 'Retrieval')}

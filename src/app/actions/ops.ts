@@ -8,7 +8,7 @@ import { endCall, liveAgent } from '@/lib/engine/calls';
 import { simulateBurst, simulateCall, simulatorLoad, stopSimulation } from '@/lib/engine/simulator';
 import { clearDemoHistory, seedDemoHistory } from '@/lib/engine/demo-data';
 import { summarizeCall } from '@/lib/llm/provider';
-import * as twilio from '@/lib/telephony/twilio';
+import { telephonyStatus } from '@/lib/telephony/status';
 import type { Call, Escalation, Locale, Turn } from '@/lib/types';
 import { generateApiKey } from '@/lib/auth';
 import { inviteMember } from '@/lib/provision';
@@ -62,7 +62,7 @@ export async function stopSimulationAction() {
 
 export async function simulatorStatusAction() {
   const session = await requireSession();
-  return { running: simulatorLoad(session.tenant.id), telephony: twilio.status() };
+  return { running: simulatorLoad(session.tenant.id), telephony: telephonyStatus() };
 }
 
 /* ── demo data ───────────────────────────────────────────────── */

@@ -3,7 +3,7 @@ import { translator } from '@/lib/i18n';
 import { knowledgeStats } from '@/lib/analytics';
 import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
 import { embeddingEngine } from '@/lib/rag/embed';
-import * as twilio from '@/lib/telephony/twilio';
+import { telephonyStatus } from '@/lib/telephony/status';
 import { SettingsPanel } from '@/app/app/settings/panel';
 import { SettingsModalSignal } from '@/components/console/settings-modal';
 
@@ -14,6 +14,7 @@ export default async function SettingsModal() {
   const { tenant, user } = await requireSession();
   const embedding = embeddingEngine();
   const t = translator(user.locale);
+  const telephony = telephonyStatus();
 
   return (
     <>
@@ -36,8 +37,17 @@ export default async function SettingsModal() {
         generationHosted: engineIsHosted(),
         embedding: embedding.id,
         embeddingHosted: embedding.hosted,
-        telephony: twilio.isConfigured() ? 'Twilio Elastic SIP' : t('settings.engine.builtinSimulator', 'Built-in simulator'),
-        telephonyHosted: twilio.isConfigured(),
+        telephony: telephony.mode === 'asterisk'
+          ? t('settings.engine.asteriskBridge', 'Asterisk / FreePBX bridge')
+          : telephony.mode === 'twilio'
+            ? 'Twilio Elastic SIP'
+            : t('settings.engine.builtinSimulator', 'Built-in simulator'),
+        telephonyHosted: telephony.configured,
+        telephonyHint: telephony.mode === 'asterisk'
+          ? 'BRIDGE_SHARED_SECRET'
+          : telephony.mode === 'twilio'
+            ? 'TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN'
+            : 'BRIDGE_SHARED_SECRET / TWILIO credentials',
       }}
       stats={knowledgeStats(tenant.id)}
       />

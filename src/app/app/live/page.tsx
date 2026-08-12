@@ -4,7 +4,7 @@ import { all } from '@/lib/db';
 import { overview } from '@/lib/analytics';
 import { activeCalls, reapStaleCalls } from '@/lib/engine/calls';
 import { simulatorLoad } from '@/lib/engine/simulator';
-import * as twilio from '@/lib/telephony/twilio';
+import { telephonyStatus } from '@/lib/telephony/status';
 import type { Turn } from '@/lib/types';
 import { LiveBoard } from './board';
 
@@ -34,7 +34,7 @@ export default async function LivePage() {
       todayDeflection={stats.deflectionRate}
       waiting={stats.waitingEscalations}
       simulated={simulatorLoad(tenant.id)}
-      telephony={twilio.status()}
+      telephony={telephonyStatus()}
     />
   );
 }
