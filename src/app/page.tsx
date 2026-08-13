@@ -3,8 +3,8 @@ import { CallDemo } from '@/components/marketing/call-demo';
 import { RoiCalculator } from '@/components/marketing/roi-calculator';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LinkButton } from '@/components/ui/primitives';
-import { PLANS } from '@/lib/catalog';
-import { fmtInt, fmtMoney } from '@/lib/utils';
+import { UZS_RATES } from '@/lib/catalog';
+import { fmtUzs } from '@/lib/utils';
 import {
   FlagEN,
   FlagRU,
@@ -188,7 +188,7 @@ function Hero({ signedIn, t }: { signedIn: boolean; t: Translate }) {
 
 function Problem({ t }: { t: Translate }) {
   const stats = [
-    { value: '~$500', label: t('lp.problem.stat1') },
+    { value: '~5 mln so‘m', label: t('lp.problem.stat1') },
     { value: '70–90%', label: t('lp.problem.stat2') },
     { value: '<1 sec', label: t('lp.problem.stat3') },
   ];
@@ -420,68 +420,13 @@ function Roi({ t, locale }: { t: Translate; locale: UiLocale }) {
 /* ═══ pricing ═══════════════════════════════════════════════════ */
 
 function Pricing({ t }: { t: Translate }) {
-  const minU = t('lp.roicalc.min');
-  const perMo = t('lp.price.perMonth');
-  const callsU = t('lp.price.callsUnit');
-  const get = (id: string) => PLANS.find((p) => p.id === id)!;
-
-  // Numbers come from the catalog (single source of truth); only the words are
-  // localised — so a price change never has to be re-typed in four languages.
-  const paid = (
-    id: string,
-    o: { blurb: string; features: string[]; cta: string; href: string; highlight?: boolean; custom?: boolean },
-  ) => {
-    const p = get(id);
-    return {
-      name: p.name,
-      price: o.custom ? t('lp.price.custom') : fmtMoney(p.priceUsd, 'USD', 0),
-      note: o.custom ? t('lp.price.annual') : perMo,
-      allowance: `${fmtInt(p.minutesIncluded)} ${minU} ${perMo}`,
-      meta: `≈ ${fmtInt(p.callsIncluded)} ${callsU} · ${t('lp.price.over')} ${fmtMoney(p.overagePerMinute, 'USD', 3)}/${minU}`,
-      blurb: o.blurb,
-      features: o.features,
-      cta: o.cta,
-      href: o.href,
-      highlight: Boolean(o.highlight),
-    };
-  };
-
-  const paygPlan = get('payg');
-  const payg = {
-    name: paygPlan.name,
-    price: fmtMoney(paygPlan.overagePerMinute, 'USD', 3),
-    note: `/ ${minU}`,
-    allowance: t('lp.price.paygMetered'),
-    meta: '',
-    blurb: t('lp.price.p0blurb'),
-    features: [t('lp.price.p1f2'), t('lp.price.p0f2'), t('lp.price.p0f3')],
-    cta: t('lp.price.ctaTrial'),
-    href: '/signup',
-    highlight: false,
-  };
-
-  const plans = [
-    payg,
-    paid('start', {
-      blurb: t('lp.price.p1blurb'),
-      features: [t('lp.price.p1f2'), t('lp.price.p1f3'), t('lp.price.p1f4'), t('lp.price.p1f5')],
-      cta: t('lp.price.ctaTrial'),
-      href: '/signup',
-    }),
-    paid('pro', {
-      blurb: t('lp.price.p2blurb'),
-      features: [t('lp.price.p2f2'), t('lp.price.p2f4'), t('lp.price.p2f5'), t('lp.price.p2f6')],
-      cta: t('lp.price.ctaTrial'),
-      href: '/signup',
-      highlight: true,
-    }),
-    paid('enterprise', {
-      blurb: t('lp.price.p3blurb'),
-      features: [t('lp.price.p3f2'), t('lp.price.p3f3'), t('lp.price.p3f4'), t('lp.price.p3f5')],
-      cta: t('lp.price.ctaTalk'),
-      href: '/signup?plan=enterprise',
-      custom: true,
-    }),
+  // Prepaid balance model: three per-minute rates come straight from the catalog
+  // (single source of truth); only the words around them are localised.
+  const perMin = `/${t('lp.roicalc.min')}`;
+  const cards = [
+    { title: t('lp.price.c1title'), rate: UZS_RATES.realTalkPerMin, desc: t('lp.price.c1desc') },
+    { title: t('lp.price.c2title'), rate: UZS_RATES.ttsPerMin, desc: t('lp.price.c2desc') },
+    { title: t('lp.price.c3title'), rate: UZS_RATES.sttPerMin, desc: t('lp.price.c3desc') },
   ];
 
   return (
@@ -492,50 +437,20 @@ function Pricing({ t }: { t: Translate }) {
           title={t('lp.price.title')}
           subtitle={t('lp.price.sub')}
         />
-        <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {plans.map((p) => (
+        <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {cards.map((c) => (
             <div
-              key={p.name}
-              className={`relative flex flex-col rounded-[18px] p-6 ${
-                p.highlight
-                  ? 'bg-surface shadow-e3 ring-2 ring-[rgb(var(--brand))]'
-                  : 'bg-surface shadow-e1 hairline'
-              }`}
+              key={c.title}
+              className="relative flex flex-col rounded-[18px] bg-surface p-6 shadow-e1 hairline"
             >
-              {p.highlight && (
-                <span className="absolute -top-3 left-6 rounded-full bg-brand px-3 py-1 text-[11.5px] font-semibold text-white">
-                  {t('lp.price.mostChosen')}
-                </span>
-              )}
-              <h3 className="text-[15px] font-semibold text-ink">{p.name}</h3>
+              <h3 className="text-[15px] font-semibold text-ink">{c.title}</h3>
               <div className="mt-3 flex items-baseline gap-1.5">
                 <span className="text-[32px] leading-none font-semibold tracking-[-0.03em] text-ink">
-                  {p.price}
+                  {fmtUzs(c.rate)}
                 </span>
-                <span className="text-[13px] text-ink-3">{p.note}</span>
+                <span className="text-[13px] text-ink-3">{perMin}</span>
               </div>
-              <div className="mt-3 min-h-[42px]">
-                <div className="text-[13px] font-medium text-ink">{p.allowance}</div>
-                {p.meta && <div className="mt-0.5 text-[11.5px] text-ink-3">{p.meta}</div>}
-              </div>
-              <p className="mt-2 min-h-[54px] text-[13px] leading-relaxed text-ink-2">{p.blurb}</p>
-              <ul className="mt-4 flex-1 space-y-2.5">
-                {p.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-[13px] text-ink-2">
-                    <IconCheck size={15} className="mt-0.5 shrink-0 text-success" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <LinkButton
-                href={p.href}
-                variant={p.highlight ? 'primary' : 'secondary'}
-                size="md"
-                full
-                className="mt-6"
-              >
-                {p.cta}
-              </LinkButton>
+              <p className="mt-3 text-[13px] leading-relaxed text-ink-2">{c.desc}</p>
             </div>
           ))}
         </div>
@@ -612,7 +527,7 @@ function Footer({ t }: { t: Translate }) {
           <a href="#how" className="transition-colors hover:text-ink">{t('lp.nav.how')}</a>
           <a href="#pricing" className="transition-colors hover:text-ink">{t('lp.nav.pricing')}</a>
           <Link href="/login" className="transition-colors hover:text-ink">{t('lp.nav.signin')}</Link>
-          <span>© {new Date().getFullYear()} Ovoz</span>
+          <span>© {new Date().getFullYear()} CallMind AI</span>
         </div>
       </div>
     </footer>

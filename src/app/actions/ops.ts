@@ -9,7 +9,7 @@ import { simulateBurst, simulateCall, simulatorLoad, stopSimulation } from '@/li
 import { clearDemoHistory, seedDemoHistory } from '@/lib/engine/demo-data';
 import { summarizeCall } from '@/lib/llm/provider';
 import { telephonyStatus } from '@/lib/telephony/status';
-import type { Call, Escalation, Locale, Turn } from '@/lib/types';
+import type { Call, Escalation, Locale, SpeechTest, Turn } from '@/lib/types';
 import { generateApiKey } from '@/lib/auth';
 import { inviteMember } from '@/lib/provision';
 import type { Role } from '@/lib/types';
@@ -166,7 +166,7 @@ export async function inboxAction() {
      FROM escalations e
      JOIN calls c ON c.id = e.call_id
      LEFT JOIN users u ON u.id = e.operator_id
-     WHERE e.tenant_id=? AND e.status IN ('waiting','assigned')
+     WHERE e.tenant_id=? AND e.status IN ('waiting','assigned') AND c.channel = 'voice'
      ORDER BY CASE e.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
               e.created_at ASC`,
     session.tenant.id,
@@ -376,6 +376,49 @@ export async function deleteWebhookAction(hookId: string) {
   return { ok: true, message: 'Webhook removed.' };
 }
 
+/* ── developer speech lab ────────────────────────────────────── */
+
+/**
+ * Persist one speech-lab run (a transcription or a synthesis) so it shows up in
+ * the history rail on the /app/dev pages. Any signed-in member may record a
+ * test; the row is scoped to the session tenant and user.
+ */
+export async function saveSpeechTestAction(input: {
+  kind: 'stt' | 'tts';
+  input?: string | null;
+  output?: string | null;
+  voice?: string | null;
+}): Promise<{ ok: true; test: SpeechTest } | { ok: false; message: string }> {
+  const session = await requireSession();
+  if (input.kind !== 'stt' && input.kind !== 'tts') {
+    return { ok: false, message: 'Unknown test kind.' };
+  }
+  const test: SpeechTest = {
+    id: id('spt'),
+    tenant_id: session.tenant.id,
+    user_id: session.user.id,
+    kind: input.kind,
+    input: input.input?.slice(0, 4000) ?? null,
+    output: input.output?.slice(0, 8000) ?? null,
+    voice: input.voice ?? null,
+    created_at: now(),
+  };
+  run(
+    `INSERT INTO speech_tests (id, tenant_id, user_id, kind, input, output, voice, created_at)
+     VALUES (?,?,?,?,?,?,?,?)`,
+    test.id,
+    test.tenant_id,
+    test.user_id,
+    test.kind,
+    test.input,
+    test.output,
+    test.voice,
+    test.created_at,
+  );
+  revalidatePath(input.kind === 'stt' ? '/app/dev/stt' : '/app/dev/tts');
+  return { ok: true, test };
+}
+
 /* ── settings & billing ──────────────────────────────────────── */
 
 export async function updateTenantAction(input: {
@@ -414,6 +457,44 @@ export async function changePlanAction(plan: string) {
   revalidatePath('/app/billing');
   revalidatePath('/app', 'layout');
   return { ok: true, message: `Switched to the ${plan} plan.` };
+}
+
+/**
+ * Credit the prepaid so'm balance. Owner-only. This is a manual top-up — a real
+ * payment gateway (Click / Payme / card) is a later phase; here the owner simply
+ * records money added to the wallet.
+ */
+export async function topUpAction(
+  amountUzs: number,
+): Promise<{ ok: false; message: string } | { ok: true; balance: number; message: string }> {
+  const session = await requireSession();
+  requireRole(session, 'owner');
+  const amount = Math.round(Number(amountUzs));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, message: 'Enter an amount greater than zero.' };
+  }
+  run(
+    'UPDATE tenants SET balance_uzs = balance_uzs + ?, updated_at=? WHERE id=?',
+    amount,
+    now(),
+    session.tenant.id,
+  );
+  const balance =
+    get<{ balance_uzs: number }>('SELECT balance_uzs FROM tenants WHERE id=?', session.tenant.id)
+      ?.balance_uzs ?? 0;
+  run(
+    `INSERT INTO wallet_ledger (id, tenant_id, kind, amount_uzs, balance_after, note, created_at)
+     VALUES (?,?, 'topup', ?, ?, ?, ?)`,
+    id('wl'),
+    session.tenant.id,
+    amount,
+    balance,
+    'Manual top-up',
+    now(),
+  );
+  audit(session.tenant.id, session.user, 'billing.topup', session.tenant.id, { amount });
+  revalidatePath('/app/billing');
+  return { ok: true, balance, message: 'Balance topped up.' };
 }
 
 export async function resolveGapAction(gapId: string, answer: string) {

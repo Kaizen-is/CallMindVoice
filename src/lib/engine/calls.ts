@@ -3,7 +3,8 @@
  */
 import 'server-only';
 import { all, get, id, now, run } from '@/lib/db';
-import type { Agent, Call, Locale, PhoneNumber, Turn } from '@/lib/types';
+import { AI_MINUTE_UZS } from '@/lib/catalog';
+import type { Agent, Call, Locale, PhoneNumber, SpeechTest, Turn } from '@/lib/types';
 import { percentile, safeJson, todayKey } from '@/lib/utils';
 import { dispatchWebhook } from '@/lib/webhooks';
 import { publish } from './bus';
@@ -161,6 +162,13 @@ export function endCall(params: {
     csat: params.csat ?? null,
   });
 
+  // Draw the handled minutes from the prepaid so'm wallet — the AI listens (STT)
+  // and speaks (TTS), so a minute costs AI_MINUTE_UZS. Additive to the USD cost
+  // accounting above; the balance is allowed to go negative rather than cut a
+  // caller off mid-sentence.
+  const debit = Math.round(minutes * AI_MINUTE_UZS);
+  if (debit > 0) debitWallet(params.tenantId, debit, `AI call · ${minutes.toFixed(1)} min`);
+
   publish(params.tenantId, {
     type: 'call_ended',
     callId: params.callId,
@@ -238,12 +246,55 @@ function rollUpUsage(p: {
   );
 }
 
+/**
+ * Subtract a so'm amount from the tenant's prepaid wallet and record the
+ * movement in `wallet_ledger` with the resulting balance. The balance may go
+ * negative — usage is never blocked; a low or negative balance is surfaced on
+ * the billing page for the owner to top up.
+ */
+function debitWallet(tenantId: string, amountUzs: number, note: string) {
+  run('UPDATE tenants SET balance_uzs = balance_uzs - ? WHERE id=?', amountUzs, tenantId);
+  const balance =
+    get<{ balance_uzs: number }>('SELECT balance_uzs FROM tenants WHERE id=?', tenantId)
+      ?.balance_uzs ?? 0;
+  run(
+    `INSERT INTO wallet_ledger (id, tenant_id, kind, amount_uzs, balance_after, note, created_at)
+     VALUES (?,?, 'debit', ?, ?, ?, ?)`,
+    id('wl'),
+    tenantId,
+    amountUzs,
+    balance,
+    note,
+    now(),
+  );
+}
+
 /* ── lookups ─────────────────────────────────────────────────── */
 
 export function liveAgent(tenantId: string): Agent | undefined {
   return (
     get<Agent>(`SELECT * FROM agents WHERE tenant_id=? AND status='live' ORDER BY updated_at DESC LIMIT 1`, tenantId) ??
     get<Agent>('SELECT * FROM agents WHERE tenant_id=? ORDER BY updated_at DESC LIMIT 1', tenantId)
+  );
+}
+
+/** Every agent belonging to a tenant, oldest first — for the multi-agent pickers. */
+export function listAgents(tenantId: string): Array<{ id: string; name: string; status: Agent['status'] }> {
+  return all<{ id: string; name: string; status: Agent['status'] }>(
+    'SELECT id, name, status FROM agents WHERE tenant_id=? ORDER BY created_at ASC',
+    tenantId,
+  );
+}
+
+/**
+ * Latest developer speech-lab runs of one kind (stt|tts) for a tenant — the
+ * history rail on the /app/dev/{stt,tts} pages. Newest first, capped small.
+ */
+export function listSpeechTests(tenantId: string, kind: 'stt' | 'tts'): SpeechTest[] {
+  return all<SpeechTest>(
+    'SELECT * FROM speech_tests WHERE tenant_id=? AND kind=? ORDER BY created_at DESC LIMIT 20',
+    tenantId,
+    kind,
   );
 }
 

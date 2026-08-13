@@ -12,8 +12,8 @@ import type { Locale, UiLocale } from '@/lib/types';
 import { cn, fmtLatency } from '@/lib/utils';
 import { voiceInputAvailable } from '@/lib/catalog';
 import { startRecording, micSupported, type Recording } from '@/lib/audio';
-import { Badge, Button, Card, EmptyState, PageHeader, Segmented, Spinner } from '@/components/ui/primitives';
-import { Input } from '@/components/ui/forms';
+import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from '@/components/ui/primitives';
+import { Input, Select } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
 import {
   IconAlert,
@@ -22,6 +22,7 @@ import {
   IconHeadset,
   IconMic,
   IconMicOff,
+  IconPlay,
   IconRefresh,
   IconSend,
   IconSparkle,
@@ -60,11 +61,21 @@ interface SpeechRecognitionLike {
 const SPEECH_LANG: Record<Locale, string> = { uz: 'uz-UZ', ru: 'ru-RU', en: 'en-GB' };
 const LANG_NAME: Record<Locale, string> = { uz: 'Uzbek', ru: 'Russian', en: 'English' };
 
+// Simple client-side unique id for transcript rows, so a reply's stored audio
+// can be attached back to the exact message it belongs to.
+let _seq = 0;
+const nextId = () => `m${Date.now().toString(36)}_${(_seq++).toString(36)}`;
+
 interface Msg {
+  id: string;
   role: 'caller' | 'agent';
   text: string;
   reply?: PlaygroundReply;
   interim?: boolean;
+  /** Object URL of this reply's synthesised audio — set once, replayable, kept until reset. */
+  audioUrl?: string;
+  /** Spoken language of the reply, for the browser-voice replay fallback. */
+  lang?: Locale;
 }
 
 const SUGGESTIONS: Record<string, string[]> = {
@@ -92,6 +103,7 @@ const SUGGESTIONS: Record<string, string[]> = {
 
 export function Playground({
   agent,
+  agents,
   locale,
   industry,
   chunks,
@@ -99,6 +111,7 @@ export function Playground({
   speech,
 }: {
   agent: {
+    id: string;
     name: string;
     greeting: string;
     voiceId: string;
@@ -108,6 +121,7 @@ export function Playground({
     threshold: number;
     status: string;
   } | null;
+  agents: Array<{ id: string; name: string; status: 'draft' | 'live' | 'paused' }>;
   locale: UiLocale;
   industry: string;
   chunks: number;
@@ -119,7 +133,10 @@ export function Playground({
   const t = translator(locale);
   const langName = (l: Locale) => t(`play.lang.${l}`, LANG_NAME[l]);
 
-  const [mode, setMode] = useState<'voice' | 'text'>('text');
+  // Which agent the conversation is aimed at. The server resolves this exact
+  // agent for every turn; the client's voice/language chrome stays with the
+  // initially-loaded agent DTO (a known, minor cosmetic limitation).
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(agent?.id ?? '');
   const [callId, setCallId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
@@ -143,6 +160,7 @@ export function Playground({
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const speechStartRef = useRef<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<Msg[]>([]);
   const suggestions = SUGGESTIONS[industry] ?? SUGGESTIONS.clinic;
 
   useEffect(() => {
@@ -157,11 +175,24 @@ export function Playground({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, thinking]);
 
+  // Mirror messages into a ref so unmount cleanup can revoke object URLs.
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  useEffect(
+    () => () => {
+      messagesRef.current.forEach((x) => x.audioUrl && URL.revokeObjectURL(x.audioUrl));
+    },
+    [],
+  );
+
   /* ── speech synthesis ───────────────────────────────────────── */
 
+  // Browser voice (used for RU/EN, and as a fallback when the internal TTS is
+  // unavailable). `force` lets an explicit replay play even when auto-voice is off.
   const speak = useCallback(
-    (text: string, lang: Locale) => {
-      if (!ttsEnabled || typeof window === 'undefined' || !window.speechSynthesis) return;
+    (text: string, lang: Locale, force = false) => {
+      if ((!force && !ttsEnabled) || typeof window === 'undefined' || !window.speechSynthesis) return;
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.lang = SPEECH_LANG[lang] ?? 'ru-RU';
@@ -177,47 +208,90 @@ export function Playground({
     [ttsEnabled, agent?.speakingRate],
   );
 
-  // Prefer the internal Uzbek TTS for Uzbek replies; fall back to the browser
-  // voice for Russian/English (the internal model is Uzbek-only).
-  const playTts = useCallback(
-    async (text: string, lang: Locale) => {
+  // Ask the internal Uzbek TTS for a real audio blob and hand back an object URL
+  // (the caller stores it on the message so it can be replayed as-is).
+  const synthUz = useCallback(
+    async (text: string): Promise<string | null> => {
+      try {
+        const res = await fetch('/api/speech/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice: agent?.voiceId }),
+        });
+        if (res.ok) return URL.createObjectURL(await res.blob());
+      } catch {
+        /* fall back to the browser voice */
+      }
+      return null;
+    },
+    [agent?.voiceId],
+  );
+
+  // Play a stored audio URL through the one shared element, without revoking it —
+  // the message keeps the URL so its ▶ button replays the identical audio.
+  const playUrl = useCallback((url: string) => {
+    window.speechSynthesis?.cancel();
+    const audio = audioElRef.current ?? (audioElRef.current = new Audio());
+    try {
+      audio.pause();
+    } catch {
+      /* nothing playing */
+    }
+    audio.src = url;
+    void audio.play().catch(() => {});
+  }, []);
+
+  // Generate a reply's audio once, attach it to that message, and auto-play it.
+  const speakReply = useCallback(
+    async (msgId: string, text: string, lang: Locale) => {
       if (!ttsEnabled || !text.trim()) return;
+      // Prefer the internal Uzbek TTS for Uzbek replies; fall back to the browser
+      // voice for Russian/English (the internal model is Uzbek-only).
       if (speech.tts && lang === 'uz') {
-        try {
-          const res = await fetch('/api/speech/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, voice: agent?.voiceId }),
-          });
-          if (res.ok) {
-            window.speechSynthesis?.cancel();
-            const url = URL.createObjectURL(await res.blob());
-            const audio = audioElRef.current ?? (audioElRef.current = new Audio());
-            audio.src = url;
-            audio.onended = () => URL.revokeObjectURL(url);
-            void audio.play().catch(() => {});
-            return;
-          }
-        } catch {
-          /* fall through to the browser voice */
+        const url = await synthUz(text);
+        if (url) {
+          setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, audioUrl: url } : x)));
+          playUrl(url);
+          return;
         }
       }
       speak(text, lang);
     },
-    [ttsEnabled, speech.tts, speak, agent?.voiceId],
+    [ttsEnabled, speech.tts, synthUz, playUrl, speak],
+  );
+
+  // Replay control on an agent bubble: the exact stored audio if we have it,
+  // otherwise re-synthesise through the browser voice.
+  const replay = useCallback(
+    (m: Msg) => {
+      if (m.audioUrl) playUrl(m.audioUrl);
+      else if (m.text) speak(m.text, m.lang ?? 'uz', true);
+    },
+    [playUrl, speak],
   );
 
   /* ── the turn ───────────────────────────────────────────────── */
 
+  // Voice here is "record then answer", exactly like a phone turn: we capture a
+  // whole utterance, transcribe it, run the turn, and speak the reply. It is NOT
+  // real-time streaming or barge-in — that is deliberately out of scope.
   const send = useCallback(
     async (text: string, sttMs = 0) => {
       const utterance = text.trim();
       if (!utterance || thinking) return;
-      setMessages((m) => [...m.filter((x) => !x.interim), { role: 'caller', text: utterance }]);
+      setMessages((m) => [
+        ...m.filter((x) => !x.interim),
+        { id: nextId(), role: 'caller', text: utterance },
+      ]);
       setInput('');
       setThinking(true);
 
-      const res = await playgroundTurnAction({ callId, utterance, sttMs });
+      const res = await playgroundTurnAction({
+        callId,
+        utterance,
+        sttMs,
+        agentId: selectedAgentId || undefined,
+      });
       setThinking(false);
 
       if (!res.ok) {
@@ -225,8 +299,10 @@ export function Playground({
         return;
       }
       setCallId(res.callId ?? null);
-      setMessages((m) => [...m, { role: 'agent', text: res.reply ?? '', reply: res }]);
-      void playTts(res.reply ?? '', (res.language as Locale) ?? speechLang);
+      const replyLang = (res.language as Locale) ?? speechLang;
+      const msgId = nextId();
+      setMessages((m) => [...m, { id: msgId, role: 'agent', text: res.reply ?? '', reply: res, lang: replyLang }]);
+      void speakReply(msgId, res.reply ?? '', replyLang);
       if (res.escalate) {
         toast.toast({
           tone: 'info',
@@ -235,7 +311,7 @@ export function Playground({
         });
       }
     },
-    [callId, thinking, playTts, speechLang, toast, t],
+    [callId, thinking, selectedAgentId, speakReply, speechLang, toast, t],
   );
 
   /* ── speech recognition ─────────────────────────────────────── */
@@ -271,7 +347,7 @@ export function Playground({
       if (interim) {
         setMessages((m) => [
           ...m.filter((x) => !x.interim),
-          { role: 'caller', text: interim, interim: true },
+          { id: nextId(), role: 'caller', text: interim, interim: true },
         ]);
       }
       if (final) {
@@ -383,12 +459,33 @@ export function Playground({
     return () => clearInterval(iv);
   }, [listening]);
 
+  // Drop the current conversation, revoking any stored audio URLs first.
+  const clearConversation = useCallback(() => {
+    setMessages((m) => {
+      m.forEach((x) => x.audioUrl && URL.revokeObjectURL(x.audioUrl));
+      return [];
+    });
+    setCallId(null);
+    window.speechSynthesis?.cancel();
+    try {
+      audioElRef.current?.pause();
+    } catch {
+      /* nothing playing */
+    }
+  }, []);
+
   const reset = async () => {
     if (callId) await endPlaygroundCallAction(callId, 5);
-    setCallId(null);
-    setMessages([]);
-    window.speechSynthesis?.cancel();
+    clearConversation();
     router.refresh();
+  };
+
+  // Switching who you talk to starts a fresh session with a clean transcript.
+  const switchAgent = (agentId: string) => {
+    if (agentId === selectedAgentId) return;
+    if (callId) void endPlaygroundCallAction(callId, 5);
+    setSelectedAgentId(agentId);
+    clearConversation();
   };
 
   const lastReply = [...messages].reverse().find((m) => m.reply)?.reply;
@@ -427,6 +524,11 @@ export function Playground({
     );
   }
 
+  // Name/status follow the picked agent; the rest of the DTO is the initial agent.
+  const selected = agents.find((a) => a.id === selectedAgentId);
+  const agentName = selected?.name ?? agent.name;
+  const agentStatus = selected?.status ?? agent.status;
+
   return (
     // On desktop, fill the viewport (100vh − 64px top bar − 48px main padding) and
     // lay out as a column so the chat card's own header/footer stay pinned and only
@@ -454,6 +556,22 @@ export function Playground({
         }
       />
 
+      {/* Choose which of the tenant's agents to talk to — switching resets the chat. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-[12.5px] text-ink-3">{t('play.talkingTo', 'Talking to')}</span>
+        <Select
+          value={selectedAgentId}
+          onChange={(e) => switchAgent(e.target.value)}
+          className="w-auto min-w-[200px]"
+        >
+          {agents.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+
       {chunks === 0 && (
         <Card className="mb-4 bg-warning-soft" padded>
           <div className="flex items-start gap-3">
@@ -468,7 +586,9 @@ export function Playground({
         </Card>
       )}
 
-      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_340px]">
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_360px]">
+        {/* ── Left: the text chat. Both this composer and the live-voice mic on
+            the right feed the same transcript below. ── */}
         <Card padded={false} className="flex min-h-[560px] flex-col overflow-hidden lg:min-h-0">
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 hairline-b">
             <div className="flex items-center gap-2.5">
@@ -476,21 +596,16 @@ export function Playground({
                 <IconSparkle size={16} />
               </span>
               <div>
-                <div className="text-[13.5px] font-semibold text-ink">{agent.name}</div>
+                <div className="text-[13.5px] font-semibold text-ink">{agentName}</div>
                 <div className="text-[11.5px] text-ink-3">
-                  {agent.status === 'live' ? t('play.statusLive', 'Live') : t('play.statusDraft', 'Draft')} · {engine}
+                  {agentStatus === 'live' ? t('play.statusLive', 'Live') : t('play.statusDraft', 'Draft')} · {engine}
                 </div>
               </div>
             </div>
-            <Segmented
-              size="sm"
-              value={mode}
-              onChange={setMode}
-              options={[
-                { value: 'text', label: t('play.modeType', 'Type') },
-                { value: 'voice', label: t('play.modeSpeak', 'Speak') },
-              ]}
-            />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-3 px-2.5 py-1 text-[11.5px] font-medium text-ink-3">
+              <IconSend size={12} />
+              {t('play.textPanel', 'Text chat')}
+            </span>
           </div>
 
           <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
@@ -504,7 +619,7 @@ export function Playground({
                   </span>
                   <div className="max-w-sm">
                     <p className="text-[15px] font-semibold text-ink">
-                      {t('play.emptyTitle', 'Talk to {name}').replace('{name}', agent.name)}
+                      {t('play.emptyTitle', 'Talk to {name}').replace('{name}', agentName)}
                     </p>
                     <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">
                       {t(
@@ -527,8 +642,8 @@ export function Playground({
                 </div>
               ) : (
                 <>
-                  {messages.map((m, i) => (
-                    <Bubble key={i} msg={m} t={t} />
+                  {messages.map((m) => (
+                    <Bubble key={m.id} msg={m} t={t} onReplay={replay} />
                   ))}
 
                   {thinking && (
@@ -543,115 +658,128 @@ export function Playground({
           </div>
 
           <div className="bg-surface-2 px-5 py-4 hairline-t">
-            {mode === 'text' ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void send(input);
-                }}
-                className="flex gap-2"
-              >
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder={t('play.inputPlaceholder', 'Ask exactly what a caller would ask…')}
-                  className="flex-1"
-                  disabled={thinking}
-                />
-                <Button type="submit" variant="primary" icon={<IconSend size={15} />} disabled={thinking}>
-                  {t('play.send', 'Send')}
-                </Button>
-              </form>
-            ) : (
-              <div className="flex flex-col items-center gap-3.5">
-                <div className="flex items-center gap-1.5">
-                  {agent.languages.map((l) => {
-                    const available = voiceInputAvailable(l);
-                    const active = speechLang === l && available;
-                    return (
-                      <button
-                        key={l}
-                        type="button"
-                        onClick={() => available && setSpeechLang(l)}
-                        disabled={!available}
-                        aria-disabled={!available}
-                        title={
-                          available
-                            ? undefined
-                            : t('play.voiceSoonTitle', '{lang} voice recognition — available soon').replace(
-                                '{lang}',
-                                langName(l),
-                              )
-                        }
-                        className={cn(
-                          'inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium transition-colors',
-                          active
-                            ? 'bg-brand text-white shadow-e1'
-                            : available
-                              ? 'bg-surface-3 text-ink-2 hover:text-ink'
-                              : 'cursor-not-allowed bg-surface-3/40 text-ink-3 opacity-60',
-                        )}
-                      >
-                        {l.toUpperCase()}
-                        {!available && (
-                          <span className="rounded-full bg-surface px-1 py-[1px] text-[8.5px] font-semibold tracking-wide uppercase text-ink-3 hairline">
-                            {t('play.soon', 'soon')}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                {agent.languages.some((l) => !voiceInputAvailable(l)) && (
-                  <p className="max-w-[15rem] text-center text-[11px] leading-snug text-ink-3">
-                    {t(
-                      'play.voiceUzOnly',
-                      'Voice input is Uzbek-only for now — Russian and English recognition are coming soon.',
-                    )}
-                  </p>
-                )}
-
-                <button
-                  onClick={() => void micToggle()}
-                  disabled={!micReady || micBusy || (thinking && !listening)}
-                  className={cn(
-                    'relative flex h-16 w-16 items-center justify-center rounded-full shadow-e2 transition-all duration-200 disabled:opacity-40',
-                    listening
-                      ? 'animate-pulse-ring bg-danger text-white'
-                      : 'bg-brand text-white hover:scale-105 hover:brightness-110',
-                  )}
-                >
-                  <IconMic size={25} />
-                  {listening && (
-                    <span
-                      className="absolute inset-0 rounded-full ring-4 ring-danger/30 transition-transform"
-                      style={{ transform: `scale(${1 + level * 0.35})` }}
-                    />
-                  )}
-                </button>
-
-                <div className="flex flex-col items-center gap-1.5">
-                  <p className="text-[12.5px] text-ink-3">
-                    {!micReady
-                      ? t('play.micHttps', 'Microphone needs localhost or HTTPS — open http://localhost:3000')
-                      : listening
-                        ? t('play.micRecording', 'Recording — tap the mic to stop')
-                        : t('play.micTap', 'Tap the mic and speak')}
-                  </p>
-                  {speech.stt && (
-                    <span className="rounded-full bg-surface px-2.5 py-0.5 text-[11px] text-ink-3 hairline">
-                      {internalStt
-                        ? t('play.sttInternal', 'Uzbek → your STT model')
-                        : t('play.sttBrowser', '{lang} → browser voice').replace('{lang}', speechLang.toUpperCase())}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void send(input);
+              }}
+              className="flex gap-2"
+            >
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={t('play.inputPlaceholder', 'Ask exactly what a caller would ask…')}
+                className="flex-1"
+                disabled={thinking}
+              />
+              <Button type="submit" variant="primary" icon={<IconSend size={15} />} disabled={thinking}>
+                {t('play.send', 'Send')}
+              </Button>
+            </form>
           </div>
         </Card>
 
+        {/* ── Right: live voice panel + the pipeline metrics. ── */}
         <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto">
+          <Card>
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-soft text-brand">
+                <IconMic size={15} />
+              </span>
+              <div>
+                <h3 className="text-[14px] font-semibold text-ink">{t('play.livePanel', 'Live voice')}</h3>
+                <p className="text-[11.5px] text-ink-3">
+                  {t('play.livePanelHint', 'Speak and it answers right away, like a call.')}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col items-center gap-3.5">
+              <div className="flex items-center gap-1.5">
+                {agent.languages.map((l) => {
+                  const available = voiceInputAvailable(l);
+                  const active = speechLang === l && available;
+                  return (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => available && setSpeechLang(l)}
+                      disabled={!available}
+                      aria-disabled={!available}
+                      title={
+                        available
+                          ? undefined
+                          : t('play.voiceSoonTitle', '{lang} voice recognition — available soon').replace(
+                              '{lang}',
+                              langName(l),
+                            )
+                      }
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium transition-colors',
+                        active
+                          ? 'bg-brand text-white shadow-e1'
+                          : available
+                            ? 'bg-surface-3 text-ink-2 hover:text-ink'
+                            : 'cursor-not-allowed bg-surface-3/40 text-ink-3 opacity-60',
+                      )}
+                    >
+                      {l.toUpperCase()}
+                      {!available && (
+                        <span className="rounded-full bg-surface px-1 py-[1px] text-[8.5px] font-semibold tracking-wide uppercase text-ink-3 hairline">
+                          {t('play.soon', 'soon')}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {agent.languages.some((l) => !voiceInputAvailable(l)) && (
+                <p className="max-w-[15rem] text-center text-[11px] leading-snug text-ink-3">
+                  {t(
+                    'play.voiceUzOnly',
+                    'Voice input is Uzbek-only for now — Russian and English recognition are coming soon.',
+                  )}
+                </p>
+              )}
+
+              <button
+                onClick={() => void micToggle()}
+                disabled={!micReady || micBusy || (thinking && !listening)}
+                className={cn(
+                  'relative flex h-16 w-16 items-center justify-center rounded-full shadow-e2 transition-all duration-200 disabled:opacity-40',
+                  listening
+                    ? 'animate-pulse-ring bg-danger text-white'
+                    : 'bg-brand text-white hover:scale-105 hover:brightness-110',
+                )}
+              >
+                <IconMic size={25} />
+                {listening && (
+                  <span
+                    className="absolute inset-0 rounded-full ring-4 ring-danger/30 transition-transform"
+                    style={{ transform: `scale(${1 + level * 0.35})` }}
+                  />
+                )}
+              </button>
+
+              <div className="flex flex-col items-center gap-1.5">
+                <p className="text-center text-[12.5px] text-ink-3">
+                  {!micReady
+                    ? t('play.micHttps', 'Microphone needs localhost or HTTPS — open http://localhost:3000')
+                    : listening
+                      ? t('play.micRecording', 'Recording — tap the mic to stop')
+                      : t('play.micTap', 'Tap the mic and speak')}
+                </p>
+                {speech.stt && (
+                  <span className="rounded-full bg-surface px-2.5 py-0.5 text-[11px] text-ink-3 hairline">
+                    {internalStt
+                      ? t('play.sttInternal', 'Uzbek → your STT model')
+                      : t('play.sttBrowser', '{lang} → browser voice').replace('{lang}', speechLang.toUpperCase())}
+                  </span>
+                )}
+              </div>
+            </div>
+          </Card>
+
           <Card>
             <h3 className="text-[14px] font-semibold text-ink">{t('play.lastTurn', 'Last turn')}</h3>
             {lastReply ? (
@@ -735,7 +863,7 @@ export function Playground({
 
 /* ── pieces ──────────────────────────────────────────────────── */
 
-function Bubble({ msg, t }: { msg: Msg; t: Translate }) {
+function Bubble({ msg, t, onReplay }: { msg: Msg; t: Translate; onReplay: (m: Msg) => void }) {
   const isCaller = msg.role === 'caller';
   return (
     <div className={cn('flex', isCaller ? 'justify-end' : 'justify-start')}>
@@ -751,6 +879,19 @@ function Bubble({ msg, t }: { msg: Msg; t: Translate }) {
         >
           {msg.text}
         </div>
+        {!isCaller && msg.text && !msg.interim && (
+          <div className="mt-1 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onReplay(msg)}
+              title={t('play.replay', 'Play')}
+              className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-ink-3 transition-colors hairline hover:bg-surface-3 hover:text-ink"
+            >
+              <IconPlay size={11} />
+              {t('play.replay', 'Play')}
+            </button>
+          </div>
+        )}
         {msg.reply && (
           <div
             className={cn(

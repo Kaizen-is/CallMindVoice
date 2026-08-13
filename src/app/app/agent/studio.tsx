@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
-import { saveAgentAction, setAgentStatusAction, type AgentDraft } from '@/app/actions/agent';
+import { createAgentAction, saveAgentAction, setAgentStatusAction, type AgentDraft } from '@/app/actions/agent';
 import { PERSONAS, VOICES, WEEKDAYS } from '@/lib/catalog';
 import { translator } from '@/lib/i18n';
 import type { BusinessHours, EscalationPolicy, Locale, UiLocale } from '@/lib/types';
@@ -20,6 +20,7 @@ import {
   IconHeadset,
   IconPause,
   IconPlay,
+  IconPlus,
   IconSparkle,
   IconVolume,
 } from '@/components/icons';
@@ -53,11 +54,13 @@ type Tab = 'voice' | 'behaviour' | 'escalation' | 'hours';
 
 export function AgentStudio({
   agent,
+  agents,
   locale,
   canEdit,
   knowledgeChunks,
 }: {
   agent: AgentView;
+  agents: Array<{ id: string; name: string; status: 'draft' | 'live' | 'paused' }>;
   locale: UiLocale;
   canEdit: boolean;
   knowledgeChunks: number;
@@ -68,6 +71,29 @@ export function AgentStudio({
   const [, start] = useTransition();
   const [tab, setTab] = useState<Tab>('voice');
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  // Switching agents re-navigates with ?agent=<id>; the page keys the studio on
+  // the id so React remounts it with the selected agent's configuration.
+  const switchAgent = (agentId: string) => {
+    if (agentId === agent.id) return;
+    start(() => router.push(`/app/agent?agent=${agentId}`));
+  };
+
+  const createNew = async () => {
+    const fallback = t('agent.newAgentDefault', 'New agent');
+    const name = window.prompt(t('agent.newAgentPrompt', 'Name for the new agent'), fallback);
+    if (name === null) return;
+    setCreating(true);
+    const res = await createAgentAction(name.trim() || fallback);
+    setCreating(false);
+    if (res.ok && res.agentId) {
+      toast.success(t('agent.createdToast', 'Agent created'));
+      start(() => router.push(`/app/agent?agent=${res.agentId}`));
+    } else {
+      toast.error(t('agent.createError', 'Could not create agent'));
+    }
+  };
 
   const [draft, setDraft] = useState<AgentDraft>({
     name: agent.name,
@@ -159,6 +185,32 @@ export function AgentStudio({
         }
       />
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-[12.5px] text-ink-3">{t('agent.editing', 'Editing')}</span>
+        <Select
+          value={agent.id}
+          onChange={(e) => switchAgent(e.target.value)}
+          className="w-auto min-w-[200px]"
+        >
+          {agents.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </Select>
+        {canEdit && (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<IconPlus size={14} />}
+            loading={creating}
+            onClick={() => void createNew()}
+          >
+            {t('agent.newAgent', 'New agent')}
+          </Button>
+        )}
+      </div>
+
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <Badge tone={agent.status === 'live' ? 'success' : agent.status === 'paused' ? 'warning' : 'neutral'} dot>
           {agent.status === 'live'
@@ -206,7 +258,7 @@ export function AgentStudio({
                   <Select value={draft.voiceId} onChange={(e) => set('voiceId', e.target.value)}>
                     {VOICES.map((v) => (
                       <option key={v.id} value={v.id}>
-                        {v.name} — {v.note}
+                        {v.name} — {t(`voice.${v.id}.note`, v.note)}
                       </option>
                     ))}
                   </Select>
@@ -310,8 +362,8 @@ export function AgentStudio({
                         : 'bg-surface-2 hover:bg-surface-3',
                     )}
                   >
-                    <span className="block text-[13.5px] font-medium text-ink">{p.label}</span>
-                    <span className="mt-0.5 block text-[12px] text-ink-3">{p.hint}</span>
+                    <span className="block text-[13.5px] font-medium text-ink">{t(`persona.${p.value}.label`, p.label)}</span>
+                    <span className="mt-0.5 block text-[12px] text-ink-3">{t(`persona.${p.value}.hint`, p.hint)}</span>
                   </button>
                 ))}
               </div>

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { requireSession } from '@/lib/auth';
 import { knowledgeStats } from '@/lib/analytics';
-import { liveAgent } from '@/lib/engine/calls';
+import { liveAgent, listAgents } from '@/lib/engine/calls';
 import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
 import { translator } from '@/lib/i18n';
 import type { Locale } from '@/lib/types';
@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic';
 export default async function PlaygroundPage() {
   const { tenant, user } = await requireSession();
   const agent = liveAgent(tenant.id);
+  const agents = listAgents(tenant.id);
   const kb = knowledgeStats(tenant.id);
   const t = translator(user.locale);
 
@@ -27,9 +28,11 @@ export default async function PlaygroundPage() {
         stt: Boolean(process.env.STT_TRANSCRIBE_URL),
         tts: Boolean(process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN),
       }}
+      agents={agents}
       agent={
         agent
           ? {
+              id: agent.id,
               name: agent.name,
               greeting: agent.greeting,
               voiceId: agent.voice_id,

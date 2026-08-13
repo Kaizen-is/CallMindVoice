@@ -3,11 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { audit, requireRole, requireSession } from '@/lib/auth';
-import { get, now, run } from '@/lib/db';
-import type { Agent, BusinessHours, EscalationPolicy, Locale } from '@/lib/types';
-import { runTurn } from '@/lib/engine/conversation';
+import { get, id, now, run } from '@/lib/db';
+import { contentLocale, type Agent, type BusinessHours, type EscalationPolicy, type Locale } from '@/lib/types';
+import { runTurn, DEFAULT_ESCALATION, DEFAULT_HOURS } from '@/lib/engine/conversation';
 import { liveAgent } from '@/lib/engine/calls';
 import { startCall, endCall } from '@/lib/engine/calls';
+import { GREETINGS, FALLBACKS } from '@/lib/provision';
 
 export interface AgentDraft {
   name: string;
@@ -85,6 +86,44 @@ export async function setAgentStatusAction(agentId: string, status: 'draft' | 'l
   return { ok: true, message: status === 'live' ? 'Agent is live.' : `Agent set to ${status}.` };
 }
 
+/**
+ * Create an additional agent for the session tenant. The schema already supports
+ * many agents per tenant; this is the app-level entry point. Field defaults mirror
+ * the single INSERT in provisionTenant so a fresh agent is immediately usable.
+ */
+export async function createAgentAction(name?: string) {
+  const session = await requireSession();
+  requireRole(session, 'admin');
+
+  const agentId = id('agt');
+  const stamp = now();
+  const primaryLang = contentLocale(session.tenant.locale);
+  const displayName = name?.trim() || 'New agent';
+
+  run(
+    `INSERT INTO agents (id, tenant_id, name, status, persona, greeting, fallback_line, instructions,
+       languages_json, primary_lang, voice_id, speaking_rate, temperature, max_turns,
+       confidence_threshold, escalation_json, hours_json, tools_json, version, created_at, updated_at)
+     VALUES (?,?,?, 'draft', 'professional', ?, ?, '', ?, ?, 'nilufar', 1.0, 0.3, 24, 0.45, ?, ?, '[]', 1, ?, ?)`,
+    agentId,
+    session.tenant.id,
+    displayName,
+    GREETINGS[primaryLang](session.tenant.name),
+    FALLBACKS[primaryLang],
+    JSON.stringify(['uz', 'ru', 'en']),
+    primaryLang,
+    JSON.stringify(DEFAULT_ESCALATION),
+    JSON.stringify(DEFAULT_HOURS),
+    stamp,
+    stamp,
+  );
+
+  audit(session.tenant.id, session.user, 'agent.created', agentId, { name: displayName });
+  revalidatePath('/app/agent');
+  revalidatePath('/app');
+  return { ok: true, agentId };
+}
+
 /* ── playground ──────────────────────────────────────────────── */
 
 export interface PlaygroundReply {
@@ -108,9 +147,13 @@ export async function playgroundTurnAction(params: {
   callId: string | null;
   utterance: string;
   sttMs?: number;
+  /** When set, talk to this specific agent (verified against the session tenant). */
+  agentId?: string;
 }): Promise<PlaygroundReply> {
   const session = await requireSession();
-  const agent = liveAgent(session.tenant.id);
+  const agent = params.agentId
+    ? get<Agent>('SELECT * FROM agents WHERE id=? AND tenant_id=?', params.agentId, session.tenant.id)
+    : liveAgent(session.tenant.id);
   if (!agent) return { ok: false, message: 'Create an agent first.' };
   if (!params.utterance.trim()) return { ok: false, message: 'Nothing was said.' };
 

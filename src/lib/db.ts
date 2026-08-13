@@ -299,6 +299,39 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
     CREATE INDEX idx_gaps_tenant ON knowledge_gaps(tenant_id, hits DESC);
     `,
   },
+  {
+    id: '002_wallet',
+    sql: `
+    ALTER TABLE tenants ADD COLUMN balance_uzs INTEGER NOT NULL DEFAULT 0;
+
+    CREATE TABLE wallet_ledger (
+      id            TEXT PRIMARY KEY,
+      tenant_id     TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      kind          TEXT NOT NULL,               -- topup | debit
+      amount_uzs    INTEGER NOT NULL,
+      balance_after INTEGER,
+      note          TEXT,
+      created_at    TEXT NOT NULL
+    );
+    CREATE INDEX idx_wallet_tenant ON wallet_ledger(tenant_id, created_at DESC);
+    `,
+  },
+  {
+    id: '003_speech_tests',
+    sql: `
+    CREATE TABLE speech_tests (
+      id         TEXT PRIMARY KEY,
+      tenant_id  TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      user_id    TEXT,
+      kind       TEXT NOT NULL,   -- stt | tts
+      input      TEXT,
+      output     TEXT,
+      voice      TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_speech_tests_tenant ON speech_tests(tenant_id, created_at DESC);
+    `,
+  },
 ];
 
 function ensureDirs() {

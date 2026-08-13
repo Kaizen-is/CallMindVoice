@@ -121,6 +121,8 @@ const en: Dict = {
   'shell.quiet': 'Lines quiet',
   'shell.liveOne': '1 call live',
   'shell.liveMany': '{n} calls live',
+  'shell.closeMenu': 'Close menu',
+  'shell.openMenu': 'Open menu',
 
   'reason.low_confidence': 'Not confident enough',
   'reason.explicit_request': 'Caller asked for a human',
@@ -136,7 +138,7 @@ const en: Dict = {
   'auth.hidePassword': 'Hide password',
 
   'auth.login.title': 'Welcome back',
-  'auth.login.subtitle': 'Sign in to your Ovoz console.',
+  'auth.login.subtitle': 'Sign in to your CallMind AI console.',
   'auth.login.submit': 'Sign in',
   'auth.login.noAccount': 'No account yet?',
   'auth.login.createOne': 'Create one',
@@ -266,6 +268,8 @@ const ru: Dict = {
   'shell.quiet': 'Линии свободны',
   'shell.liveOne': '1 звонок в эфире',
   'shell.liveMany': 'звонков в эфире: {n}',
+  'shell.closeMenu': 'Закрыть меню',
+  'shell.openMenu': 'Открыть меню',
 
   'reason.low_confidence': 'Недостаточно уверенности',
   'reason.explicit_request': 'Клиент попросил оператора',
@@ -281,7 +285,7 @@ const ru: Dict = {
   'auth.hidePassword': 'Скрыть пароль',
 
   'auth.login.title': 'С возвращением',
-  'auth.login.subtitle': 'Войдите в консоль Ovoz.',
+  'auth.login.subtitle': 'Войдите в консоль CallMind AI.',
   'auth.login.submit': 'Войти',
   'auth.login.noAccount': 'Ещё нет аккаунта?',
   'auth.login.createOne': 'Создать',
@@ -411,6 +415,8 @@ const uz: Dict = {
   'shell.quiet': 'Liniyalar bo‘sh',
   'shell.liveOne': '1 ta qo‘ng‘iroq efirda',
   'shell.liveMany': 'efirdagi qo‘ng‘iroqlar: {n}',
+  'shell.closeMenu': 'Menyuni yopish',
+  'shell.openMenu': 'Menyuni ochish',
 
   'reason.low_confidence': 'Ishonch yetarli emas',
   'reason.explicit_request': 'Mijoz operatorni so‘radi',
@@ -426,7 +432,7 @@ const uz: Dict = {
   'auth.hidePassword': 'Parolni yashirish',
 
   'auth.login.title': 'Xush kelibsiz',
-  'auth.login.subtitle': 'Ovoz konsolingizga kiring.',
+  'auth.login.subtitle': 'CallMind AI konsolingizga kiring.',
   'auth.login.submit': 'Kirish',
   'auth.login.noAccount': 'Hali hisobingiz yo‘qmi?',
   'auth.login.createOne': 'Yarating',
@@ -562,6 +568,8 @@ const uzCyrl: Dict = {
   'shell.quiet': 'Линиялар бўш',
   'shell.liveOne': '1 та қўнғироқ эфирда',
   'shell.liveMany': 'эфирдаги қўнғироқлар: {n}',
+  'shell.closeMenu': 'Менюни ёпиш',
+  'shell.openMenu': 'Менюни очиш',
 
   'reason.low_confidence': 'Ишонч етарли эмас',
   'reason.explicit_request': 'Мижоз операторни сўради',
@@ -577,7 +585,7 @@ const uzCyrl: Dict = {
   'auth.hidePassword': 'Паролни яшириш',
 
   'auth.login.title': 'Хуш келибсиз',
-  'auth.login.subtitle': 'Ovoz консолингизга киринг.',
+  'auth.login.subtitle': 'CallMind AI консолингизга киринг.',
   'auth.login.submit': 'Кириш',
   'auth.login.noAccount': 'Ҳали ҳисобингиз йўқми?',
   'auth.login.createOne': 'Яратинг',

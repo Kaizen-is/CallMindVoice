@@ -15,7 +15,9 @@ export default async function CallsPage({
   const { tenant, user } = await requireSession();
   const params = await searchParams;
 
-  const filters: string[] = ['tenant_id = ?'];
+  // Default to real calls only — playground/test sessions are channel='web' and
+  // should not clutter the history that operators and analysts review.
+  const filters: string[] = ['tenant_id = ?', "channel != 'web'"];
   const args: unknown[] = [tenant.id];
 
   if (params.outcome && params.outcome !== 'all') {

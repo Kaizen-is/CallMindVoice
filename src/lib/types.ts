@@ -32,6 +32,8 @@ export interface Tenant {
   status: string;
   onboarded: number;
   settings_json: string;
+  /** Prepaid so'm balance. Call usage debits it; owner top-ups credit it. */
+  balance_uzs: number;
   created_at: string;
   updated_at: string;
 }
@@ -276,6 +278,17 @@ export interface Invoice {
   issued_at: string;
 }
 
+/** One movement of the prepaid so'm wallet — a top-up credit or a call debit. */
+export interface WalletLedger {
+  id: string;
+  tenant_id: string;
+  kind: 'topup' | 'debit';
+  amount_uzs: number;
+  balance_after: number | null;
+  note: string | null;
+  created_at: string;
+}
+
 export interface ApiKey {
   id: string;
   tenant_id: string;
@@ -308,5 +321,20 @@ export interface Webhook {
   events: string;
   secret: string;
   status: string;
+  created_at: string;
+}
+
+/** One developer speech-lab run — a transcription (stt) or a synthesis (tts). */
+export interface SpeechTest {
+  id: string;
+  tenant_id: string;
+  user_id: string | null;
+  kind: 'stt' | 'tts';
+  /** For stt: the input note (filename or "recording"). For tts: the source text. */
+  input: string | null;
+  /** For stt: the transcript. For tts: unused. */
+  output: string | null;
+  /** For tts: the voice id used. */
+  voice: string | null;
   created_at: string;
 }

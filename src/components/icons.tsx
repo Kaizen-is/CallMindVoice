@@ -130,18 +130,15 @@ export const IconMoon = (p: P) => (<Svg {...p}><path d="M20.5 14.4A8.8 8.8 0 0 1
 export function Logo({ size = 28, className }: { size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" className={className} aria-hidden="true">
-      <defs>
-        <linearGradient id="ovoz-g" x1="4" y1="3" x2="28" y2="29" gradientUnits="userSpaceOnUse">
-          <stop stopColor="rgb(var(--brand))" />
-          <stop offset="1" stopColor="rgb(var(--violet))" />
-        </linearGradient>
-      </defs>
-      <rect x="1.5" y="1.5" width="29" height="29" rx="9" fill="url(#ovoz-g)" />
-      <g stroke="white" strokeWidth="2.1" strokeLinecap="round" opacity="0.96">
-        <path d="M10 13.2v5.6" />
-        <path d="M13.6 9.8v12.4" />
-        <path d="M17.2 12v8" />
-        <path d="M20.8 14.6v2.8" />
+      {/* CallMind AI — a speech bubble with a voice waveform */}
+      <rect x="2" y="2" width="28" height="22" rx="7.5" fill="#E7222E" />
+      <path d="M9 23.5 7 29l7-5.5z" fill="#E7222E" />
+      <g stroke="white" strokeWidth="2.1" strokeLinecap="round">
+        <path d="M10 10v6" />
+        <path d="M13.5 7.5v11" />
+        <path d="M17 9.5v7" />
+        <path d="M20.5 6.5v13" />
+        <path d="M24 10.5v5" />
       </g>
     </svg>
   );
@@ -151,7 +148,9 @@ export function Wordmark({ className = '' }: { className?: string }) {
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <Logo size={26} />
-      <span className="text-[17px] font-semibold tracking-[-0.02em]">Ovoz</span>
+      <span className="text-[17px] font-semibold tracking-[-0.02em]">
+        CallMind<span className="text-[#E7222E]"> AI</span>
+      </span>
     </span>
   );
 }

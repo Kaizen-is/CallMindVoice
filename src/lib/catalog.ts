@@ -131,6 +131,10 @@ export const OVERAGE_PER_MINUTE = 0.04;
 // friendly "≈ N calls" figure in marketing copy and the ROI calculator.
 export const AVG_CALL_MINUTES = 3.3;
 
+// Prepaid per-minute rates in UZS (so'm) — balance model: deposit and spend as used.
+export const UZS_RATES = { realTalkPerMin: 1000, ttsPerMin: 800, sttPerMin: 600 } as const;
+export const AI_MINUTE_UZS = UZS_RATES.ttsPerMin + UZS_RATES.sttPerMin; // 1400 — AI listens (STT) + speaks (TTS)
+
 // Contact-centre operator productivity, shared by the ROI calculator (client)
 // and mirrored by the engine's OPERATOR_ASSUMPTIONS (server). 65% occupancy is a
 // healthy after-shrinkage figure (breaks, wrap-up, training, idle time).

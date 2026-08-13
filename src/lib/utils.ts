@@ -23,6 +23,11 @@ export function fmtMoney(n: number, currency = 'USD', digits = 2) {
   }).format(n);
 }
 
+/** Uzbek so'm with space thousand-separators, e.g. 30000000 → "30 000 000 so‘m". */
+export function fmtUzs(n: number): string {
+  return `${new Intl.NumberFormat('ru-RU').format(Math.round(n))} so‘m`;
+}
+
 export function fmtPct(n: number, digits = 0) {
   return `${(n * 100).toFixed(digits)}%`;
 }

@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     hits: retrieval.hits,
     confidence: retrieval.confidence,
     language,
-    agentName: agent?.name ?? 'Ovoz',
+    agentName: agent?.name ?? 'CallMind AI',
     threshold,
     history: [],
     persona: agent?.persona,

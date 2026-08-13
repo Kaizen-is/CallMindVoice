@@ -8,13 +8,13 @@ import { DEFAULT_ESCALATION, DEFAULT_HOURS } from './engine/conversation';
 import type { Locale, Role } from './types';
 import { slugify } from './utils';
 
-const GREETINGS: Record<Locale, (company: string) => string> = {
+export const GREETINGS: Record<Locale, (company: string) => string> = {
   uz: (c) => `Assalomu alaykum! ${c} ga qo‘ng‘iroq qilganingiz uchun rahmat. Sizga qanday yordam bera olaman?`,
   ru: (c) => `Здравствуйте! Вы позвонили в ${c}. Чем я могу помочь?`,
   en: (c) => `Hello, thank you for calling ${c}. How can I help you today?`,
 };
 
-const FALLBACKS: Record<Locale, string> = {
+export const FALLBACKS: Record<Locale, string> = {
   uz: 'Kechirasiz, bu savolga aniq javob topa olmadim. Mutaxassisga ulab qo‘yaymi?',
   ru: 'К сожалению, точного ответа у меня нет. Соединить вас со специалистом?',
   en: "I couldn't find a confident answer to that. Shall I connect you to a colleague?",

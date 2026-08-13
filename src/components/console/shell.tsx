@@ -29,6 +29,7 @@ import {
   IconSettings,
   IconSparkle,
   IconUsers,
+  IconVolume,
   IconWave,
   IconX,
   Logo,
@@ -122,6 +123,13 @@ export function ConsoleShell({
         { href: '/app/numbers', labelKey: 'nav.numbers', icon: <IconGlobe size={17} /> },
       ],
     },
+    {
+      title: t('nav.section.developers', 'For developers'),
+      items: [
+        { href: '/app/dev/stt', labelKey: 'nav.devStt', icon: <IconWave size={17} /> },
+        { href: '/app/dev/tts', labelKey: 'nav.devTts', icon: <IconVolume size={17} /> },
+      ],
+    },
   ];
 
   // Workspace / account management — relocated out of the sidebar into the
@@ -147,7 +155,9 @@ export function ConsoleShell({
         <Link href="/app" className="flex items-center gap-2.5">
           <Logo size={26} />
           {!collapsed && (
-            <span className="text-[16px] font-semibold tracking-[-0.02em] text-ink">Ovoz</span>
+            <span className="text-[16px] font-semibold tracking-[-0.02em] text-ink">
+              CallMind<span className="text-[#E7222E]"> AI</span>
+            </span>
           )}
         </Link>
         <button
@@ -236,7 +246,7 @@ export function ConsoleShell({
           <div className="animate-fade absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
           <aside className="animate-slide-left absolute inset-y-0 left-0 w-[264px] bg-surface shadow-e4">
             <div className="absolute top-4 right-3">
-              <IconButton label="Close menu" size="sm" onClick={() => setMobileOpen(false)}>
+              <IconButton label={t('shell.closeMenu', 'Close menu')} size="sm" onClick={() => setMobileOpen(false)}>
                 <IconX size={17} />
               </IconButton>
             </div>
@@ -248,7 +258,7 @@ export function ConsoleShell({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-40 flex h-16 items-center gap-3 glass px-4 hairline-b sm:px-6">
           <IconButton
-            label="Open menu"
+            label={t('shell.openMenu', 'Open menu')}
             size="sm"
             className="lg:hidden"
             onClick={() => setMobileOpen(true)}

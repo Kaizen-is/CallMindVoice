@@ -4,19 +4,19 @@ import { ToastProvider } from '@/components/ui/overlays';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Ovoz — AI that answers your phones',
-    template: '%s · Ovoz',
+    default: 'CallMind AI — the AI that answers your phones',
+    template: '%s · CallMind AI',
   },
   description:
-    'Upload your documents. Ovoz turns them into a voice agent that answers calls in Uzbek, Russian and English — and hands the hard ones to your team with full context.',
-  applicationName: 'Ovoz',
+    'Upload your documents. CallMind AI turns them into a voice agent that answers calls in Uzbek, Russian and English — and hands the hard ones to your team with full context.',
+  applicationName: 'CallMind AI',
   keywords: [
     'AI contact center', 'voice agent', 'Uzbekistan', 'call center automation',
     'RAG', 'customer service', 'ovozli agent', 'голосовой агент',
   ],
-  authors: [{ name: 'Ovoz AI' }],
+  authors: [{ name: 'CallMind AI' }],
   openGraph: {
-    title: 'Ovoz — AI that answers your phones',
+    title: 'CallMind AI — the AI that answers your phones',
     description:
       'Turn your company documents into a voice agent that answers calls in Uzbek, Russian and English.',
     type: 'website',

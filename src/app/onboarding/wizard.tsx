@@ -132,7 +132,7 @@ export function OnboardingWizard(props: Props) {
       <header className="relative z-10 flex items-center justify-between px-5 py-5">
         <div className="flex items-center gap-2.5">
           <Logo size={26} />
-          <span className="text-[16px] font-semibold tracking-[-0.02em]">Ovoz</span>
+          <span className="text-[16px] font-semibold tracking-[-0.02em]">CallMind<span className="text-[#E7222E]"> AI</span></span>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
@@ -322,7 +322,7 @@ export function OnboardingWizard(props: Props) {
                       </span>
                       <span className="min-w-0">
                         <span className="block text-[13.5px] font-medium text-ink">{v.name}</span>
-                        <span className="block text-[12px] leading-snug text-ink-3">{v.note}</span>
+                        <span className="block text-[12px] leading-snug text-ink-3">{t(`voice.${v.id}.note`, v.note)}</span>
                       </span>
                     </button>
                   ))}
@@ -344,9 +344,9 @@ export function OnboardingWizard(props: Props) {
                           ? 'bg-brand text-white'
                           : 'bg-surface-3 text-ink-2 hover:text-ink',
                       )}
-                      title={p.hint}
+                      title={t(`persona.${p.value}.hint`, p.hint)}
                     >
-                      {p.label}
+                      {t(`persona.${p.value}.label`, p.label)}
                     </button>
                   ))}
                 </div>
@@ -412,7 +412,7 @@ export function OnboardingWizard(props: Props) {
                 icon={<IconVolume size={17} />}
                 label={t('onboarding.voice', 'Voice')}
                 value={`${VOICES.find((v) => v.id === voiceId)?.name ?? voiceId} · ${
-                  PERSONAS.find((p) => p.value === persona)?.label ?? persona
+                  t(`persona.${persona}.label`, PERSONAS.find((p) => p.value === persona)?.label ?? persona)
                 }`}
               />
               <SummaryRow
