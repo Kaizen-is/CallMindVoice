@@ -44,7 +44,7 @@ export default async function CallDetailPage({ params }: { params: Promise<{ id:
   const operatorMinutes = Math.round((call.duration_ms || 0) / 60000) || 1;
 
   return (
-    <div className="mx-auto max-w-[1200px]">
+    <div className="w-full">
       <PageHeader
         breadcrumb={
           <Link href="/app/calls" className="inline-flex items-center gap-1 hover:text-ink">

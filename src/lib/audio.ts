@@ -17,6 +17,8 @@ export interface RecordingResult {
 export interface Recording {
   stop: () => Promise<RecordingResult>;
   cancel: () => void;
+  /** Live mic stream — callers attach analysers for VAD / level metering. */
+  stream: MediaStream;
 }
 
 export function micSupported(): boolean {
@@ -29,7 +31,19 @@ export function micSupported(): boolean {
 }
 
 export async function startRecording(): Promise<Recording> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  // Raw capture: browser echo-cancellation and noise-suppression audibly
+  // distort speech for this STT model (recorder-app files transcribe far
+  // better). Push-to-talk means the agent is silent while recording, so echo
+  // processing is unnecessary. AGC stays on for quiet mics; we peak-normalise
+  // and high-pass afterwards ourselves.
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      channelCount: 1,
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: true,
+    },
+  });
   const mr = new MediaRecorder(stream);
   const chunks: BlobPart[] = [];
   mr.ondataavailable = (e) => {
@@ -40,6 +54,7 @@ export async function startRecording(): Promise<Recording> {
   const cleanup = () => stream.getTracks().forEach((t) => t.stop());
 
   return {
+    stream,
     cancel: () => {
       try { mr.stop(); } catch { /* already stopped */ }
       cleanup();
@@ -73,7 +88,7 @@ async function webmToWav16k(blob: Blob): Promise<RecordingResult> {
     void ctx.close();
   }
 
-  const pcm = resample(decoded.getChannelData(0), decoded.sampleRate, TARGET_RATE);
+  const pcm = await resampleProper(decoded, TARGET_RATE);
 
   // Measure raw energy (before gain) so the caller can reject true silence,
   // and peak-normalise a quiet mic toward full scale to help the STT.
@@ -87,20 +102,43 @@ async function webmToWav16k(blob: Blob): Promise<RecordingResult> {
   const rms = pcm.length ? Math.sqrt(sumSq / pcm.length) : 0;
   const gain = peak > 0 ? Math.min(8, 0.97 / peak) : 1;
 
-  return { wav: encodeWav(pcm, TARGET_RATE, gain), durationSec: decoded.duration, rms };
+  // Trim leading/trailing silence (with 150 ms padding) — hands-free recordings
+  // end with several seconds of quiet that only slow the STT down.
+  const thr = Math.max(0.008, peak * 0.05);
+  let s0 = 0;
+  while (s0 < pcm.length && Math.abs(pcm[s0]) < thr) s0++;
+  let s1 = pcm.length - 1;
+  while (s1 > s0 && Math.abs(pcm[s1]) < thr) s1--;
+  const pad = Math.floor(0.15 * TARGET_RATE);
+  const trimmed =
+    s1 > s0 ? pcm.subarray(Math.max(0, s0 - pad), Math.min(pcm.length, s1 + pad + 1)) : pcm;
+
+  return { wav: encodeWav(trimmed, TARGET_RATE, gain), durationSec: decoded.duration, rms };
 }
 
-function resample(input: Float32Array, from: number, to: number): Float32Array {
-  if (from === to) return input;
-  const ratio = from / to;
-  const out = new Float32Array(Math.floor(input.length / ratio));
-  for (let i = 0; i < out.length; i++) {
-    const idx = i * ratio;
-    const i0 = Math.floor(idx);
-    const i1 = Math.min(i0 + 1, input.length - 1);
-    out[i] = input[i0] + (input[i1] - input[i0]) * (idx - i0);
+/**
+ * Resample through OfflineAudioContext so the browser applies a proper
+ * anti-aliasing filter — naive linear interpolation folds high frequencies
+ * back into the speech band and audibly degrades STT accuracy.
+ */
+async function resampleProper(decoded: AudioBuffer, to: number): Promise<Float32Array> {
+  if (decoded.sampleRate === to && decoded.numberOfChannels === 1) {
+    return decoded.getChannelData(0);
   }
-  return out;
+  const frames = Math.ceil((decoded.duration || decoded.length / decoded.sampleRate) * to);
+  const off = new OfflineAudioContext(1, Math.max(1, frames), to);
+  const src = off.createBufferSource();
+  src.buffer = decoded;
+  // Classical clean-up (no AI): a high-pass filter strips mains hum, desk
+  // thumps and low rumble that speech models mistake for voicing.
+  const hp = off.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 75;
+  src.connect(hp);
+  hp.connect(off.destination);
+  src.start();
+  const rendered = await off.startRendering();
+  return rendered.getChannelData(0);
 }
 
 function encodeWav(samples: Float32Array, sampleRate: number, gain = 1): Blob {

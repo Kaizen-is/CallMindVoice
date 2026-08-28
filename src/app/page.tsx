@@ -224,7 +224,7 @@ function HowItWorks({ t }: { t: Translate }) {
       <SectionHead eyebrow={t('lp.how.eyebrow')} title={t('lp.how.title')} subtitle={t('lp.how.sub')} />
       <div className="mt-14 grid gap-6 md:grid-cols-3">
         {steps.map((s, i) => (
-          <div key={s.title} className="relative rounded-[16px] bg-surface p-6 shadow-e1 hairline">
+          <div key={s.title} className="reveal lift relative rounded-[16px] bg-surface p-6 shadow-e1 hairline">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-brand-soft text-brand-ink">
                 {s.icon}
@@ -284,7 +284,7 @@ function Languages({ t }: { t: Translate }) {
 
           <div className="grid gap-4">
             {cards.map((l) => (
-              <div key={l.name} className="rounded-[14px] bg-surface p-5 shadow-e1 hairline">
+              <div key={l.name} className="reveal lift rounded-[14px] bg-surface p-5 shadow-e1 hairline">
                 <div className="mb-3 flex items-center gap-2.5">
                   {l.flag}
                   <span className="text-[13.5px] font-semibold text-ink">{l.name}</span>
@@ -356,7 +356,7 @@ function Latency({ t }: { t: Translate }) {
               title={t('lp.lat.title')}
               subtitle={t('lp.lat.sub')}
             />
-            <div className="mt-8 rounded-[14px] bg-surface p-5 shadow-e1 hairline">
+            <div className="reveal mt-8 rounded-[14px] bg-surface p-5 shadow-e1 hairline">
               <div className="flex items-baseline justify-between">
                 <span className="text-[12.5px] font-medium text-ink-2">{t('lp.lat.target')}</span>
                 <span className="text-[22px] font-semibold text-ink tabular">{total} ms</span>
@@ -380,7 +380,7 @@ function Latency({ t }: { t: Translate }) {
             </div>
           </div>
 
-          <div className="rounded-[18px] bg-surface p-7 shadow-e2 hairline">
+          <div className="reveal rounded-[18px] bg-surface p-7 shadow-e2 hairline">
             <div className="mb-5 flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-brand-soft text-brand-ink">
                 <IconZap size={18} />
@@ -410,7 +410,7 @@ function Roi({ t, locale }: { t: Translate; locale: UiLocale }) {
   return (
     <section id="roi" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-24">
       <SectionHead eyebrow={t('lp.roi.eyebrow')} title={t('lp.roi.title')} subtitle={t('lp.roi.sub')} />
-      <div className="mt-12 rounded-[20px] bg-surface p-7 shadow-e2 hairline sm:p-9">
+      <div className="reveal mt-12 rounded-[20px] bg-surface p-7 shadow-e2 hairline sm:p-9">
         <RoiCalculator locale={locale} />
       </div>
     </section>
@@ -441,7 +441,7 @@ function Pricing({ t }: { t: Translate }) {
           {cards.map((c) => (
             <div
               key={c.title}
-              className="relative flex flex-col rounded-[18px] bg-surface p-6 shadow-e1 hairline"
+              className="reveal lift relative flex flex-col rounded-[18px] bg-surface p-6 shadow-e1 hairline"
             >
               <h3 className="text-[15px] font-semibold text-ink">{c.title}</h3>
               <div className="mt-3 flex items-baseline gap-1.5">
@@ -473,7 +473,7 @@ function Security({ t }: { t: Translate }) {
       <SectionHead eyebrow={t('lp.sec.eyebrow')} title={t('lp.sec.title')} subtitle={t('lp.sec.sub')} />
       <div className="mt-12 grid gap-6 sm:grid-cols-2">
         {items.map((i) => (
-          <div key={i.title} className="flex gap-4 rounded-[14px] bg-surface p-5 shadow-e1 hairline">
+          <div key={i.title} className="reveal lift flex gap-4 rounded-[14px] bg-surface p-5 shadow-e1 hairline">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-surface-3 text-ink-2">
               {i.icon}
             </div>
@@ -548,7 +548,7 @@ function SectionHead({
   align?: 'center' | 'left';
 }) {
   return (
-    <div className={align === 'center' ? 'mx-auto max-w-2xl text-center' : 'max-w-xl'}>
+    <div className={`reveal ${align === 'center' ? 'mx-auto max-w-2xl text-center' : 'max-w-xl'}`}>
       <div className="text-[12.5px] font-semibold tracking-wide text-brand uppercase">{eyebrow}</div>
       <h2 className="mt-3 text-[30px] leading-[1.15] font-semibold tracking-[-0.03em] text-ink text-balance-pretty sm:text-[36px]">
         {title}

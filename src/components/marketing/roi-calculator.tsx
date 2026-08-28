@@ -72,7 +72,7 @@ export function RoiCalculator({ compact = false, locale = 'en' }: { compact?: bo
           <Row
             label={t('lp.roicalc.aiCost')}
             value={fmtUzs(model.aiCost)}
-            sub={'{n} × 1 400 so‘m'.replace('{n}', fmtInt(minutes))}
+            sub={`${fmtInt(minutes)} × ${fmtInt(AI_MINUTE_UZS)} so‘m`}
             muted
           />
         </div>

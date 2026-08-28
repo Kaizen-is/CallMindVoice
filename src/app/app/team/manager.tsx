@@ -45,7 +45,7 @@ export function TeamManager({
   const refresh = () => start(() => router.refresh());
 
   return (
-    <div className="mx-auto max-w-[1100px]">
+    <div className="w-full">
       <PageHeader
         title={t('nav.team', 'Team')}
         subtitle={t(

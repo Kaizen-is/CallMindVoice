@@ -37,7 +37,7 @@ export async function BillingView() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1100px]">
+    <div className="w-full">
       <PageHeader
         title={t('nav.billing', 'Billing')}
         subtitle={t('billing.balanceSubtitle', 'Your prepaid balance. Calls draw from it as they happen.')}

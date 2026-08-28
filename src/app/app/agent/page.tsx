@@ -7,6 +7,7 @@ import { knowledgeStats } from '@/lib/analytics';
 import { translator } from '@/lib/i18n';
 import type { Agent, Locale } from '@/lib/types';
 import { safeJson } from '@/lib/utils';
+import { listCustomVoices } from '@/lib/voices';
 import { AgentStudio } from './studio';
 
 export const metadata: Metadata = { title: 'Agent studio' };
@@ -50,6 +51,7 @@ export default async function AgentPage({
       canEdit={user.role === 'owner' || user.role === 'admin'}
       knowledgeChunks={knowledgeStats(tenant.id).chunks}
       agents={agents}
+      customVoices={listCustomVoices(tenant.id).map((v) => ({ id: v.id, name: v.name, mode: v.mode }))}
       agent={{
         id: agent.id,
         name: agent.name,

@@ -92,7 +92,7 @@ export function OperatorInbox({
 
   if (!items.length) {
     return (
-      <div className="mx-auto max-w-[1400px]">
+      <div className="w-full">
         <PageHeader title={t('inbox.title')} subtitle={t('inbox.subtitle')} />
         <Card>
           <EmptyState

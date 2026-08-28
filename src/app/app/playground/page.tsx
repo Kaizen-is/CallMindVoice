@@ -6,6 +6,8 @@ import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
 import { translator } from '@/lib/i18n';
 import type { Locale } from '@/lib/types';
 import { safeJson } from '@/lib/utils';
+import { listCustomVoices } from '@/lib/voices';
+import { VOICES } from '@/lib/catalog';
 import { Playground } from './playground';
 
 export const metadata: Metadata = { title: 'Playground' };
@@ -29,6 +31,14 @@ export default async function PlaygroundPage() {
         tts: Boolean(process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN),
       }}
       agents={agents}
+      allVoices={[
+        ...VOICES.map((v) => ({ id: v.id, name: v.name, group: 'builtin' as const })),
+        ...listCustomVoices(tenant.id).map((v) => ({
+          id: v.id,
+          name: v.name,
+          group: v.mode,
+        })),
+      ]}
       agent={
         agent
           ? {

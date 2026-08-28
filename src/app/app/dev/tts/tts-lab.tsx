@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { saveSpeechTestAction } from '@/app/actions/ops';
 import { translator } from '@/lib/i18n';
 import type { SpeechTest, UiLocale } from '@/lib/types';
@@ -14,7 +15,7 @@ import {
   Segmented,
 } from '@/components/ui/primitives';
 import { Field, Select, Textarea } from '@/components/ui/forms';
-import { Modal, useToast } from '@/components/ui/overlays';
+import { useToast } from '@/components/ui/overlays';
 import { IconAlert, IconCode, IconDownload, IconSparkle, IconVolume } from '@/components/icons';
 
 const CLONE = '__clone__';
@@ -33,24 +34,26 @@ export function TtsLab({
   locale,
   agents,
   voices,
+  customVoices,
   history: initialHistory,
   speech,
 }: {
   locale: UiLocale;
   agents: AgentOpt[];
   voices: VoiceOpt[];
+  customVoices: VoiceOpt[];
   history: SpeechTest[];
   speech: { tts: boolean };
 }) {
   const t = translator(locale);
   const toast = useToast();
+  const router = useRouter();
 
   const [history, setHistory] = useState<SpeechTest[]>(initialHistory);
   const [text, setText] = useState('');
-  const [voice, setVoice] = useState<string>(agents[0]?.voiceId ?? voices[0]?.id ?? 'nilufar');
+  const [voice, setVoice] = useState<string>(agents[0]?.voiceId ?? voices[0]?.id ?? 'laylo');
   const [busy, setBusy] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [cloneOpen, setCloneOpen] = useState(false);
 
   const urlRef = useRef<string | null>(null);
   useEffect(
@@ -62,14 +65,19 @@ export function TtsLab({
 
   // Friendly label for a stored voice id — a base voice name, else the raw id.
   const voiceName = useCallback(
-    (id: string | null) => (id ? (voices.find((v) => v.id === id)?.name ?? id) : '—'),
-    [voices],
+    (id: string | null) =>
+      id
+        ? (voices.find((v) => v.id === id)?.name ??
+           customVoices.find((v) => v.id === id)?.name ??
+           id)
+        : '—',
+    [voices, customVoices],
   );
 
   const onVoiceChange = (v: string) => {
     if (v === CLONE) {
-      setCloneOpen(true);
-      return; // purely informational — the real selection is left unchanged
+      router.push('/app/dev/voice-clone');
+      return;
     }
     setVoice(v);
   };
@@ -95,12 +103,19 @@ export function TtsLab({
         body: JSON.stringify({ text: value, voice }),
       });
       if (!res.ok) {
-        toast.error(t('dev.tts.failTitle'), t('dev.tts.failBody'));
+        const detail = (await res.text().catch(() => '')).slice(0, 120);
+        toast.error(t('dev.tts.failTitle'), `${t('dev.tts.failBody')} (HTTP ${res.status}${detail ? ` — ${detail}` : ''})`);
         return;
       }
       setAudio(URL.createObjectURL(await res.blob()));
-      const saved = await saveSpeechTestAction({ kind: 'tts', input: value, voice });
-      if (saved.ok) setHistory((h) => [saved.test, ...h].slice(0, 20));
+      // History is nice-to-have — never let a failed save (e.g. a stale tab
+      // after a redeploy) report the already-successful synthesis as an error.
+      try {
+        const saved = await saveSpeechTestAction({ kind: 'tts', input: value, voice });
+        if (saved.ok) setHistory((h) => [saved.test, ...h].slice(0, 20));
+      } catch {
+        /* audio already delivered */
+      }
     } catch (e) {
       toast.error(t('dev.tts.failTitle'), e instanceof Error ? e.message : t('dev.tts.failBody'));
     } finally {
@@ -109,7 +124,7 @@ export function TtsLab({
   };
 
   return (
-    <div className="mx-auto max-w-[1100px]">
+    <div className="w-full">
       <PageHeader title={t('dev.tts.title')} subtitle={t('dev.tts.subtitle')} />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
@@ -157,7 +172,16 @@ export function TtsLab({
                         </option>
                       ))}
                     </optgroup>
-                    <option value={CLONE}>{t('dev.tts.voiceClone')} · {t('dev.clone.soon')}</option>
+                    {customVoices.length > 0 && (
+                      <optgroup label={t('dev.tts.voiceCustomGroup', 'Your voices')}>
+                        {customVoices.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <option value={CLONE}>{t('dev.tts.voiceClone')} →</option>
                   </Select>
                 </Field>
 
@@ -224,62 +248,6 @@ export function TtsLab({
 
       <TtsDocsCard locale={locale} />
 
-      {/* ── Voice Clone — informational placeholder (no backend) ── */}
-      <Modal
-        open={cloneOpen}
-        onClose={() => setCloneOpen(false)}
-        title={t('dev.tts.voiceClone')}
-        description={t('dev.clone.intro')}
-        footer={
-          <>
-            <Button size="sm" variant="ghost" onClick={() => setCloneOpen(false)}>
-              {t('common.cancel', 'Cancel')}
-            </Button>
-            {/* Intentionally disabled — voice cloning is not shipped yet. */}
-            <Button size="sm" variant="primary" disabled>
-              {t('dev.clone.save')}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Badge tone="violet" icon={<IconSparkle size={12} />}>
-              {t('dev.clone.soon')}
-            </Badge>
-          </div>
-
-          <ol className="space-y-2.5">
-            {[t('dev.clone.step1'), t('dev.clone.step2'), t('dev.clone.step3')].map((step, i) => (
-              <li key={i} className="flex items-start gap-2.5">
-                <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[11px] font-semibold text-brand-ink">
-                  {i + 1}
-                </span>
-                <span className="text-[13px] leading-relaxed text-ink-2">{step}</span>
-              </li>
-            ))}
-          </ol>
-
-          <Field label={t('dev.clone.nameLabel')}>
-            <input
-              disabled
-              placeholder={t('dev.clone.namePlaceholder')}
-              className="h-9.5 w-full rounded-[10px] bg-surface-3 px-3 text-[13.5px] text-ink-3 hairline placeholder:text-ink-3"
-            />
-          </Field>
-
-          <Field label={t('dev.clone.sample')} hint={t('dev.clone.sampleHint')}>
-            <div className="flex flex-col items-center justify-center rounded-[12px] border-2 border-dashed border-[rgb(var(--line)/0.2)] bg-surface-2 px-6 py-8 text-center opacity-60">
-              <IconVolume size={20} className="text-ink-3" />
-              <p className="mt-2 text-[12.5px] text-ink-3">{t('dev.clone.sampleHint')}</p>
-            </div>
-          </Field>
-
-          <p className="rounded-[10px] bg-surface-2 p-3 text-[12.5px] leading-relaxed text-ink-3">
-            {t('dev.clone.disabledNote')}
-          </p>
-        </div>
-      </Modal>
     </div>
   );
 }
@@ -287,13 +255,18 @@ export function TtsLab({
 /* ── API docs — POST /api/speech/tts (mirrors the developers panel style) ── */
 
 function TtsDocsCard({ locale }: { locale: UiLocale }) {
+  // The API is same-origin — show the address this console is actually served
+  // from (the production domain in prod, localhost in dev).
+  const [origin, setOrigin] = useState('https://your-domain');
+  useEffect(() => setOrigin(window.location.origin), []);
+
   const t = translator(locale);
   const [lang, setLang] = useState<'curl' | 'node' | 'python'>('curl');
 
-  const body = `{ "text": "Assalomu alaykum", "voice": "nilufar" }`;
+  const body = `{ "text": "Assalomu alaykum", "voice": "laylo" }`;
   const snippet =
     lang === 'curl'
-      ? `curl -X POST http://localhost:3001/api/speech/tts \\
+      ? `curl -X POST ${origin}/api/speech/tts \\
   -H "Content-Type: application/json" \\
   --cookie "$OVOZ_SESSION" \\
   -d '${body}' \\
@@ -308,7 +281,7 @@ const wav = new Uint8Array(await res.arrayBuffer());`
         : `import requests
 
 res = requests.post(
-    "http://localhost:3001/api/speech/tts",
+    "${origin}/api/speech/tts",
     json=${body},
     cookies={"ovoz_session": "..."},
 )

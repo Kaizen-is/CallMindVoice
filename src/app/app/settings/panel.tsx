@@ -72,7 +72,7 @@ export function SettingsPanel({
     form.country !== tenant.country;
 
   return (
-    <div className="mx-auto max-w-[900px]">
+    <div className="w-full">
       <PageHeader
         title={t('nav.settings', 'Settings')}
         subtitle={t('settings.subtitle', 'Company details, language, and what is running under the hood.')}

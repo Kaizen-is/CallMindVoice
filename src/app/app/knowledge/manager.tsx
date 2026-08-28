@@ -98,7 +98,7 @@ export function KnowledgeManager({ documents, stats, locale, packTitle, packDesc
   };
 
   return (
-    <div className="mx-auto max-w-[1400px]">
+    <div className="w-full">
       <PageHeader
         title={t('kb.title')}
         subtitle={t('kb.subtitle')}

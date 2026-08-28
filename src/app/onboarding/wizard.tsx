@@ -73,7 +73,7 @@ export function OnboardingWizard(props: Props) {
   const [greeting, setGreeting] = useState(props.agent?.greeting ?? '');
   const [primaryLang, setPrimaryLang] = useState<Locale>(props.agent?.primaryLang ?? 'uz');
   const [languages, setLanguages] = useState<Locale[]>(props.agent?.languages ?? ['uz', 'ru', 'en']);
-  const [voiceId, setVoiceId] = useState(props.agent?.voiceId ?? 'nilufar');
+  const [voiceId, setVoiceId] = useState(props.agent?.voiceId ?? 'laylo');
   const [persona, setPersona] = useState(props.agent?.persona ?? 'professional');
 
   const readyChunks = docs.filter((d) => d.status === 'ready').reduce((a, d) => a + d.chunks, 0);

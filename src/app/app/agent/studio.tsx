@@ -58,12 +58,14 @@ export function AgentStudio({
   locale,
   canEdit,
   knowledgeChunks,
+  customVoices = [],
 }: {
   agent: AgentView;
   agents: Array<{ id: string; name: string; status: 'draft' | 'live' | 'paused' }>;
   locale: UiLocale;
   canEdit: boolean;
   knowledgeChunks: number;
+  customVoices?: Array<{ id: string; name: string; mode: 'clone' | 'design' }>;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -161,7 +163,7 @@ export function AgentStudio({
   };
 
   return (
-    <div className="mx-auto max-w-[1100px]">
+    <div className="w-full">
       <PageHeader
         title={t('agent.title')}
         subtitle={t('agent.subtitle')}
@@ -261,6 +263,15 @@ export function AgentStudio({
                         {v.name} — {t(`voice.${v.id}.note`, v.note)}
                       </option>
                     ))}
+                    {customVoices.length > 0 && (
+                      <optgroup label={t('dev.tts.voiceCustomGroup', 'Your voices')}>
+                        {customVoices.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </Select>
                 </Field>
               </div>

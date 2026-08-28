@@ -84,7 +84,7 @@ export default async function AnalyticsPage() {
 
   if (!stats.totalCalls) {
     return (
-      <div className="mx-auto max-w-[1400px]">
+      <div className="w-full">
         <PageHeader
           title={t('nav.analytics', 'Analytics')}
           subtitle={t('analytics.emptySubtitle', 'Where the calls go, and what they cost.')}
@@ -104,7 +104,7 @@ export default async function AnalyticsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px]">
+    <div className="w-full">
       <PageHeader
         title={t('nav.analytics', 'Analytics')}
         subtitle={t(

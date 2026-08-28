@@ -332,6 +332,22 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
     CREATE INDEX idx_speech_tests_tenant ON speech_tests(tenant_id, created_at DESC);
     `,
   },
+  {
+    id: '004_custom_voices',
+    sql: `
+    CREATE TABLE custom_voices (
+      id             TEXT PRIMARY KEY,
+      tenant_id      TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      name           TEXT NOT NULL,
+      mode           TEXT NOT NULL,   -- clone | design
+      voice_design   TEXT,            -- design mode: attribute string
+      ref_audio_path TEXT,            -- clone mode: stored sample (relative to uploads dir)
+      ref_text       TEXT,            -- clone mode: exact transcript of the sample
+      created_at     TEXT NOT NULL
+    );
+    CREATE INDEX idx_custom_voices_tenant ON custom_voices(tenant_id, created_at DESC);
+    `,
+  },
 ];
 
 function ensureDirs() {

@@ -48,7 +48,7 @@ export function NumbersManager({
   const [busy, setBusy] = useState(false);
 
   return (
-    <div className="mx-auto max-w-[1400px]">
+    <div className="w-full">
       <PageHeader
         title={t('nav.numbers', 'Phone numbers')}
         subtitle={t(

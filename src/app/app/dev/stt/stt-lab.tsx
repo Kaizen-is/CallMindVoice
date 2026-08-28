@@ -32,17 +32,19 @@ import {
 
 const TARGET_RATE = 16000;
 
-function resample(input: Float32Array, from: number, to: number): Float32Array {
-  if (from === to) return input;
-  const ratio = from / to;
-  const out = new Float32Array(Math.floor(input.length / ratio));
-  for (let i = 0; i < out.length; i++) {
-    const idx = i * ratio;
-    const i0 = Math.floor(idx);
-    const i1 = Math.min(i0 + 1, input.length - 1);
-    out[i] = input[i0] + (input[i1] - input[i0]) * (idx - i0);
+/** Resample via OfflineAudioContext — proper anti-aliasing, unlike naive interpolation. */
+async function resampleBuffer(decoded: AudioBuffer, to: number): Promise<Float32Array> {
+  if (decoded.sampleRate === to && decoded.numberOfChannels === 1) {
+    return decoded.getChannelData(0);
   }
-  return out;
+  const frames = Math.ceil((decoded.duration || decoded.length / decoded.sampleRate) * to);
+  const off = new OfflineAudioContext(1, Math.max(1, frames), to);
+  const src = off.createBufferSource();
+  src.buffer = decoded;
+  src.connect(off.destination);
+  src.start();
+  const rendered = await off.startRendering();
+  return rendered.getChannelData(0);
 }
 
 function encodeWav(samples: Float32Array, sampleRate: number): Blob {
@@ -84,7 +86,7 @@ async function fileToWav16k(file: File): Promise<Blob> {
   } finally {
     void ctx.close();
   }
-  const pcm = resample(decoded.getChannelData(0), decoded.sampleRate, TARGET_RATE);
+  const pcm = await resampleBuffer(decoded, TARGET_RATE);
   return encodeWav(pcm, TARGET_RATE);
 }
 
@@ -169,13 +171,14 @@ export function SttLab({
     try {
       const wav = source.kind === 'file' ? await fileToWav16k(source.file) : source.wav;
       const marker = source.kind === 'file' ? source.file.name : 'recording';
-      const res = await fetch('/api/speech/stt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'audio/wav' },
-        body: wav,
-      });
+      const upload = new FormData();
+      upload.append('file', wav, 'speech.wav');
+      const res = await fetch('/api/speech/stt', { method: 'POST', body: upload });
       if (!res.ok) {
-        toast.error(t('dev.stt.failTitle'), t('dev.stt.failBody'));
+        // Surface the real status — a 413 here means a proxy body-size limit,
+        // not the STT service itself.
+        const detail = (await res.text().catch(() => '')).slice(0, 120);
+        toast.error(t('dev.stt.failTitle'), `${t('dev.stt.failBody')} (HTTP ${res.status}${detail ? ` — ${detail}` : ''})`);
         return;
       }
       const text = (((await res.json()) as { text?: string }).text ?? '').trim();
@@ -184,8 +187,14 @@ export function SttLab({
         return;
       }
       setResult(text);
-      const saved = await saveSpeechTestAction({ kind: 'stt', input: marker, output: text });
-      if (saved.ok) setHistory((h) => [saved.test, ...h].slice(0, 20));
+      // History is nice-to-have — never let a failed save (e.g. a stale tab
+      // after a redeploy) report the already-successful transcription as an error.
+      try {
+        const saved = await saveSpeechTestAction({ kind: 'stt', input: marker, output: text });
+        if (saved.ok) setHistory((h) => [saved.test, ...h].slice(0, 20));
+      } catch {
+        /* transcription already delivered */
+      }
     } catch (e) {
       toast.error(t('dev.stt.failTitle'), e instanceof Error ? e.message : t('dev.stt.failBody'));
     } finally {
@@ -204,7 +213,7 @@ export function SttLab({
   };
 
   return (
-    <div className="mx-auto max-w-[1100px]">
+    <div className="w-full">
       <PageHeader title={t('dev.stt.title')} subtitle={t('dev.stt.subtitle')} />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
@@ -349,12 +358,17 @@ export function SttLab({
 /* ── API docs — POST /api/speech/stt (mirrors the developers panel style) ── */
 
 function SttDocsCard({ locale }: { locale: UiLocale }) {
+  // The API is same-origin — show the address this console is actually served
+  // from (the production domain in prod, localhost in dev).
+  const [origin, setOrigin] = useState('https://your-domain');
+  useEffect(() => setOrigin(window.location.origin), []);
+
   const t = translator(locale);
   const [lang, setLang] = useState<'curl' | 'node' | 'python'>('curl');
 
   const snippet =
     lang === 'curl'
-      ? `curl -X POST http://localhost:3001/api/speech/stt \\
+      ? `curl -X POST ${origin}/api/speech/stt \\
   -H "Content-Type: audio/wav" \\
   --data-binary @speech.wav \\
   --cookie "$OVOZ_SESSION"`
@@ -372,7 +386,7 @@ const { text, language } = await res.json();`
 
 audio = open("speech.wav", "rb").read()
 res = requests.post(
-    "http://localhost:3001/api/speech/stt",
+    "${origin}/api/speech/stt",
     headers={"Content-Type": "audio/wav"},
     data=audio,
     cookies={"ovoz_session": "..."},

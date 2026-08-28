@@ -130,7 +130,7 @@ export function DevelopersPanel({
   };
 
   return (
-    <div className="mx-auto max-w-[1100px]">
+    <div className="w-full">
       <PageHeader
         title={t('nav.developers', 'Developers')}
         subtitle={t(

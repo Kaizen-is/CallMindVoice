@@ -39,9 +39,16 @@ export const INDUSTRIES = [
 // The internal Uzbek TTS server exposes exactly two voice profiles, mapped by
 // `gender` in the TTS route: female → uz_female_calm, male → uz_male_news.
 export const VOICES = [
-  { id: 'nilufar', name: 'Nilufar', gender: 'female', langs: ['uz'], note: 'Warm, unhurried female voice' },
-  { id: 'timur', name: 'Timur', gender: 'male', langs: ['uz'], note: 'Formal, low-register male voice' },
+  { id: 'laylo', name: 'Laylo', gender: 'female', langs: ['uz'], note: 'Warm, unhurried female voice' },
+  { id: 'isomiddin', name: 'Isomiddin', gender: 'male', langs: ['uz'], note: 'Formal, low-register male voice' },
 ] as const;
+
+// Agents saved before the v2 speaker rename keep working: old catalog ids map
+// onto the equivalent v2 named speaker.
+export const LEGACY_VOICE_IDS: Record<string, (typeof VOICES)[number]['id']> = {
+  nilufar: 'laylo',
+  timur: 'isomiddin',
+};
 
 export const PERSONAS = [
   { value: 'professional', label: 'Professional', hint: 'Composed and efficient' },
@@ -133,7 +140,7 @@ export const AVG_CALL_MINUTES = 3.3;
 
 // Prepaid per-minute rates in UZS (so'm) — balance model: deposit and spend as used.
 export const UZS_RATES = { realTalkPerMin: 1000, ttsPerMin: 800, sttPerMin: 600 } as const;
-export const AI_MINUTE_UZS = UZS_RATES.ttsPerMin + UZS_RATES.sttPerMin; // 1400 — AI listens (STT) + speaks (TTS)
+export const AI_MINUTE_UZS = UZS_RATES.realTalkPerMin; // 1000 — matches the advertised real-talk rate
 
 // Contact-centre operator productivity, shared by the ROI calculator (client)
 // and mirrored by the engine's OPERATOR_ASSUMPTIONS (server). 65% occupancy is a

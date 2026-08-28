@@ -3,6 +3,7 @@ import { requireSession } from '@/lib/auth';
 import { all } from '@/lib/db';
 import { listSpeechTests } from '@/lib/engine/calls';
 import { VOICES } from '@/lib/catalog';
+import { listCustomVoices } from '@/lib/voices';
 import { TtsLab } from './tts-lab';
 
 export const metadata: Metadata = { title: 'Text to Speech' };
@@ -24,6 +25,7 @@ export default async function DevTtsPage() {
       locale={user.locale}
       agents={agents.map((a) => ({ id: a.id, name: a.name, voiceId: a.voice_id }))}
       voices={VOICES.map((v) => ({ id: v.id, name: v.name }))}
+      customVoices={listCustomVoices(tenant.id).map((v) => ({ id: v.id, name: v.name }))}
       history={history}
       speech={{ tts: Boolean(process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN) }}
     />

@@ -104,7 +104,7 @@ export async function createAgentAction(name?: string) {
     `INSERT INTO agents (id, tenant_id, name, status, persona, greeting, fallback_line, instructions,
        languages_json, primary_lang, voice_id, speaking_rate, temperature, max_turns,
        confidence_threshold, escalation_json, hours_json, tools_json, version, created_at, updated_at)
-     VALUES (?,?,?, 'draft', 'professional', ?, ?, '', ?, ?, 'nilufar', 1.0, 0.3, 24, 0.45, ?, ?, '[]', 1, ?, ?)`,
+     VALUES (?,?,?, 'draft', 'professional', ?, ?, '', ?, ?, 'laylo', 1.0, 0.3, 24, 0.45, ?, ?, '[]', 1, ?, ?)`,
     agentId,
     session.tenant.id,
     displayName,

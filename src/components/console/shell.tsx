@@ -27,6 +27,7 @@ import {
   IconLogout,
   IconMenu,
   IconSettings,
+  IconMic,
   IconSparkle,
   IconUsers,
   IconVolume,
@@ -128,6 +129,8 @@ export function ConsoleShell({
       items: [
         { href: '/app/dev/stt', labelKey: 'nav.devStt', icon: <IconWave size={17} /> },
         { href: '/app/dev/tts', labelKey: 'nav.devTts', icon: <IconVolume size={17} /> },
+        { href: '/app/dev/voice-clone', labelKey: 'nav.devVoiceClone', icon: <IconMic size={17} /> },
+        { href: '/app/dev/voice-design', labelKey: 'nav.devVoiceDesign', icon: <IconSparkle size={17} /> },
       ],
     },
   ];

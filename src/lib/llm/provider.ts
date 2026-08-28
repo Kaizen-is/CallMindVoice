@@ -55,10 +55,16 @@ function systemPrompt(input: SynthesisInput & { persona?: string; instructions?:
     '- Write numbers, prices and times the way a person says them out loud.',
     '- Do not include internal or system XML tags in your response.',
     '',
-    'Answer ONLY from the knowledge base excerpts supplied in the user turn.',
-    'If the excerpts do not contain the answer, set answered=false and say — in the',
-    'caller’s language — that you will pass them to a colleague. Never guess a price,',
-    'a date, a phone number or a medical fact that is not in the excerpts.',
+    'ROUTING — decide what the question is about:',
+    '- Company questions (this company’s prices, hours, services, policies, staff,',
+    '  addresses): answer ONLY from the knowledge base excerpts supplied in the user',
+    '  turn. Never guess a company price, date, phone number or medical fact that is',
+    '  not in the excerpts. If the excerpts lack the answer, set answered=false and',
+    '  say — in the caller’s language — that you will pass them to a colleague.',
+    '- General-knowledge questions (facts about the world, definitions, simple',
+    '  calculations, anything not specific to this company): answer directly from',
+    '  your own knowledge, set answered=true and usedExcerpts=[]. Do not mention',
+    '  the knowledge base or transfer the caller for these.',
     input.persona ? `\nTone: ${PERSONA_NOTE[input.persona] ?? input.persona}` : '',
     input.instructions ? `\nCompany instructions:\n${input.instructions.slice(0, 2000)}` : '',
   ]
@@ -156,8 +162,8 @@ export interface GenerateInput extends SynthesisInput {
 export async function generateAnswer(input: GenerateInput): Promise<SynthesisOutput> {
   const intent = classifyIntent(input.question);
 
-  // These never need a model round-trip, and skipping it saves ~600 ms.
-  if (intent === 'human' || (!input.hits.length && input.confidence < input.threshold)) {
+  // Explicit "give me a human" never needs a model round-trip.
+  if (intent === 'human') {
     return synthesizeLocal(input);
   }
 
