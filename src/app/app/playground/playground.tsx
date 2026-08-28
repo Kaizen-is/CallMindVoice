@@ -11,7 +11,8 @@ import { translator, type Translate } from '@/lib/i18n';
 import type { Locale, UiLocale } from '@/lib/types';
 import { cn, fmtLatency } from '@/lib/utils';
 import { voiceInputAvailable } from '@/lib/catalog';
-import { startRecording, micSupported, type Recording } from '@/lib/audio';
+import { micSupported, type RecordingResult } from '@/lib/audio';
+import { useVoiceSession, type VoiceState } from '@/hooks/use-voice-session';
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from '@/components/ui/primitives';
 import { Input, Select } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
@@ -86,16 +87,6 @@ function chunkForTts(text: string): string[] {
   }
   return chunks;
 }
-
-/* Hands-free tuning: after this much continuous silence the utterance is
-   considered finished and sent — no click needed. */
-const SILENCE_STOP_MS = 5000;
-/* No speech at all for this long → give up the take (exits the loop). */
-const NO_SPEECH_GIVEUP_MS = 15000;
-/* Sustained speech during agent playback longer than this = barge-in;
-   shorter blips ("ha", coughs) are ignored as backchannels. */
-const BARGE_SUSTAIN_MS = 500;
-const VOICE_RMS = 0.012;
 
 /** Short spoken fillers that cover the synthesis of a long answer. */
 const FILLERS_UZ = [
@@ -200,14 +191,43 @@ export function Playground({
   );
   const [speechSupported, setSpeechSupported] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
-  const [level, setLevel] = useState(0);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const recorderRef = useRef<Recording | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const speechStartRef = useRef<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<Msg[]>([]);
+  const processingRef = useRef<number | null>(null);
+  const processingSeqRef = useRef(0);
+  const voiceRunRef = useRef(0);
+  const ttsPlaybackRef = useRef(0);
+  const voiceUtteranceRef = useRef<(recording: RecordingResult, turnId: number) => Promise<void>>(
+    async () => {},
+  );
+  const {
+    voiceState,
+    level: voiceLevel,
+    error: voiceError,
+    isSessionActive,
+    startSession,
+    stopSession,
+    setAiSpeaking,
+    resumeListening,
+    failAndResume,
+    sessionIsActive,
+  } = useVoiceSession({
+    onUtterance: (recording, turnId) => voiceUtteranceRef.current(recording, turnId),
+    onBargeIn: () => {
+      ttsPlaybackRef.current += 1;
+      window.speechSynthesis?.cancel();
+      try {
+        audioElRef.current?.pause();
+      } catch {
+        /* playback already ended */
+      }
+    },
+    onError: (message) => toast.error(t('play.toast.micTitle', 'Microphone problem'), message),
+  });
   const suggestions = SUGGESTIONS[industry] ?? SUGGESTIONS.clinic;
 
   useEffect(() => {
@@ -228,10 +248,18 @@ export function Playground({
   }, [messages]);
   useEffect(
     () => () => {
-      const keep = new Set(synthCacheRef.current.values());
-      messagesRef.current.forEach((x) =>
-        [x.audioUrl, ...(x.audioUrls ?? [])].forEach((u) => u && !keep.has(u) && URL.revokeObjectURL(u)),
-      );
+      const urls = new Set(synthCacheRef.current.values());
+      messagesRef.current.forEach((x) => [x.audioUrl, ...(x.audioUrls ?? [])].forEach((u) => u && urls.add(u)));
+      urls.forEach((url) => URL.revokeObjectURL(url));
+      synthCacheRef.current.clear();
+      recognitionRef.current?.abort();
+      window.speechSynthesis?.cancel();
+      const audio = audioElRef.current;
+      if (audio) {
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+      }
     },
     [],
   );
@@ -241,20 +269,26 @@ export function Playground({
   // Browser voice (used for RU/EN, and as a fallback when the internal TTS is
   // unavailable). `force` lets an explicit replay play even when auto-voice is off.
   const speak = useCallback(
-    (text: string, lang: Locale, force = false) => {
-      if ((!force && !ttsEnabled) || typeof window === 'undefined' || !window.speechSynthesis) return;
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = SPEECH_LANG[lang] ?? 'ru-RU';
-      u.rate = agent?.speakingRate ?? 1;
-      // Prefer a voice that actually matches the language rather than the default.
-      const voices = window.speechSynthesis.getVoices();
-      const match =
-        voices.find((v) => v.lang.toLowerCase().startsWith(u.lang.slice(0, 2))) ??
-        voices.find((v) => v.lang.toLowerCase().startsWith('ru'));
-      if (match) u.voice = match;
-      window.speechSynthesis.speak(u);
-    },
+    (text: string, lang: Locale, force = false) =>
+      new Promise<void>((resolve) => {
+        if ((!force && !ttsEnabled) || typeof window === 'undefined' || !window.speechSynthesis) {
+          resolve();
+          return;
+        }
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = SPEECH_LANG[lang] ?? 'ru-RU';
+        u.rate = agent?.speakingRate ?? 1;
+        u.onend = () => resolve();
+        u.onerror = () => resolve();
+        // Prefer a voice that actually matches the language rather than the default.
+        const voices = window.speechSynthesis.getVoices();
+        const match =
+          voices.find((v) => v.lang.toLowerCase().startsWith(u.lang.slice(0, 2))) ??
+          voices.find((v) => v.lang.toLowerCase().startsWith('ru'));
+        if (match) u.voice = match;
+        window.speechSynthesis.speak(u);
+      }),
     [ttsEnabled, agent?.speakingRate],
   );
 
@@ -288,22 +322,8 @@ export function Playground({
     [agent?.voiceId, voiceOverride],
   );
 
-  // Play a stored audio URL through the one shared element, without revoking it —
-  // the message keeps the URL so its ▶ button replays the identical audio.
-  const playUrl = useCallback((url: string) => {
-    window.speechSynthesis?.cancel();
-    const audio = audioElRef.current ?? (audioElRef.current = new Audio());
-    try {
-      audio.pause();
-    } catch {
-      /* nothing playing */
-    }
-    audio.src = url;
-    void audio.play().catch(() => {});
-  }, []);
-
-  // Like playUrl, but resolves when playback finishes — the streaming queue
-  // chains chunks on this.
+  // Resolve when playback finishes so TTS chunks and the listening state can be
+  // sequenced through one shared audio element.
   const playUrlAwait = useCallback(
     (url: string) =>
       new Promise<void>((resolve) => {
@@ -323,135 +343,24 @@ export function Playground({
     [],
   );
 
-  // "Real talk" loop flag: set when the user starts talking with the mic; when
-  // the agent's reply finishes playing, the mic re-opens by itself.
-  const autoTalkRef = useRef(false);
-  // Filled in below, after startInternalStt exists (declaration order).
-  const autoRestartRef = useRef<() => void>(() => {});
-  // Filled in below: ends the current take (same as clicking the mic).
-  const autoStopRef = useRef<() => void>(() => {});
-  const vadRef = useRef<{ ctx: AudioContext; raf: number } | null>(null);
-
-  const endVad = useCallback(() => {
-    const v = vadRef.current;
-    vadRef.current = null;
-    if (!v) return;
-    cancelAnimationFrame(v.raf);
-    void v.ctx.close().catch(() => {});
-  }, []);
-
-  // Watch the live mic level; once the user has spoken and then stays silent
-  // for SILENCE_STOP_MS, the take ends and goes to the agent automatically.
-  const beginVad = useCallback(
-    (stream: MediaStream) => {
-      endVad();
-      const ctx = new AudioContext();
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 1024;
-      ctx.createMediaStreamSource(stream).connect(analyser);
-      const data = new Float32Array(analyser.fftSize);
-      const started = performance.now();
-      let lastVoice = 0;
-      const state = { ctx, raf: 0 };
-      vadRef.current = state;
-      const tick = () => {
-        if (vadRef.current !== state) return;
-        analyser.getFloatTimeDomainData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
-        const rms = Math.sqrt(sum / data.length);
-        const now = performance.now();
-        if (rms > VOICE_RMS) lastVoice = now;
-        if (lastVoice && now - lastVoice > SILENCE_STOP_MS) {
-          endVad();
-          autoStopRef.current();
-          return;
-        }
-        if (!lastVoice && now - started > NO_SPEECH_GIVEUP_MS) {
-          endVad();
-          autoStopRef.current();
-          return;
-        }
-        state.raf = requestAnimationFrame(tick);
-      };
-      state.raf = requestAnimationFrame(tick);
-    },
-    [endVad],
-  );
-
-  // Barge-in monitor: while the agent speaks, a lightweight echo-cancelled mic
-  // watches for sustained user speech; a short "ha" is ignored.
-  const bargeRef = useRef(false);
-  const bargeMonRef = useRef<{ ctx: AudioContext; raf: number; stream: MediaStream } | null>(null);
-
-  const endBargeMonitor = useCallback(() => {
-    const m = bargeMonRef.current;
-    bargeMonRef.current = null;
-    if (!m) return;
-    cancelAnimationFrame(m.raf);
-    m.stream.getTracks().forEach((tr) => tr.stop());
-    void m.ctx.close().catch(() => {});
-  }, []);
-
-  const beginBargeMonitor = useCallback(async () => {
-    if (bargeMonRef.current) return;
-    bargeRef.current = false;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      const ctx = new AudioContext();
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 1024;
-      ctx.createMediaStreamSource(stream).connect(analyser);
-      const data = new Float32Array(analyser.fftSize);
-      let voiceSince = 0;
-      const state = { ctx, raf: 0, stream };
-      bargeMonRef.current = state;
-      const tick = () => {
-        if (bargeMonRef.current !== state) return;
-        analyser.getFloatTimeDomainData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
-        const rms = Math.sqrt(sum / data.length);
-        const now = performance.now();
-        if (rms > VOICE_RMS) {
-          if (!voiceSince) voiceSince = now;
-          else if (now - voiceSince > BARGE_SUSTAIN_MS) {
-            bargeRef.current = true;
-            try {
-              audioElRef.current?.pause();
-            } catch {
-              /* not playing */
-            }
-            return; // monitor done; speakReply reacts to the flag
-          }
-        } else {
-          voiceSince = 0;
-        }
-        state.raf = requestAnimationFrame(tick);
-      };
-      state.raf = requestAnimationFrame(tick);
-    } catch {
-      /* no mic permission — playback simply is not interruptible */
-    }
-  }, []);
-
   // Generate a reply's audio and play it — STREAMED for Uzbek: the text is cut
   // into small pieces (first one tiny, so speech starts almost immediately),
   // each piece is synthesised while the previous one plays, and long answers
   // open with a short spoken filler so the wait is never silent.
   const speakReply = useCallback(
-    async (msgId: string, text: string, lang: Locale) => {
-      if (!ttsEnabled || !text.trim()) return;
+    async (msgId: string, text: string, lang: Locale, continueSession = false) => {
+      const playbackId = continueSession ? ++ttsPlaybackRef.current : 0;
+      if (!ttsEnabled || !text.trim()) {
+        if (continueSession) resumeListening();
+        return;
+      }
       if (speech.tts && lang === 'uz') {
         const chunks = chunkForTts(text);
         if (text.split(/\s+/).length > 20) {
           chunks.unshift(FILLERS_UZ[Math.floor((Date.now() / 1000) % FILLERS_UZ.length)]);
         }
         const urls: string[] = [];
-        // Watch for the caller talking over the agent (barge-in).
-        if (autoTalkRef.current) void beginBargeMonitor();
+        let playbackStarted = false;
         let inFlight = synthUz(chunks[0]);
         for (let i = 0; i < chunks.length; i++) {
           const url = await inFlight;
@@ -462,45 +371,57 @@ export function Playground({
           setMessages((m) =>
             m.map((x) => (x.id === msgId ? { ...x, audioUrl: urls[0], audioUrls: [...urls] } : x)),
           );
-          if (bargeRef.current) break;
+          if (continueSession && !sessionIsActive()) return;
+          if (continueSession && !playbackStarted) {
+            playbackStarted = true;
+            setAiSpeaking();
+          }
           await playUrlAwait(url);
-          if (bargeRef.current) break;
+          if (continueSession && ttsPlaybackRef.current !== playbackId) return;
         }
-        endBargeMonitor();
         if (urls.length) {
-          // Barged or finished — either way the mic reopens for the caller.
-          autoRestartRef.current();
+          if (continueSession && ttsPlaybackRef.current === playbackId) resumeListening();
           return;
         }
       }
-      speak(text, lang);
+      if (continueSession) {
+        if (!sessionIsActive()) return;
+        setAiSpeaking();
+      }
+      await speak(text, lang);
+      if (continueSession && ttsPlaybackRef.current === playbackId) resumeListening();
     },
-    [ttsEnabled, speech.tts, synthUz, playUrlAwait, speak, beginBargeMonitor, endBargeMonitor],
+    [ttsEnabled, speech.tts, synthUz, playUrlAwait, speak, resumeListening, sessionIsActive, setAiSpeaking],
   );
 
   // Replay control on an agent bubble: the exact stored audio if we have it,
   // otherwise re-synthesise through the browser voice.
   const replay = useCallback(
     (m: Msg) => {
-      if (m.audioUrls?.length) {
-        void (async () => {
+      void (async () => {
+        const pausesSession = sessionIsActive();
+        const playbackId = pausesSession ? ++ttsPlaybackRef.current : 0;
+        if (pausesSession) setAiSpeaking();
+        if (m.audioUrls?.length) {
           for (const u of m.audioUrls ?? []) await playUrlAwait(u);
-        })();
-      } else if (m.audioUrl) playUrl(m.audioUrl);
-      else if (m.text) speak(m.text, m.lang ?? 'uz', true);
+        } else if (m.audioUrl) await playUrlAwait(m.audioUrl);
+        else if (m.text) await speak(m.text, m.lang ?? 'uz', true);
+        if (pausesSession && ttsPlaybackRef.current === playbackId) resumeListening();
+      })();
     },
-    [playUrl, playUrlAwait, speak],
+    [playUrlAwait, resumeListening, sessionIsActive, setAiSpeaking, speak],
   );
 
   /* ── the turn ───────────────────────────────────────────────── */
 
-  // Voice here is "record then answer", exactly like a phone turn: we capture a
-  // whole utterance, transcribe it, run the turn, and speak the reply. It is NOT
-  // real-time streaming or barge-in — that is deliberately out of scope.
+  // The existing agent/RAG turn remains unchanged; `fromVoice` only controls
+  // whether playback returns the active hands-free session to listening.
   const send = useCallback(
-    async (text: string, sttMs = 0) => {
+    async (text: string, sttMs = 0, fromVoice = false, voiceRun = 0) => {
       const utterance = text.trim();
-      if (!utterance || thinking) return;
+      if (!utterance || processingRef.current !== null) return;
+      const requestId = ++processingSeqRef.current;
+      processingRef.current = requestId;
       setMessages((m) => [
         ...m.filter((x) => !x.interim),
         { id: nextId(), role: 'caller', text: utterance },
@@ -508,23 +429,41 @@ export function Playground({
       setInput('');
       setThinking(true);
 
-      const res = await playgroundTurnAction({
-        callId,
-        utterance,
-        sttMs,
-        agentId: selectedAgentId || undefined,
-      });
-      setThinking(false);
+      let res: PlaygroundReply;
+      let obsolete = false;
+      try {
+        res = await playgroundTurnAction({
+          callId,
+          utterance,
+          sttMs,
+          agentId: selectedAgentId || undefined,
+        });
+      } catch (cause) {
+        if (processingRef.current !== requestId) return;
+        const message = cause instanceof Error ? cause.message : t('play.toast.answerFailTitle', 'Could not answer');
+        toast.error(t('play.toast.answerFailTitle', 'Could not answer'), message);
+        if (fromVoice) failAndResume(message, false);
+        return;
+      } finally {
+        obsolete = processingRef.current !== requestId;
+        if (!obsolete) {
+          processingRef.current = null;
+          setThinking(false);
+        }
+      }
+
+      if (obsolete || (fromVoice && (voiceRunRef.current !== voiceRun || !sessionIsActive()))) return;
 
       if (!res.ok) {
         toast.error(t('play.toast.answerFailTitle', 'Could not answer'), res.message);
+        if (fromVoice) failAndResume(res.message ?? t('play.toast.answerFailTitle', 'Could not answer'), false);
         return;
       }
       setCallId(res.callId ?? null);
       const replyLang = (res.language as Locale) ?? speechLang;
       const msgId = nextId();
       setMessages((m) => [...m, { id: msgId, role: 'agent', text: res.reply ?? '', reply: res, lang: replyLang }]);
-      void speakReply(msgId, res.reply ?? '', replyLang);
+      await speakReply(msgId, res.reply ?? '', replyLang, fromVoice);
       if (res.escalate) {
         toast.toast({
           tone: 'info',
@@ -533,7 +472,7 @@ export function Playground({
         });
       }
     },
-    [callId, thinking, selectedAgentId, speakReply, speechLang, toast, t],
+    [callId, failAndResume, selectedAgentId, sessionIsActive, speakReply, speechLang, toast, t],
   );
 
   /* ── speech recognition ─────────────────────────────────────── */
@@ -599,118 +538,58 @@ export function Playground({
     setListening(false);
   }, []);
 
-  /* ── internal STT: record the mic, transcribe with your model ── */
+  /* ── internal STT: each VAD-finalized utterance uses the existing endpoint ── */
 
-  const startInternalStt = useCallback(async () => {
-    try {
-      // Barge-in: silence the agent before the mic opens, so its voice from
-      // the speakers cannot leak into (or be echo-cancelled out of) the take.
-      window.speechSynthesis?.cancel();
-      audioElRef.current?.pause();
-      recorderRef.current = await startRecording();
-      // Push-to-talk: the user clicks to start and clicks to finish. The
-      // hands-free VAD loop (beginVad + autoTalkRef) is disabled — silence
-      // detection fed noise-hallucinated takes ("musiqa"…) back into the agent.
-      speechStartRef.current = performance.now();
-      setListening(true);
-    } catch {
-      toast.error(t('play.toast.micTitle', 'Microphone problem'), t('play.toast.micNoAccess', 'Could not access the microphone.'));
-    }
-  }, [beginVad, toast, t]);
-
-  const stopInternalStt = useCallback(async () => {
-    endVad();
-    const rec = recorderRef.current;
-    recorderRef.current = null;
-    if (!rec) return;
-    setListening(false);
-    setThinking(true);
-    let text = '';
-    let sttMs = 0;
-    let failed = false;
-    try {
-      const { wav, durationSec, rms } = await rec.stop();
-      // Diagnostic: open DevTools → Console to see the captured level.
-      console.log('[stt] captured', { durationSec: +durationSec.toFixed(2), rms: +rms.toFixed(4), bytes: wav.size });
-      // Reject a stray tap or true silence; thresholds are low so a quiet mic passes.
-      if (durationSec < 0.35 || rms < 0.0015) {
-        // Silence ends the hands-free loop — the natural way to stop talking.
-        autoTalkRef.current = false;
-        setThinking(false);
-        toast.toast({
-          tone: 'info',
-          title: t('play.toast.nothingTitle', 'Nothing heard'),
-          description: t(
-            'play.toast.nothingDetail',
-            'Recorded {sec}s at level {level}. If the level is near zero, your mic is muted or the wrong input device is selected.',
-          )
-            .replace('{sec}', durationSec.toFixed(1))
-            .replace('{level}', rms.toFixed(4)),
-        });
-        return;
-      }
-      sttMs = performance.now() - speechStartRef.current;
-      const upload = new FormData();
-      upload.append('file', wav, 'speech.wav');
-      const res = await fetch('/api/speech/stt', { method: 'POST', body: upload });
-      if (res.ok) text = (((await res.json()) as { text?: string }).text ?? '').trim();
-      else {
-        failed = true;
-        toast.error(
-          t('play.toast.transcribeFailTitle', 'Transcription failed'),
-          t('play.toast.transcribeFailBody', 'The STT service returned an error.'),
-        );
-      }
-    } catch (e) {
-      failed = true;
-      toast.error(
-        t('play.toast.micTitle', 'Microphone problem'),
-        e instanceof Error ? e.message : t('play.toast.recordFail', 'Recording failed.'),
-      );
-    }
-    if (failed) autoTalkRef.current = false;
-    setThinking(false);
-    if (text) void send(text, sttMs);
-    else if (!failed)
-      toast.toast({
-        tone: 'info',
-        title: t('play.toast.nothingTitle', 'Nothing heard'),
-        description: t('play.toast.nothingRetry', 'No speech was detected — try again.'),
+  voiceUtteranceRef.current = async ({ wav, durationSec, rms }, turnId) => {
+    const voiceRun = voiceRunRef.current;
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[VOICE] sending_to_stt', {
+        turnId,
+        durationMs: Math.round(durationSec * 1000),
+        rms: Number(rms.toFixed(4)),
+        bytes: wav.size,
       });
-  }, [endVad, send, toast, t]);
+    }
 
-  // Close the "real talk" loop: when a spoken reply finishes and the loop is
-  // active, the mic re-opens by itself. (Assigned each render so the ref used
-  // inside speakReply — declared earlier — always sees the fresh closure.)
-  useEffect(() => {
-    autoRestartRef.current = () => {
-      if (autoTalkRef.current && ttsEnabled && speech.stt && !recorderRef.current && !thinking) {
-        void startInternalStt();
-      }
-    };
-    autoStopRef.current = () => {
-      if (recorderRef.current) void stopInternalStt();
-    };
-  });
-
-  useEffect(
-    () => () => {
-      endVad();
-      endBargeMonitor();
-    },
-    [endVad, endBargeMonitor],
-  );
-
-  // A simple animated level while listening — the Web Speech API gives no
-  // amplitude, so this is an activity indicator rather than a real meter.
-  useEffect(() => {
-    if (!listening) {
-      setLevel(0);
+    // VAD already filters noise; this final media-level guard protects the STT
+    // from a broken/muted input or a browser recorder that returned no audio.
+    if (durationSec < 0.25 || rms < 0.0015 || wav.size <= 44) {
+      failAndResume(t('play.toast.nothingRetry', 'No speech was detected — try again.'), false);
       return;
     }
-    const iv = setInterval(() => setLevel(0.25 + Math.random() * 0.75), 110);
-    return () => clearInterval(iv);
-  }, [listening]);
+
+    setThinking(true);
+    const sttStarted = performance.now();
+    try {
+      const upload = new FormData();
+      upload.append('file', wav, `speech-${turnId}.wav`);
+      upload.append('language', speechLang);
+      const res = await fetch('/api/speech/stt', { method: 'POST', body: upload });
+      if (!res.ok) {
+        const message = t('play.toast.transcribeFailBody', 'The STT service returned an error.');
+        toast.error(t('play.toast.transcribeFailTitle', 'Transcription failed'), message);
+        failAndResume(message, false);
+        return;
+      }
+      const text = (((await res.json()) as { text?: string }).text ?? '').trim();
+      if (voiceRunRef.current !== voiceRun || !sessionIsActive()) return;
+      if (process.env.NODE_ENV !== 'production') console.debug('[VOICE] transcript_received', { turnId });
+      if (!text) {
+        const message = t('play.toast.nothingRetry', 'No speech was detected — try again.');
+        toast.toast({ tone: 'info', title: t('play.toast.nothingTitle', 'Nothing heard'), description: message });
+        failAndResume(message, false);
+        return;
+      }
+      setThinking(false);
+      await send(text, performance.now() - sttStarted, true, voiceRun);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : t('play.toast.recordFail', 'Recording failed.');
+      toast.error(t('play.toast.transcribeFailTitle', 'Transcription failed'), message);
+      failAndResume(message, false);
+    } finally {
+      if (voiceRunRef.current === voiceRun) setThinking(false);
+    }
+  };
 
   // Drop the current conversation, revoking any stored audio URLs first.
   const clearConversation = useCallback(() => {
@@ -730,7 +609,25 @@ export function Playground({
     }
   }, []);
 
+  const stopVoiceConversation = useCallback(() => {
+    ttsPlaybackRef.current += 1;
+    voiceRunRef.current += 1;
+    processingRef.current = null;
+    setThinking(false);
+    stopSession();
+    recognitionRef.current?.abort();
+    recognitionRef.current = null;
+    setListening(false);
+    window.speechSynthesis?.cancel();
+    try {
+      audioElRef.current?.pause();
+    } catch {
+      /* nothing playing */
+    }
+  }, [stopSession]);
+
   const reset = async () => {
+    stopVoiceConversation();
     if (callId) await endPlaygroundCallAction(callId, 5);
     clearConversation();
     router.refresh();
@@ -739,6 +636,7 @@ export function Playground({
   // Switching who you talk to starts a fresh session with a clean transcript.
   const switchAgent = (agentId: string) => {
     if (agentId === selectedAgentId) return;
+    stopVoiceConversation();
     if (callId) void endPlaygroundCallAction(callId, 5);
     setSelectedAgentId(agentId);
     clearConversation();
@@ -750,18 +648,39 @@ export function Playground({
   // (the internal model is Uzbek-only).
   const internalStt = speech.stt && speechLang === 'uz';
   const micReady = internalStt ? micSupported() : speechSupported;
-  // Click-to-toggle: click once to start, again to stop. This avoids the
-  // press-and-hold race where a quick tap or release-off-button left a stuck,
-  // leaked recorder feeding the model a tiny clip.
+  const displayedVoiceState: VoiceState = internalStt
+    ? voiceState
+    : listening
+      ? 'user_speaking'
+      : thinking
+        ? 'processing'
+        : 'idle';
+  const voiceSessionRunning = internalStt ? isSessionActive : listening;
+  const voiceStatusText: Record<VoiceState, string> = {
+    idle: t('play.voice.idle', 'Ovozli suhbatni boshlash'),
+    listening: t('play.voice.listening', 'Tinglayapman...'),
+    user_speaking: t('play.voice.userSpeaking', 'Siz gapiryapsiz...'),
+    processing: t('play.voice.processing', 'Javob tayyorlanmoqda...'),
+    ai_speaking: t('play.voice.aiSpeaking', 'Agent gapiryapti...'),
+    error: voiceError ?? t('play.voice.error', 'Mikrofon bilan xatolik yuz berdi'),
+  };
+
+  // One click starts a persistent session; the active button is the explicit
+  // escape hatch that ends it and releases the browser microphone indicator.
   const micToggle = async () => {
     if (micBusy || !voiceInputAvailable(speechLang)) return;
     setMicBusy(true);
     try {
-      if (listening) {
-        if (internalStt) await stopInternalStt();
-        else stopListening();
-      } else if (internalStt) {
-        await startInternalStt();
+      if (internalStt) {
+        if (isSessionActive) stopVoiceConversation();
+        else {
+          voiceRunRef.current += 1;
+          window.speechSynthesis?.cancel();
+          audioElRef.current?.pause();
+          await startSession();
+        }
+      } else if (listening) {
+        stopListening();
       } else {
         startListening();
       }
@@ -800,7 +719,12 @@ export function Playground({
               icon={ttsEnabled ? <IconVolume size={15} /> : <IconMicOff size={15} />}
               onClick={() => {
                 setTtsEnabled((v) => !v);
-                if (ttsEnabled) window.speechSynthesis?.cancel();
+                if (ttsEnabled) {
+                  ttsPlaybackRef.current += 1;
+                  window.speechSynthesis?.cancel();
+                  audioElRef.current?.pause();
+                  if (sessionIsActive()) resumeListening();
+                }
               }}
             >
               {ttsEnabled ? t('play.voiceOn', 'Voice on') : t('play.voiceOff', 'Voice off')}
@@ -893,19 +817,25 @@ export function Playground({
             <span
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-medium',
-                listening
+                displayedVoiceState === 'user_speaking'
                   ? 'bg-danger-soft text-danger'
-                  : thinking
+                  : displayedVoiceState === 'processing'
                     ? 'bg-warning-soft text-warning'
-                    : 'bg-surface-3 text-ink-3',
+                    : displayedVoiceState === 'listening'
+                      ? 'bg-brand-soft text-brand'
+                      : 'bg-surface-3 text-ink-3',
               )}
             >
-              {listening ? <IconMic size={12} /> : thinking ? <Spinner size={12} /> : <IconVolume size={12} />}
-              {listening
-                ? t('play.micRecording', 'Recording — tap the mic to stop')
-                : thinking
-                  ? t('play.thinking')
-                  : t('play.voiceReady', 'Voice ready')}
+              {displayedVoiceState === 'processing' ? (
+                <Spinner size={12} />
+              ) : displayedVoiceState === 'ai_speaking' ? (
+                <IconVolume size={12} />
+              ) : displayedVoiceState === 'error' ? (
+                <IconAlert size={12} />
+              ) : (
+                <IconMic size={12} />
+              )}
+              {voiceStatusText[displayedVoiceState]}
             </span>
           </div>
 
@@ -1004,7 +934,11 @@ export function Playground({
                       <button
                         key={l}
                         type="button"
-                        onClick={() => available && setSpeechLang(l)}
+                        onClick={() => {
+                          if (!available || l === speechLang) return;
+                          stopVoiceConversation();
+                          setSpeechLang(l);
+                        }}
                         disabled={!available}
                         aria-disabled={!available}
                         title={
@@ -1046,35 +980,49 @@ export function Playground({
                 <div className="flex flex-col items-center gap-2 justify-self-center">
                   <button
                     onClick={() => void micToggle()}
-                    disabled={!micReady || micBusy || (thinking && !listening)}
-                    aria-label={listening ? t('play.micRecording') : t('play.micTap')}
+                    disabled={!micReady || micBusy}
+                    aria-label={
+                      voiceSessionRunning
+                        ? t('play.voice.end', 'Ovozli suhbatni tugatish')
+                        : t('play.voice.start', 'Ovozli suhbatni boshlash')
+                    }
                     className={cn(
                       'relative flex h-[72px] w-[72px] items-center justify-center rounded-full shadow-e2 transition-all duration-200 disabled:opacity-40',
-                      listening
+                      displayedVoiceState === 'user_speaking'
                         ? 'animate-pulse-ring bg-danger text-white'
+                        : voiceSessionRunning
+                          ? 'bg-brand text-white hover:brightness-110'
                         : 'bg-brand text-white hover:scale-105 hover:brightness-110',
                     )}
                   >
-                    <IconMic size={28} />
-                    {listening && (
+                    {voiceSessionRunning ? <IconMicOff size={28} /> : <IconMic size={28} />}
+                    {(displayedVoiceState === 'listening' || displayedVoiceState === 'user_speaking') && (
                       <span
-                        className="absolute inset-0 rounded-full ring-4 ring-danger/30 transition-transform"
-                        style={{ transform: `scale(${1 + level * 0.35})` }}
+                        className={cn(
+                          'absolute inset-0 rounded-full ring-4 transition-transform',
+                          displayedVoiceState === 'user_speaking' ? 'ring-danger/30' : 'ring-brand/20',
+                        )}
+                        style={{ transform: `scale(${1 + voiceLevel * 0.35})` }}
                       />
                     )}
                   </button>
                   <p className="max-w-[16rem] text-center text-[12px] leading-snug text-ink-3">
                     {!micReady
                       ? t('play.micHttps', 'Microphone needs localhost or HTTPS — open http://localhost:3000')
-                      : listening
-                        ? t('play.micRecording', 'Recording — tap the mic to stop')
-                        : t('play.micTap', 'Tap the mic and speak')}
+                      : voiceStatusText[displayedVoiceState]}
                   </p>
                 </div>
 
                 {/* Right: the escape hatch to the keyboard. */}
                 <div className="flex justify-start sm:justify-end">
-                  <Button variant="secondary" icon={<IconSend size={15} />} onClick={() => setTyping(true)}>
+                  <Button
+                    variant="secondary"
+                    icon={<IconSend size={15} />}
+                    onClick={() => {
+                      stopVoiceConversation();
+                      setTyping(true);
+                    }}
+                  >
                     {t('play.typeInstead', 'Type instead')}
                   </Button>
                 </div>

@@ -177,7 +177,9 @@ export async function generateAnswer(input: GenerateInput): Promise<SynthesisOut
     contextBlock(input.hits),
     '',
     ...(input.history ?? [])
-      .slice(-6)
+      // Six complete caller/agent exchanges are enough to resolve references
+      // without allowing a long call transcript to crowd out retrieved facts.
+      .slice(-12)
       .map((h) => `${h.role === 'caller' ? 'CALLER' : 'YOU'}: ${h.text}`),
     `CALLER: ${input.question}`,
   ].join('\n');

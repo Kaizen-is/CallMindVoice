@@ -30,20 +30,35 @@ export function micSupported(): boolean {
   );
 }
 
-export async function startRecording(): Promise<Recording> {
+export const VOICE_MIC_CONSTRAINTS: MediaTrackConstraints = {
+  channelCount: 1,
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
+/**
+ * Start one encoded utterance. A caller may pass a long-lived session stream;
+ * in that case stopping the recorder leaves the microphone tracks alive for
+ * the next turn. Without a stream this keeps the original one-shot behaviour.
+ */
+export async function startRecording(sessionStream?: MediaStream): Promise<Recording> {
   // Raw capture: browser echo-cancellation and noise-suppression audibly
   // distort speech for this STT model (recorder-app files transcribe far
   // better). Push-to-talk means the agent is silent while recording, so echo
   // processing is unnecessary. AGC stays on for quiet mics; we peak-normalise
   // and high-pass afterwards ourselves.
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      channelCount: 1,
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: true,
-    },
-  });
+  const ownsStream = !sessionStream;
+  const stream =
+    sessionStream ??
+    (await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: true,
+      },
+    }));
   const mr = new MediaRecorder(stream);
   const chunks: BlobPart[] = [];
   mr.ondataavailable = (e) => {
@@ -51,16 +66,28 @@ export async function startRecording(): Promise<Recording> {
   };
   mr.start();
 
-  const cleanup = () => stream.getTracks().forEach((t) => t.stop());
+  const cleanup = () => {
+    if (ownsStream) stream.getTracks().forEach((t) => t.stop());
+  };
+  let settled = false;
 
   return {
     stream,
     cancel: () => {
+      if (settled) return;
+      settled = true;
+      mr.ondataavailable = null;
+      mr.onstop = null;
       try { mr.stop(); } catch { /* already stopped */ }
       cleanup();
     },
     stop: () =>
       new Promise<RecordingResult>((resolve, reject) => {
+        if (settled) {
+          reject(new Error('recording already finalized'));
+          return;
+        }
+        settled = true;
         mr.onstop = async () => {
           cleanup();
           try {
