@@ -176,6 +176,10 @@ export async function runTurn(params: {
     'SELECT * FROM turns WHERE call_id=? ORDER BY ordinal ASC',
     callId,
   ).map((t) => ({ role: t.role, text: t.text }));
+  // System bookkeeping turns (for example __unanswered__) are persisted for
+  // escalation logic, but are not dialogue and must never be presented to the
+  // model as if the agent had said them.
+  const modelHistory = history.filter((turn) => turn.role === 'caller' || turn.role === 'agent');
 
   const language = detectLanguage(utterance) as Locale;
   const policy = agentEscalation(agent);
@@ -183,7 +187,25 @@ export async function runTurn(params: {
 
   /* retrieval */
   const tRetrieve = performance.now();
-  const retrieval = await retrieve(tenantId, utterance, { topK: 5 });
+  let retrieval = await retrieve(tenantId, utterance, { topK: 5 });
+  // Short follow-ups such as “dam olish kunlari-chi?” may not repeat the
+  // original subject. If the standalone lookup is weak, retry once with the
+  // two most recent caller turns; keep whichever retrieval is more confident.
+  if (modelHistory.length && retrieval.confidence < threshold) {
+    const recentCallerContext = modelHistory
+      .filter((turn) => turn.role === 'caller')
+      .slice(-2)
+      .map((turn) => turn.text.trim())
+      .filter(Boolean);
+    if (recentCallerContext.length) {
+      const contextual = await retrieve(
+        tenantId,
+        [...recentCallerContext, utterance].join('\n'),
+        { topK: 5 },
+      );
+      if (contextual.confidence > retrieval.confidence) retrieval = contextual;
+    }
+  }
   const retrievalMs = performance.now() - tRetrieve;
 
   /* generation */
@@ -195,7 +217,7 @@ export async function runTurn(params: {
     language,
     agentName: agent.name,
     threshold,
-    history,
+    history: modelHistory,
     persona: agent.persona,
     instructions: agent.instructions,
   });
