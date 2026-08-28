@@ -66,25 +66,54 @@ const LANG_NAME: Record<Locale, string> = { uz: 'Uzbek', ru: 'Russian', en: 'Eng
 let _seq = 0;
 const nextId = () => `m${Date.now().toString(36)}_${(_seq++).toString(36)}`;
 
-/* ── streaming TTS: cut a reply into speakable pieces at SENTENCE boundaries
-   only. Mid-sentence cuts reset the synthesiser's prosody per piece (worst in
-   clone mode, where each piece re-derives the voice) and sound stitched. The
-   first sentence alone still starts playback early; consecutive short
-   sentences are merged so pieces stay ~12+ words. ── */
-function chunkForTts(text: string): string[] {
-  const clean = text.replace(/\s+/g, ' ').trim();
-  const sentences = clean.split(/(?<=[.!?…])\s+/).filter(Boolean);
-  if (sentences.length <= 1) return [clean];
-  const chunks: string[] = [sentences[0]];
-  for (const sentence of sentences.slice(1)) {
-    const last = chunks[chunks.length - 1];
-    if (last.split(' ').length + sentence.split(' ').length <= 24 && chunks.length > 1) {
-      chunks[chunks.length - 1] = `${last} ${sentence}`;
-    } else {
-      chunks.push(sentence);
-    }
+/* ── streamed playback helpers ──────────────────────────────────────────────
+   The server sends raw 8 kHz mono PCM with no container, because a container
+   needs its length up front and the whole point is that the length is not known
+   yet. `<audio>` cannot start on that, so the Playground schedules the chunks
+   through Web Audio instead — which also gives sample-accurate, gapless joins
+   between sentences that chaining <audio> elements never achieves. ── */
+
+const TTS_RATE = 8000;
+
+/** One PCM chunk → an AudioBuffer ready to be scheduled. */
+function pcmToAudioBuffer(ctx: AudioContext, pcm: Uint8Array): AudioBuffer | null {
+  const frames = Math.floor(pcm.length / 2);
+  if (!frames) return null;
+  const buffer = ctx.createBuffer(1, frames, TTS_RATE);
+  const channel = buffer.getChannelData(0);
+  const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  for (let i = 0; i < frames; i++) channel[i] = view.getInt16(i * 2, true) / 32768;
+  return buffer;
+}
+
+/** Everything that was streamed → a WAV blob URL, so ▶ replays the same audio. */
+function pcmChunksToWavUrl(chunks: Uint8Array[]): string | null {
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  if (!total) return null;
+  const out = new Uint8Array(44 + total);
+  const view = new DataView(out.buffer);
+  const ascii = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i++) out[offset + i] = text.charCodeAt(i);
+  };
+  ascii(0, 'RIFF');
+  view.setUint32(4, 36 + total, true);
+  ascii(8, 'WAVE');
+  ascii(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, TTS_RATE, true);
+  view.setUint32(28, TTS_RATE * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  ascii(36, 'data');
+  view.setUint32(40, total, true);
+  let at = 44;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
   }
-  return chunks;
+  return URL.createObjectURL(new Blob([out], { type: 'audio/wav' }));
 }
 
 /* Hands-free tuning: after this much continuous silence the utterance is
@@ -96,13 +125,6 @@ const NO_SPEECH_GIVEUP_MS = 15000;
    shorter blips ("ha", coughs) are ignored as backchannels. */
 const BARGE_SUSTAIN_MS = 500;
 const VOICE_RMS = 0.012;
-
-/** Short spoken fillers that cover the synthesis of a long answer. */
-const FILLERS_UZ = [
-  'Hmm, qiziq savol.',
-  'Bir soniya, hozir javob beraman.',
-  'Yaxshi, hozir aytaman.',
-];
 
 interface Msg {
   id: string;
@@ -228,9 +250,8 @@ export function Playground({
   }, [messages]);
   useEffect(
     () => () => {
-      const keep = new Set(synthCacheRef.current.values());
       messagesRef.current.forEach((x) =>
-        [x.audioUrl, ...(x.audioUrls ?? [])].forEach((u) => u && !keep.has(u) && URL.revokeObjectURL(u)),
+        [x.audioUrl, ...(x.audioUrls ?? [])].forEach((u) => u && URL.revokeObjectURL(u)),
       );
     },
     [],
@@ -256,36 +277,6 @@ export function Playground({
       window.speechSynthesis.speak(u);
     },
     [ttsEnabled, agent?.speakingRate],
-  );
-
-  // Ask the internal Uzbek TTS for a real audio blob and hand back an object URL
-  // (the caller stores it on the message so it can be replayed as-is).
-  // Repeated snippets (fillers, common phrases) are synthesised once per voice
-  // and reused — instant playback, no GPU round-trip.
-  const synthCacheRef = useRef<Map<string, string>>(new Map());
-
-  const synthUz = useCallback(
-    async (text: string): Promise<string | null> => {
-      const key = `${voiceOverride || agent?.voiceId || ''}|${text}`;
-      const cached = synthCacheRef.current.get(key);
-      if (cached) return cached;
-      try {
-        const res = await fetch('/api/speech/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, voice: voiceOverride || agent?.voiceId }),
-        });
-        if (res.ok) {
-          const url = URL.createObjectURL(await res.blob());
-          if (synthCacheRef.current.size < 60) synthCacheRef.current.set(key, url);
-          return url;
-        }
-      } catch {
-        /* fall back to the browser voice */
-      }
-      return null;
-    },
-    [agent?.voiceId, voiceOverride],
   );
 
   // Play a stored audio URL through the one shared element, without revoking it —
@@ -437,6 +428,128 @@ export function Playground({
     }
   }, []);
 
+  // Web Audio context + the sources currently scheduled, so a barge-in can cut
+  // playback instantly rather than waiting for the current sentence to finish.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const scheduledRef = useRef<AudioBufferSourceNode[]>([]);
+  const streamAbortRef = useRef<AbortController | null>(null);
+
+  const stopStream = useCallback(() => {
+    for (const src of scheduledRef.current) {
+      try {
+        src.stop();
+      } catch {
+        /* already finished */
+      }
+    }
+    scheduledRef.current = [];
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+  }, []);
+
+  /**
+   * Speak `text` from the streaming endpoint.
+   *
+   * Chunks are scheduled on the audio clock as they arrive — each sentence is
+   * queued to start exactly where the previous one ends, so the joins are
+   * inaudible — and the first one starts playing while the rest is still being
+   * rendered on the server. Resolves once playback finishes, or when a barge-in
+   * cuts it short. Returns false if the stream could not be used at all, so the
+   * caller can fall back to the browser voice.
+   */
+  const speakStream = useCallback(
+    async (msgId: string, text: string): Promise<boolean> => {
+      const ctx = (audioCtxRef.current ??= new AudioContext());
+      // Autoplay policy: the context starts suspended until a user gesture.
+      if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+
+      const controller = new AbortController();
+      streamAbortRef.current = controller;
+      scheduledRef.current = [];
+
+      let res: Response;
+      try {
+        res = await fetch('/api/speech/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            voice: voiceOverride || agent?.voiceId,
+            stream: true,
+          }),
+          signal: controller.signal,
+        });
+      } catch {
+        return false; // aborted or offline — the caller falls back
+      }
+      if (!res.ok || !res.body) return false;
+
+      const reader = res.body.getReader();
+      const received: Uint8Array[] = [];
+      // A chunk boundary can land mid-sample; hold the odd byte for the next one.
+      let leftover = new Uint8Array(0);
+      // Where the next buffer should start on the audio clock. The initial
+      // offset is a small cushion so the first buffer is scheduled slightly in
+      // the future rather than in the past, which would clip its opening.
+      let playhead = 0;
+
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (bargeRef.current) break;
+          received.push(value);
+
+          const joined =
+            leftover.length === 0
+              ? value
+              : (() => {
+                  const merged = new Uint8Array(leftover.length + value.length);
+                  merged.set(leftover);
+                  merged.set(value, leftover.length);
+                  return merged;
+                })();
+          const usable = joined.length - (joined.length % 2);
+          leftover = joined.subarray(usable);
+          if (!usable) continue;
+
+          const buffer = pcmToAudioBuffer(ctx, joined.subarray(0, usable));
+          if (!buffer) continue;
+
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(ctx.destination);
+          playhead = Math.max(playhead, ctx.currentTime + 0.06);
+          source.start(playhead);
+          playhead += buffer.duration;
+          scheduledRef.current.push(source);
+        }
+      } catch {
+        /* aborted mid-stream — whatever was scheduled still plays out */
+      }
+
+      if (!received.length) return false;
+
+      // Hand the assembled audio to the bubble so ▶ replays the identical take.
+      const url = pcmChunksToWavUrl(received);
+      if (url) setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, audioUrl: url } : x)));
+
+      // Wait for the scheduled audio to finish, checking often enough that a
+      // barge-in stops the voice mid-sentence rather than at the next boundary.
+      while (ctx.currentTime < playhead) {
+        if (bargeRef.current) {
+          stopStream();
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      scheduledRef.current = [];
+      streamAbortRef.current = null;
+      return true;
+    },
+    [agent?.voiceId, voiceOverride, stopStream],
+  );
+
   // Generate a reply's audio and play it — STREAMED for Uzbek: the text is cut
   // into small pieces (first one tiny, so speech starts almost immediately),
   // each piece is synthesised while the previous one plays, and long answers
@@ -445,29 +558,15 @@ export function Playground({
     async (msgId: string, text: string, lang: Locale) => {
       if (!ttsEnabled || !text.trim()) return;
       if (speech.tts && lang === 'uz') {
-        const chunks = chunkForTts(text);
-        if (text.split(/\s+/).length > 20) {
-          chunks.unshift(FILLERS_UZ[Math.floor((Date.now() / 1000) % FILLERS_UZ.length)]);
-        }
-        const urls: string[] = [];
         // Watch for the caller talking over the agent (barge-in).
         if (autoTalkRef.current) void beginBargeMonitor();
-        let inFlight = synthUz(chunks[0]);
-        for (let i = 0; i < chunks.length; i++) {
-          const url = await inFlight;
-          // Pipeline: request the next chunk before playing this one.
-          if (i + 1 < chunks.length) inFlight = synthUz(chunks[i + 1]);
-          if (!url) continue;
-          urls.push(url);
-          setMessages((m) =>
-            m.map((x) => (x.id === msgId ? { ...x, audioUrl: urls[0], audioUrls: [...urls] } : x)),
-          );
-          if (bargeRef.current) break;
-          await playUrlAwait(url);
-          if (bargeRef.current) break;
-        }
+        // One request, played as it renders. The server splits the reply into
+        // sentences and streams each as it lands, so speech starts after the
+        // first sentence rather than after the last — no client-side chunking,
+        // no round trip per piece.
+        const spoken = await speakStream(msgId, text);
         endBargeMonitor();
-        if (urls.length) {
+        if (spoken) {
           // Barged or finished — either way the mic reopens for the caller.
           autoRestartRef.current();
           return;
@@ -475,7 +574,7 @@ export function Playground({
       }
       speak(text, lang);
     },
-    [ttsEnabled, speech.tts, synthUz, playUrlAwait, speak, beginBargeMonitor, endBargeMonitor],
+    [ttsEnabled, speech.tts, speakStream, speak, beginBargeMonitor, endBargeMonitor],
   );
 
   // Replay control on an agent bubble: the exact stored audio if we have it,
@@ -714,21 +813,22 @@ export function Playground({
 
   // Drop the current conversation, revoking any stored audio URLs first.
   const clearConversation = useCallback(() => {
+    // Whatever the agent was mid-way through saying goes with it.
+    stopStream();
+    window.speechSynthesis?.cancel();
     setMessages((m) => {
-      const keep = new Set(synthCacheRef.current.values());
       m.forEach((x) =>
-        [x.audioUrl, ...(x.audioUrls ?? [])].forEach((u) => u && !keep.has(u) && URL.revokeObjectURL(u)),
+        [x.audioUrl, ...(x.audioUrls ?? [])].forEach((u) => u && URL.revokeObjectURL(u)),
       );
       return [];
     });
     setCallId(null);
-    window.speechSynthesis?.cancel();
     try {
       audioElRef.current?.pause();
     } catch {
       /* nothing playing */
     }
-  }, []);
+  }, [stopStream]);
 
   const reset = async () => {
     if (callId) await endPlaygroundCallAction(callId, 5);
