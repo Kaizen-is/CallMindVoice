@@ -153,8 +153,8 @@ The five the app owner adds to `.env.example` are the core set:
 | `BRIDGE_SHARED_SECRET` | — (required) | Must equal the app's `BRIDGE_SHARED_SECRET`. Sent as `x-bridge-secret`. Empty ⇒ endpoints reject. |
 | `AUDIOSOCKET_PORT` | `8090` | TCP port Asterisk connects to. |
 | `NEXT_BASE_URL` | `http://localhost:3000` | Base URL of the Ovoz Next.js app. |
-| `VAD_SILENCE_MS` | `700` | Trailing silence (ms) that ends an utterance. |
-| `VAD_RMS_THRESHOLD` | `800` | 16-bit RMS energy above which a frame is "voiced". |
+| `VAD_SILENCE_MS` | `350` | Trailing silence (ms) that ends an utterance. |
+| `VAD_RMS_FACTOR` | `3.5` | A frame is "voiced" at `noiseFloor × this`. The floor is measured continuously from the line's own idle audio, so this adapts to clean SIP and noisy GSM alike. |
 
 Additional bridge-only knobs (sensible defaults; override as needed):
 
@@ -164,13 +164,23 @@ Additional bridge-only knobs (sensible defaults; override as needed):
 | `BRIDGE_FROM_NUMBER` | `anonymous` | Caller id passed as `from`. |
 | `VAD_MAX_UTTERANCE_MS` | `15000` | Hard cap: force-endpoint a caller who never pauses. |
 | `VAD_MIN_VOICED_MS` | `200` | Utterances with less voiced audio are discarded as noise. |
-| `VAD_PREROLL_MS` | `160` | Audio kept before speech onset so word starts aren't clipped. |
+| `VAD_MIN_RMS` | `350` | Absolute lower bound for "voiced", used before the noise floor settles. |
+| `VAD_PREROLL_MS` | `200` | Audio kept before speech onset so word starts aren't clipped. |
+| `VAD_BARGE_MS` | `240` | Sustained caller speech (ms) that stops the agent mid-reply. |
+| `VAD_BARGE_RMS_FACTOR` | `5` | Barge-in threshold as a multiple of the noise floor. Higher than `VAD_RMS_FACTOR` because the agent's own audio can leak back through imperfect echo cancellation. |
+| `FILLER_AFTER_MS` | `300` | How long a turn may be silent before a holding line ("bir daqiqa") covers the gap. |
+| `FILLERS` | on | `0`/`off` to disable holding lines entirely. |
 | `BRIDGE_LOG` | off | `1`/`true` to log recognised text + agent replies. |
 
 ### Next.js app (already used by the speech routes — set on the app, not here)
 
 - `BRIDGE_SHARED_SECRET` — same value as the bridge (this is the new one).
-- `STT_TRANSCRIBE_URL` — internal Uzbek STT transcribe endpoint.
+- `STT_TRANSCRIBE_URL` — internal Uzbek STT (Kotib) transcribe endpoint.
+- `WHISPER_TRANSCRIBE_URL` — optional OpenAI-compatible `/audio/transcriptions`
+  for Russian/English. When both are set on an Uzbek-primary agent they run
+  **concurrently on the same utterance** and the better transcript wins, which
+  is how a caller who code-switches mid-sentence gets understood. Two engines
+  cost `max(a, b)` in wall clock, not `a + b`.
 - `TTS_BASE_URL` + (`TTS_CLIENT_SECRET` **or** `TTS_JWT_TOKEN`) — internal TTS;
   optional `TTS_CLIENT_ID`, `TTS_VOICE_MALE`, `TTS_VOICE_FEMALE`.
 
@@ -178,12 +188,23 @@ Additional bridge-only knobs (sensible defaults; override as needed):
 
 1. Asterisk connects, sends `0x01` UUID. → bridge POSTs `/turn` with `first=true`
    (no audio); the app `startCall`s and returns the greeting WAV → bridge plays it.
-2. Caller speaks. The bridge runs RMS VAD; on `VAD_SILENCE_MS` of trailing
+2. While the greeting plays, the bridge prefetches three holding lines from
+   `/filler` and keeps them in memory for the rest of the call.
+3. Caller speaks. The bridge runs adaptive VAD; on `VAD_SILENCE_MS` of trailing
    silence it assembles an 8 kHz mono WAV and POSTs `/turn` (`audio=…`).
-   The app runs **STT → runTurn → TTS** and returns the reply WAV +
-   `x-ovoz-callid` / `x-ovoz-escalate` / `x-ovoz-text`. → bridge plays it.
-3. Repeat step 2 until hangup.
-4. `0x00` terminate or socket close → bridge POSTs `/end { callId, durationSec }`
+4. If nothing has come back within `FILLER_AFTER_MS`, a holding line starts
+   playing so the line is never silent while the answer is computed.
+5. The app runs **STT → runTurn → TTS** and streams the reply back as raw
+   `audio/L16` PCM, one sentence at a time, with `x-ovoz-callid` /
+   `x-ovoz-escalate` / `x-ovoz-text` / `x-ovoz-engine` in the headers. The bridge
+   paces frames onto the line as they arrive — playback starts after the first
+   sentence renders, not the last.
+6. If the caller talks over the reply for `VAD_BARGE_MS`, playback stops
+   instantly, the request is aborted, and the fraction actually heard is sent
+   with the next `/turn` as `spokenRatio` so the stored transcript is truncated
+   to what really went down the line.
+7. Repeat from step 3 until hangup.
+8. `0x00` terminate or socket close → bridge POSTs `/end { callId, durationSec }`
    → the app `endCall`s (closes the row, rolls up usage).
 
 ## 9. Known v1 limitations
@@ -192,14 +213,25 @@ Additional bridge-only knobs (sensible defaults; override as needed):
   returns the spoken handoff line and sets `x-ovoz-escalate`; the bridge plays it
   and hangs up. Actually bridging the caller to a human operator (ARI redirect /
   `Transfer`) is future work — the escalation is created in the DB regardless.
-- **Energy-based VAD, no barge-in.** Endpointing is RMS + trailing-silence, tuned
-  by `VAD_RMS_THRESHOLD` / `VAD_SILENCE_MS`. Noisy lines may need a higher
-  threshold; clipped starts a longer preroll. Inbound audio is ignored while the
-  agent is speaking (the caller can't interrupt the reply).
+- **Energy-based VAD.** Endpointing is still RMS energy plus trailing silence —
+  now measured against the line's own noise floor, and with barge-in — but it is
+  not *semantic*: it cannot tell "my number is 998…" (a pause mid-thought) from
+  a finished sentence. A small endpointing model is the next real improvement
+  here. Clipped word starts want a longer `VAD_PREROLL_MS`.
+- **Barge-in assumes the trunk cancels echo.** The agent's own audio arriving
+  back on the inbound leg would look like the caller talking. `VAD_BARGE_RMS_FACTOR`
+  is set high enough to absorb normal leakage; on a speakerphone-heavy deployment
+  without echo cancellation, raise it or set `VAD_BARGE_MS` higher.
+- **`spokenRatio` is word-proportional.** The bridge knows how many audio frames
+  it sent, not which word was mid-flight, so a truncated agent turn is accurate
+  to within a word or two, not exactly.
 - **Static `to`/`from` ↔ UUID mapping.** v1 uses `BRIDGE_TO_NUMBER` /
   `BRIDGE_FROM_NUMBER` for the whole process, so it serves **one DID**. Multi-
   number setups need the ARI companion (section 4) to resolve the real DID +
   caller id per AudioSocket UUID and pass them per call.
-- **One turn at a time per call.** STT+LLM+TTS+playback run sequentially; the
-  bridge does not pipeline the next utterance until the current reply finishes.
+- **The LLM still completes before the first sentence is spoken.** TTS is
+  pipelined per sentence, but generation is not streamed into it — the reply
+  text must be whole before synthesis starts. Streaming the model's output into
+  the sentence splitter is the remaining latency win, worth roughly the model's
+  own generation time for everything after its first sentence.
 ```
