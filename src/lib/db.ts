@@ -348,6 +348,14 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
     CREATE INDEX idx_custom_voices_tenant ON custom_voices(tenant_id, created_at DESC);
     `,
   },
+  {
+    // Optional outbound target per agent: who it calls (name, year of birth for
+    // the identity check, loan amount, a call-specific prompt). '{}' = none.
+    id: '005_agent_target',
+    sql: `
+    ALTER TABLE agents ADD COLUMN target_json TEXT NOT NULL DEFAULT '{}';
+    `,
+  },
 ];
 
 function ensureDirs() {

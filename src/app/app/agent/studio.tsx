@@ -5,7 +5,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { createAgentAction, saveAgentAction, setAgentStatusAction, type AgentDraft } from '@/app/actions/agent';
 import { PERSONAS, VOICES, WEEKDAYS } from '@/lib/catalog';
 import { translator } from '@/lib/i18n';
-import type { BusinessHours, EscalationPolicy, Locale, UiLocale } from '@/lib/types';
+import type { BusinessHours, CallTarget, EscalationPolicy, Locale, UiLocale } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Badge, Button, Card, CardHeader, PageHeader, Tabs } from '@/components/ui/primitives';
 import { Checkbox, Field, Input, Select, Slider, Switch, Textarea } from '@/components/ui/forms';
@@ -42,6 +42,7 @@ interface AgentView {
   version: number;
   escalation: EscalationPolicy;
   hours: BusinessHours;
+  target: CallTarget;
 }
 
 const LANGS: Array<{ value: Locale; label: string; flag: React.ReactNode }> = [
@@ -112,6 +113,7 @@ export function AgentStudio({
     status: agent.status,
     escalation: agent.escalation,
     hours: agent.hours,
+    target: agent.target,
   });
 
   const dirty = useMemo(
@@ -132,12 +134,15 @@ export function AgentStudio({
         status: agent.status,
         escalation: agent.escalation,
         hours: agent.hours,
+        target: agent.target,
       }),
     [draft, agent],
   );
 
   const set = <K extends keyof AgentDraft>(key: K, value: AgentDraft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
+  const setTarget = (key: keyof CallTarget, value: string) =>
+    setDraft((d) => ({ ...d, target: { ...d.target, [key]: value } }));
 
   const save = async () => {
     setSaving(true);
@@ -404,6 +409,69 @@ export function AgentStudio({
             </Card>
 
             <Card>
+              <div className="flex items-start justify-between gap-3">
+                <CardHeader
+                  title={t('agent.target.title', 'Who to call')}
+                  subtitle={t(
+                    'agent.target.subtitle',
+                    'Optional. Add a person and the agent calls them about their loan: it confirms their year of birth first, then asks when they can pay.',
+                  )}
+                />
+                {draft.target.fullName && (
+                  <Button
+                    size="xs"
+                    variant="secondary"
+                    onClick={() => set('target', { fullName: '', birthYear: '', loanAmount: '', prompt: '' })}
+                  >
+                    {t('agent.target.clear', 'Remove person')}
+                  </Button>
+                )}
+              </div>
+              <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                <Field label={t('agent.target.name', 'Full name')}>
+                  <Input
+                    value={draft.target.fullName}
+                    onChange={(e) => setTarget('fullName', e.target.value)}
+                    placeholder="Islom Amanullayev"
+                  />
+                </Field>
+                <Field label={t('agent.target.birthYear', 'Year of birth')}>
+                  <Input
+                    value={draft.target.birthYear}
+                    onChange={(e) => setTarget('birthYear', e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    inputMode="numeric"
+                    placeholder="1990"
+                  />
+                </Field>
+                <Field label={t('agent.target.loanAmount', 'Loan amount')}>
+                  <Input
+                    value={draft.target.loanAmount}
+                    onChange={(e) => setTarget('loanAmount', e.target.value)}
+                    placeholder={t('agent.target.loanPlaceholder', "12 500 000 so'm")}
+                  />
+                </Field>
+              </div>
+              <Field
+                className="mt-4"
+                label={t('agent.target.prompt', 'Call instructions (system prompt)')}
+                hint={t(
+                  'agent.target.note',
+                  'The agent never says the year of birth itself, and mentions the loan only after the person confirms it. Leave the name empty to turn this off.',
+                )}
+              >
+                <Textarea
+                  rows={5}
+                  value={draft.target.prompt}
+                  onChange={(e) => setTarget('prompt', e.target.value)}
+                  placeholder={t(
+                    'agent.target.promptPlaceholder',
+                    'Introduce yourself as calling from BRB Bank. If they cannot pay in full, offer to split the amount over three months.',
+                  )}
+                />
+              </Field>
+            </Card>
+
+            <Card>
               <CardHeader
                 title={t('agent.limits.title', 'Limits')}
                 subtitle={t('agent.limits.subtitle', 'Guard rails on how long a conversation can run.')}
@@ -646,6 +714,7 @@ export function AgentStudio({
                   status: agent.status,
                   escalation: agent.escalation,
                   hours: agent.hours,
+                  target: agent.target,
                 })
               }
             >

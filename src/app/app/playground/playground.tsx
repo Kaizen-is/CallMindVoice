@@ -4,12 +4,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   endPlaygroundCallAction,
+  listPlaygroundChatsAction,
+  loadPlaygroundChatAction,
   playgroundTurnAction,
+  type PlaygroundChat,
   type PlaygroundReply,
 } from '@/app/actions/agent';
 import { translator, type Translate } from '@/lib/i18n';
 import type { Locale, UiLocale } from '@/lib/types';
-import { cn, fmtLatency } from '@/lib/utils';
+import { cn, fmtLatency, relativeTime } from '@/lib/utils';
 import { voiceInputAvailable } from '@/lib/catalog';
 import { micSupported, type RecordingResult } from '@/lib/audio';
 import { useVoiceSession, type VoiceState } from '@/hooks/use-voice-session';
@@ -23,7 +26,7 @@ import {
   IconHeadset,
   IconMic,
   IconMicOff,
-  IconPlay,
+  IconPlus,
   IconRefresh,
   IconSend,
   IconSparkle,
@@ -67,6 +70,24 @@ const LANG_NAME: Record<Locale, string> = { uz: 'Uzbek', ru: 'Russian', en: 'Eng
 let _seq = 0;
 const nextId = () => `m${Date.now().toString(36)}_${(_seq++).toString(36)}`;
 
+// The chat that was on screen for each agent, so a page refresh reopens it.
+const chatKey = (agentId: string) => `callmind.playground.chat.${agentId}`;
+function rememberChat(agentId: string, callId: string | null) {
+  try {
+    if (callId) localStorage.setItem(chatKey(agentId), callId);
+    else localStorage.removeItem(chatKey(agentId));
+  } catch {
+    /* storage unavailable — the history still lives on the server */
+  }
+}
+function rememberedChat(agentId: string): string | null {
+  try {
+    return localStorage.getItem(chatKey(agentId));
+  } catch {
+    return null;
+  }
+}
+
 /* ── streamed playback ──────────────────────────────────────────────────────
    /api/speech/tts streams raw 8 kHz mono PCM with no container, because a
    container needs its length up front and the whole point is that the length is
@@ -88,47 +109,13 @@ function pcmToAudioBuffer(ctx: AudioContext, pcm: Uint8Array): AudioBuffer | nul
   return buffer;
 }
 
-/** Everything that was streamed → a WAV blob URL, so ▶ replays the same take. */
-function pcmChunksToWavUrl(chunks: Uint8Array[]): string | null {
-  const total = chunks.reduce((n, c) => n + c.length, 0);
-  if (!total) return null;
-  const out = new Uint8Array(44 + total);
-  const view = new DataView(out.buffer);
-  const ascii = (offset: number, text: string) => {
-    for (let i = 0; i < text.length; i++) out[offset + i] = text.charCodeAt(i);
-  };
-  ascii(0, 'RIFF');
-  view.setUint32(4, 36 + total, true);
-  ascii(8, 'WAVE');
-  ascii(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
-  view.setUint32(24, TTS_RATE, true);
-  view.setUint32(28, TTS_RATE * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  ascii(36, 'data');
-  view.setUint32(40, total, true);
-  let at = 44;
-  for (const c of chunks) {
-    out.set(c, at);
-    at += c.length;
-  }
-  return URL.createObjectURL(new Blob([out], { type: 'audio/wav' }));
-}
-
 interface Msg {
   id: string;
   role: 'caller' | 'agent';
   text: string;
   reply?: PlaygroundReply;
   interim?: boolean;
-  /** Object URL of this reply's synthesised audio — set once, replayable, kept until reset. */
-  audioUrl?: string;
-  /** Streamed replies: every chunk's object URL, in order, for exact replay. */
-  audioUrls?: string[];
-  /** Spoken language of the reply, for the browser-voice replay fallback. */
+  /** Spoken language of the reply. */
   lang?: Locale;
 }
 
@@ -198,6 +185,17 @@ export function Playground({
   const [voiceOverride, setVoiceOverride] = useState<string>('');
   const [callId, setCallId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
+  // Saved conversations with the selected agent, most recent first.
+  const [chats, setChats] = useState<PlaygroundChat[]>([]);
+  const [openingChat, setOpeningChat] = useState<string | null>(null);
+  const refreshChats = useCallback(async () => {
+    if (!selectedAgentId) return;
+    try {
+      setChats(await listPlaygroundChatsAction(selectedAgentId));
+    } catch {
+      /* keep the list we have */
+    }
+  }, [selectedAgentId]);
   const [input, setInput] = useState('');
   /** The keyboard is opt-in: this page is for talking, not typing. */
   const [typing, setTyping] = useState(false);
@@ -219,7 +217,6 @@ export function Playground({
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const speechStartRef = useRef<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const messagesRef = useRef<Msg[]>([]);
   const processingRef = useRef<number | null>(null);
   const processingSeqRef = useRef(0);
   const voiceRunRef = useRef(0);
@@ -284,15 +281,8 @@ export function Playground({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, thinking]);
 
-  // Mirror messages into a ref so unmount cleanup can revoke object URLs.
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
   useEffect(
     () => () => {
-      const urls = new Set<string>();
-      messagesRef.current.forEach((x) => [x.audioUrl, ...(x.audioUrls ?? [])].forEach((u) => u && urls.add(u)));
-      urls.forEach((url) => URL.revokeObjectURL(url));
       stopStream();
       recognitionRef.current?.abort();
       window.speechSynthesis?.cancel();
@@ -332,27 +322,6 @@ export function Playground({
         window.speechSynthesis.speak(u);
       }),
     [ttsEnabled, agent?.speakingRate],
-  );
-
-  // Resolve when playback finishes so TTS chunks and the listening state can be
-  // sequenced through one shared audio element.
-  const playUrlAwait = useCallback(
-    (url: string) =>
-      new Promise<void>((resolve) => {
-        window.speechSynthesis?.cancel();
-        const audio = audioElRef.current ?? (audioElRef.current = new Audio());
-        try {
-          audio.pause();
-        } catch {
-          /* nothing playing */
-        }
-        audio.src = url;
-        audio.onended = () => resolve();
-        audio.onerror = () => resolve();
-        audio.onpause = () => resolve();
-        void audio.play().catch(() => resolve());
-      }),
-    [],
   );
 
   /**
@@ -439,10 +408,6 @@ export function Playground({
 
       if (!received.length) return false;
 
-      // Hand the assembled audio to the bubble so ▶ replays the identical take.
-      const url = pcmChunksToWavUrl(received);
-      if (url) setMessages((m) => m.map((x) => (x.id === msgId ? { ...x, audioUrl: url } : x)));
-
       // Wait out the scheduled audio, polling often enough that a barge-in stops
       // the voice mid-sentence rather than at the next chunk boundary.
       while (ctx.currentTime < playhead) {
@@ -490,24 +455,6 @@ export function Playground({
       if (continueSession && ttsPlaybackRef.current === playbackId) resumeListening();
     },
     [ttsEnabled, speech.tts, speakStream, speak, resumeListening, sessionIsActive, setAiSpeaking],
-  );
-
-  // Replay control on an agent bubble: the exact stored audio if we have it,
-  // otherwise re-synthesise through the browser voice.
-  const replay = useCallback(
-    (m: Msg) => {
-      void (async () => {
-        const pausesSession = sessionIsActive();
-        const playbackId = pausesSession ? ++ttsPlaybackRef.current : 0;
-        if (pausesSession) setAiSpeaking();
-        if (m.audioUrls?.length) {
-          for (const u of m.audioUrls ?? []) await playUrlAwait(u);
-        } else if (m.audioUrl) await playUrlAwait(m.audioUrl);
-        else if (m.text) await speak(m.text, m.lang ?? 'uz', true);
-        if (pausesSession && ttsPlaybackRef.current === playbackId) resumeListening();
-      })();
-    },
-    [playUrlAwait, resumeListening, sessionIsActive, setAiSpeaking, speak],
   );
 
   /* ── the turn ───────────────────────────────────────────────── */
@@ -558,6 +505,8 @@ export function Playground({
         return;
       }
       setCallId(res.callId ?? null);
+      if (res.callId) rememberChat(selectedAgentId, res.callId);
+      void refreshChats();
       const replyLang = (res.language as Locale) ?? speechLang;
       const msgId = nextId();
       setMessages((m) => [...m, { id: msgId, role: 'agent', text: res.reply ?? '', reply: res, lang: replyLang }]);
@@ -570,7 +519,7 @@ export function Playground({
         });
       }
     },
-    [callId, failAndResume, selectedAgentId, sessionIsActive, speakReply, speechLang, toast, t],
+    [callId, failAndResume, refreshChats, selectedAgentId, sessionIsActive, speakReply, speechLang, toast, t],
   );
 
   /* ── speech recognition ─────────────────────────────────────── */
@@ -689,14 +638,9 @@ export function Playground({
     }
   };
 
-  // Drop the current conversation, revoking any stored audio URLs first.
+  // Drop the current conversation.
   const clearConversation = useCallback(() => {
-    setMessages((m) => {
-      m.forEach((x) =>
-        [x.audioUrl, ...(x.audioUrls ?? [])].forEach((u) => u && URL.revokeObjectURL(u)),
-      );
-      return [];
-    });
+    setMessages([]);
     setCallId(null);
     stopStream();
     window.speechSynthesis?.cancel();
@@ -729,8 +673,58 @@ export function Playground({
     stopVoiceConversation();
     if (callId) await endPlaygroundCallAction(callId, 5);
     clearConversation();
+    rememberChat(selectedAgentId, null);
+    void refreshChats();
     router.refresh();
   };
+
+  // Reopen a saved conversation: its transcript returns to the screen and the
+  // next message continues it, so the agent remembers everything said there.
+  const openChat = useCallback(
+    async (id: string) => {
+      if (id === callId) return;
+      stopVoiceConversation();
+      if (callId) void endPlaygroundCallAction(callId, 5);
+      clearConversation();
+      setOpeningChat(id);
+      try {
+        const res = await loadPlaygroundChatAction(id);
+        if (!res.ok || !res.turns) {
+          rememberChat(selectedAgentId, null);
+          toast.error(t('play.chatOpenFail', 'Could not open this chat'), res.message);
+          void refreshChats();
+          return;
+        }
+        setMessages(
+          res.turns.map((turn) => ({
+            id: nextId(),
+            role: turn.role,
+            text: turn.text,
+            reply: turn.reply,
+            lang: (turn.language ?? undefined) as Locale | undefined,
+          })),
+        );
+        setCallId(id);
+        rememberChat(selectedAgentId, id);
+      } catch (cause) {
+        toast.error(
+          t('play.chatOpenFail', 'Could not open this chat'),
+          cause instanceof Error ? cause.message : undefined,
+        );
+      } finally {
+        setOpeningChat(null);
+      }
+    },
+    [callId, clearConversation, refreshChats, selectedAgentId, stopVoiceConversation, t, toast],
+  );
+
+  // Each agent keeps its own history: load its chats and reopen the one that
+  // was on screen last time. Runs on first load and whenever the agent changes.
+  useEffect(() => {
+    void refreshChats();
+    const saved = selectedAgentId ? rememberedChat(selectedAgentId) : null;
+    if (saved) void openChat(saved);
+  }, [selectedAgentId]);
 
   // Switching who you talk to starts a fresh session with a clean transcript.
   const switchAgent = (agentId: string) => {
@@ -975,7 +969,7 @@ export function Playground({
               ) : (
                 <>
                   {messages.map((m) => (
-                    <Bubble key={m.id} msg={m} t={t} onReplay={replay} />
+                    <Bubble key={m.id} msg={m} t={t} />
                   ))}
 
                   {thinking && (
@@ -1137,6 +1131,48 @@ export function Playground({
             a 360 px sidebar is the wrong place for this page's primary action. ── */}
         <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto">
           <Card>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-[14px] font-semibold text-ink">{t('play.chatsTitle', 'Chats')}</h3>
+              <Button size="xs" variant="secondary" icon={<IconPlus size={13} />} onClick={() => void reset()}>
+                {t('play.newChat', 'New chat')}
+              </Button>
+            </div>
+            {chats.length ? (
+              <ul className="mt-3 max-h-56 space-y-0.5 overflow-y-auto">
+                {chats.map((c) => (
+                  <li key={c.callId}>
+                    <button
+                      type="button"
+                      onClick={() => void openChat(c.callId)}
+                      disabled={openingChat !== null || thinking}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-[9px] px-2.5 py-2 text-left transition-colors disabled:opacity-60',
+                        c.callId === callId ? 'bg-brand-soft text-brand' : 'text-ink-2 hover:bg-surface-2 hover:text-ink',
+                      )}
+                    >
+                      <span className="min-w-0 flex-1 truncate text-[12.5px]">
+                        {c.title || t('play.chatUntitled', 'Untitled chat')}
+                      </span>
+                      {openingChat === c.callId ? (
+                        <Spinner size={12} />
+                      ) : (
+                        <span className="shrink-0 text-[11px] text-ink-3">{relativeTime(c.lastAt, locale)}</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-[13px] text-ink-3">
+                {t(
+                  'play.chatsEmpty',
+                  'Conversations with this agent are saved here. Reopen one and the agent remembers everything said in it.',
+                )}
+              </p>
+            )}
+          </Card>
+
+          <Card>
             <h3 className="text-[14px] font-semibold text-ink">{t('play.lastTurn', 'Last turn')}</h3>
             {lastReply ? (
               <div className="mt-4 space-y-3">
@@ -1219,7 +1255,7 @@ export function Playground({
 
 /* ── pieces ──────────────────────────────────────────────────── */
 
-function Bubble({ msg, t, onReplay }: { msg: Msg; t: Translate; onReplay: (m: Msg) => void }) {
+function Bubble({ msg, t }: { msg: Msg; t: Translate }) {
   const isCaller = msg.role === 'caller';
   return (
     <div className={cn('flex', isCaller ? 'justify-end' : 'justify-start')}>
@@ -1235,19 +1271,6 @@ function Bubble({ msg, t, onReplay }: { msg: Msg; t: Translate; onReplay: (m: Ms
         >
           {msg.text}
         </div>
-        {!isCaller && msg.text && !msg.interim && (
-          <div className="mt-1 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onReplay(msg)}
-              title={t('play.replay', 'Play')}
-              className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-ink-3 transition-colors hairline hover:bg-surface-3 hover:text-ink"
-            >
-              <IconPlay size={11} />
-              {t('play.replay', 'Play')}
-            </button>
-          </div>
-        )}
         {msg.reply && (
           <div
             className={cn(

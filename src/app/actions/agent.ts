@@ -3,12 +3,22 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { audit, requireRole, requireSession } from '@/lib/auth';
-import { get, id, now, run } from '@/lib/db';
-import { contentLocale, type Agent, type BusinessHours, type EscalationPolicy, type Locale } from '@/lib/types';
+import { all, get, id, now, run } from '@/lib/db';
+import {
+  contentLocale,
+  type Agent,
+  type BusinessHours,
+  type CallTarget,
+  type Citation,
+  type EscalationPolicy,
+  type Locale,
+  type Turn,
+} from '@/lib/types';
 import { runTurn, DEFAULT_ESCALATION, DEFAULT_HOURS } from '@/lib/engine/conversation';
 import { liveAgent } from '@/lib/engine/calls';
 import { startCall, endCall } from '@/lib/engine/calls';
 import { GREETINGS, FALLBACKS } from '@/lib/provision';
+import { safeJson } from '@/lib/utils';
 
 export interface AgentDraft {
   name: string;
@@ -25,6 +35,7 @@ export interface AgentDraft {
   status: 'draft' | 'live' | 'paused';
   escalation: EscalationPolicy;
   hours: BusinessHours;
+  target: CallTarget;
 }
 
 export async function saveAgentAction(agentId: string, draft: AgentDraft) {
@@ -41,7 +52,7 @@ export async function saveAgentAction(agentId: string, draft: AgentDraft) {
   run(
     `UPDATE agents SET name=?, persona=?, greeting=?, fallback_line=?, instructions=?,
        languages_json=?, primary_lang=?, voice_id=?, speaking_rate=?, max_turns=?,
-       confidence_threshold=?, status=?, escalation_json=?, hours_json=?,
+       confidence_threshold=?, status=?, escalation_json=?, hours_json=?, target_json=?,
        version = version + 1, updated_at=? WHERE id=?`,
     draft.name.trim() || existing.name,
     draft.persona,
@@ -57,6 +68,12 @@ export async function saveAgentAction(agentId: string, draft: AgentDraft) {
     draft.status,
     JSON.stringify(draft.escalation),
     JSON.stringify(draft.hours),
+    JSON.stringify({
+      fullName: draft.target.fullName.trim().slice(0, 120),
+      birthYear: draft.target.birthYear.replace(/\D/g, '').slice(0, 4),
+      loanAmount: draft.target.loanAmount.trim().slice(0, 80),
+      prompt: draft.target.prompt.slice(0, 4000),
+    } satisfies CallTarget),
     now(),
     agentId,
   );
@@ -204,20 +221,115 @@ export async function playgroundTurnAction(params: {
 
 export async function endPlaygroundCallAction(callId: string, csat?: number) {
   const session = await requireSession();
-  const owned = get<{ escalated: number }>(
-    'SELECT escalated FROM calls WHERE id=? AND tenant_id=?',
+  const owned = get<{ escalated: number; ended_at: string | null }>(
+    'SELECT escalated, ended_at FROM calls WHERE id=? AND tenant_id=?',
     callId,
     session.tenant.id,
   );
   if (!owned) return { ok: false };
+  // A reopened chat was already billed when it first ended; ending it again
+  // would charge the wallet for every day it sat closed.
+  if (owned.ended_at) return { ok: true };
+  // Bill the time actually spent talking, not the time the tab stayed open.
+  const last = get<{ at: string | null }>('SELECT MAX(created_at) AS at FROM turns WHERE call_id=?', callId);
   endCall({
     tenantId: session.tenant.id,
     callId,
     outcome: owned.escalated ? 'resolved_by_operator' : 'resolved_by_ai',
     csat: csat ?? null,
+    endedAt: last?.at ?? undefined,
   });
   revalidatePath('/app');
   return { ok: true };
+}
+
+/* ── playground chat history ─────────────────────────────────── */
+
+export interface PlaygroundChat {
+  callId: string;
+  title: string;
+  turns: number;
+  lastAt: string;
+}
+
+/** Saved playground conversations with one agent, most recent first. */
+export async function listPlaygroundChatsAction(agentId: string): Promise<PlaygroundChat[]> {
+  const session = await requireSession();
+  return all<PlaygroundChat>(
+    `SELECT c.id AS callId, c.turns AS turns,
+       COALESCE((SELECT text FROM turns t WHERE t.call_id = c.id AND t.role = 'caller'
+                 ORDER BY t.ordinal LIMIT 1), '') AS title,
+       COALESCE((SELECT MAX(created_at) FROM turns t WHERE t.call_id = c.id), c.started_at) AS lastAt
+     FROM calls c
+     WHERE c.tenant_id = ? AND c.agent_id = ? AND c.channel = 'web' AND c.from_e164 = 'playground'
+       AND c.turns > 0
+     ORDER BY lastAt DESC
+     LIMIT 30`,
+    session.tenant.id,
+    agentId,
+  );
+}
+
+export interface PlaygroundChatTurn {
+  role: 'caller' | 'agent';
+  text: string;
+  language: Locale | null;
+  reply?: PlaygroundReply;
+}
+
+/** The transcript of one saved playground conversation, for reopening it. */
+export async function loadPlaygroundChatAction(
+  callId: string,
+): Promise<{ ok: boolean; turns?: PlaygroundChatTurn[]; message?: string }> {
+  const session = await requireSession();
+  const owned = get<{ escalated: number; ended_at: string | null }>(
+    `SELECT escalated, ended_at FROM calls WHERE id=? AND tenant_id=? AND channel='web' AND from_e164='playground'`,
+    callId,
+    session.tenant.id,
+  );
+  if (!owned) return { ok: false, message: 'That conversation no longer exists.' };
+
+  // A chat left open (tab closed, or escalated) is billed now, up to its last
+  // message — before the new messages land, so the days it sat idle are free.
+  if (!owned.ended_at) {
+    const last = get<{ at: string | null }>('SELECT MAX(created_at) AS at FROM turns WHERE call_id=?', callId);
+    endCall({
+      tenantId: session.tenant.id,
+      callId,
+      outcome: owned.escalated ? 'resolved_by_operator' : 'resolved_by_ai',
+      endedAt: last?.at ?? undefined,
+    });
+  }
+
+  const rows = all<Turn>(
+    `SELECT * FROM turns WHERE call_id=? AND role IN ('caller','agent') ORDER BY ordinal ASC`,
+    callId,
+  );
+  return {
+    ok: true,
+    turns: rows.map((r) => ({
+      role: r.role as 'caller' | 'agent',
+      text: r.text,
+      language: (r.language as Locale | null) ?? null,
+      reply:
+        r.role === 'agent'
+          ? {
+              ok: true,
+              callId,
+              reply: r.text,
+              language: r.language ?? undefined,
+              confidence: r.confidence ?? undefined,
+              timings: safeJson<Record<string, number>>(r.timings_json, {}),
+              citations: safeJson<Citation[]>(r.citations_json, []).map((c) => ({
+                documentTitle: c.documentTitle,
+                heading: c.heading,
+                snippet: c.snippet,
+                score: c.score,
+              })),
+            }
+          : undefined,
+    })),
+  };
 }
 
 /* ── onboarding ──────────────────────────────────────────────── */

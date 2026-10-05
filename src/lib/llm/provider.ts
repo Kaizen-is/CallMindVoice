@@ -7,6 +7,8 @@
  *   • `claude` — Anthropic's Messages API, used automatically when
  *                ANTHROPIC_API_KEY is present. Falls back to `local` on any
  *                provider error so a call is never dropped because of us.
+ *   • `ollama` — a self-hosted model (Gemma) via ./ollama.ts, used when
+ *                OLLAMA_BASE_URL is set. Same fallback guarantee.
  *
  * The voice pipeline is latency-critical (<1 s from end-of-speech to first
  * audio), so the Claude path is tuned for time-to-first-word: thinking off,
@@ -15,8 +17,9 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { hasGemini, geminiJson, geminiText, geminiModel } from './gemini';
+import { hasOllama, ollamaJson, ollamaText, ollamaModel } from './ollama';
 import type { RetrievalHit } from '@/lib/rag/retrieve';
-import type { Locale } from '@/lib/types';
+import type { CallTarget, Locale } from '@/lib/types';
 import {
   classifyIntent,
   summarizeLocal,
@@ -44,7 +47,7 @@ const PERSONA_NOTE: Record<string, string> = {
 
 /* ── prompt construction ─────────────────────────────────────── */
 
-function systemPrompt(input: SynthesisInput & { persona?: string; instructions?: string }) {
+function systemPrompt(input: GenerateInput) {
   const lang = LANGUAGE_NAME[input.language] ?? 'English';
   return [
     `You are ${input.agentName}, the voice assistant answering the phone for this company.`,
@@ -65,8 +68,48 @@ function systemPrompt(input: SynthesisInput & { persona?: string; instructions?:
     '  calculations, anything not specific to this company): answer directly from',
     '  your own knowledge, set answered=true and usedExcerpts=[]. Do not mention',
     '  the knowledge base or transfer the caller for these.',
+    '',
+    'MEMORY — this is one continuous conversation. Remember everything the caller',
+    'has told you earlier in it (their name, what they asked, details they gave) and',
+    'use it. Questions about the conversation itself ("what is my name?", "what did',
+    'I ask before?") are answered from the conversation: answered=true, usedExcerpts=[].',
     input.persona ? `\nTone: ${PERSONA_NOTE[input.persona] ?? input.persona}` : '',
-    input.instructions ? `\nCompany instructions:\n${input.instructions.slice(0, 2000)}` : '',
+    input.instructions
+      ? '\nAGENT INSTRUCTIONS — set by the company for this agent. Follow them; they take ' +
+        'priority over the tone and style guidance above, but never over the rule against ' +
+        `inventing company facts:\n${input.instructions.slice(0, 4000)}`
+      : '',
+    input.target?.fullName ? targetBlock(input.target) : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * Outbound loan-reminder flow. The identity check lives in the conversation
+ * itself: the memory rule above is what lets the model know, turns later,
+ * whether the year of birth was already confirmed.
+ */
+function targetBlock(target: CallTarget) {
+  return [
+    '',
+    'OUTBOUND CALL — you are calling one specific person about repaying their loan.',
+    'This flow takes priority over the knowledge-base routing above.',
+    `Person you are calling: ${target.fullName}`,
+    target.birthYear ? `Their year of birth on file (SECRET): ${target.birthYear}` : '',
+    target.loanAmount ? `Amount they owe: ${target.loanAmount}` : '',
+    'Steps:',
+    `1. Open by greeting them, saying you are calling for ${target.fullName}, and` +
+      (target.birthYear ? ' asking them to confirm their year of birth.' : ' asking them to confirm it is them.'),
+    '2. Never say, hint at or confirm the year of birth yourself before they say it.',
+    '   Compare the year they say with the one on file.',
+    '3. If it does not match, or they refuse: apologise, allow one more try, and never',
+    '   mention the loan or any amount to an unconfirmed person. Then end politely.',
+    '4. Only after the year matches: tell them the amount they owe and ask when they',
+    '   can pay. Get a concrete date, then repeat it back to confirm.',
+    '5. Stay polite and calm. Never threaten or pressure.',
+    'Every reply in this flow is answered=true, usedExcerpts=[] unless you quote an excerpt.',
+    target.prompt ? `\nCALL INSTRUCTIONS — set by the company for this call:\n${target.prompt.slice(0, 4000)}` : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -116,18 +159,20 @@ function anthropic(): Anthropic | null {
 
 const MODEL = () => process.env.ANTHROPIC_MODEL || 'claude-opus-5';
 
-type Provider = 'gemini' | 'anthropic' | 'local';
+type Provider = 'ollama' | 'gemini' | 'anthropic' | 'local';
 
 /**
  * Which answer engine is active. Set LLM_PROVIDER to force one explicitly;
- * otherwise the first provider with a key wins (Gemini, then Claude), and the
- * local synthesiser is the floor when no key is present.
+ * otherwise the first configured provider wins (Ollama, then Gemini, then
+ * Claude), and the local synthesiser is the floor when none is configured.
  */
 function provider(): Provider {
   const pref = process.env.LLM_PROVIDER?.toLowerCase();
+  if (pref === 'ollama') return hasOllama() ? 'ollama' : 'local';
   if (pref === 'gemini') return hasGemini() ? 'gemini' : 'local';
   if (pref === 'anthropic' || pref === 'claude') return anthropic() ? 'anthropic' : 'local';
   if (pref === 'local') return 'local';
+  if (hasOllama()) return 'ollama';
   if (hasGemini()) return 'gemini';
   if (anthropic()) return 'anthropic';
   return 'local';
@@ -135,6 +180,7 @@ function provider(): Provider {
 
 export function engineName(): string {
   const p = provider();
+  if (p === 'ollama') return `ollama:${ollamaModel()}`;
   if (p === 'gemini') return `gemini:${geminiModel()}`;
   if (p === 'anthropic') return `claude:${MODEL()}`;
   return 'ovoz-local-synthesis';
@@ -147,6 +193,7 @@ export function engineIsHosted(): boolean {
 /** Human-friendly label for the active engine, for the Overview/Settings cards. */
 export function engineLabel(): string {
   const name = engineName();
+  if (name.startsWith('ollama:')) return name.replace('ollama:', 'Ollama ');
   if (name.startsWith('gemini:')) return name.replace('gemini:', 'Gemini ');
   if (name.startsWith('claude:')) return name.replace('claude:', 'Claude ');
   return 'Local synthesiser';
@@ -157,6 +204,7 @@ export function engineLabel(): string {
 export interface GenerateInput extends SynthesisInput {
   persona?: string;
   instructions?: string;
+  target?: CallTarget;
 }
 
 export async function generateAnswer(input: GenerateInput): Promise<SynthesisOutput> {
@@ -177,9 +225,9 @@ export async function generateAnswer(input: GenerateInput): Promise<SynthesisOut
     contextBlock(input.hits),
     '',
     ...(input.history ?? [])
-      // Six complete caller/agent exchanges are enough to resolve references
-      // without allowing a long call transcript to crowd out retrieved facts.
-      .slice(-12)
+      // Twenty caller/agent exchanges: enough for the agent to remember the
+      // whole of a realistic chat, small next to the model's context window.
+      .slice(-40)
       .map((h) => `${h.role === 'caller' ? 'CALLER' : 'YOU'}: ${h.text}`),
     `CALLER: ${input.question}`,
   ].join('\n');
@@ -199,13 +247,13 @@ export async function generateAnswer(input: GenerateInput): Promise<SynthesisOut
   };
 
   // Any failure below falls through to the local engine rather than dead air.
-  if (active === 'gemini') {
+  if (active === 'gemini' || active === 'ollama') {
     try {
-      const raw = await geminiJson(system, user);
+      const raw = active === 'ollama' ? await ollamaJson(system, user) : await geminiJson(system, user);
       if (!raw) return synthesizeLocal(input);
       const parsed = JSON.parse(raw) as { answer: string; answered: boolean; usedExcerpts: number[] };
       if (!parsed.answer?.trim()) return synthesizeLocal(input);
-      return finalize(parsed, `gemini:${geminiModel()}`);
+      return finalize(parsed, engineName());
     } catch {
       return synthesizeLocal(input);
     }
@@ -285,8 +333,8 @@ export async function summarizeCall(
     .map((t) => `${t.role === 'caller' ? 'CALLER' : 'AI'}: ${t.text}`)
     .join('\n')}`;
 
-  if (active === 'gemini') {
-    const text = await geminiText(system, user, 300);
+  if (active === 'gemini' || active === 'ollama') {
+    const text = active === 'ollama' ? await ollamaText(system, user, 300) : await geminiText(system, user, 300);
     return text?.trim() ? text.trim() : fallback;
   }
 

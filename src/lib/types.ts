@@ -75,9 +75,20 @@ export interface Agent {
   escalation_json: string;
   hours_json: string;
   tools_json: string;
+  target_json: string;
   version: number;
   created_at: string;
   updated_at: string;
+}
+
+/** The person an outbound agent calls about their loan. Empty fullName ⇒ no target. */
+export interface CallTarget {
+  fullName: string;
+  /** Asked for, never said, to confirm the agent is talking to the right person. */
+  birthYear: string;
+  loanAmount: string;
+  /** Call-specific instructions, layered on top of the built-in call flow. */
+  prompt: string;
 }
 
 export interface EscalationPolicy {

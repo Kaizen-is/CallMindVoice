@@ -18,6 +18,7 @@ import type {
   Agent,
   BusinessHours,
   Call,
+  CallTarget,
   Citation,
   EscalationPolicy,
   Locale,
@@ -85,6 +86,12 @@ export interface TurnResult {
 
 export function agentEscalation(agent: Agent): EscalationPolicy {
   return { ...DEFAULT_ESCALATION, ...safeJson<Partial<EscalationPolicy>>(agent.escalation_json, {}) };
+}
+
+export const EMPTY_TARGET: CallTarget = { fullName: '', birthYear: '', loanAmount: '', prompt: '' };
+
+export function agentTarget(agent: Agent): CallTarget {
+  return { ...EMPTY_TARGET, ...safeJson<Partial<CallTarget>>(agent.target_json, {}) };
 }
 
 export function agentHours(agent: Agent): BusinessHours {
@@ -220,6 +227,7 @@ export async function runTurn(params: {
     history: modelHistory,
     persona: agent.persona,
     instructions: agent.instructions,
+    target: agentTarget(agent),
   });
   const llmMs = performance.now() - tGen;
 
@@ -241,7 +249,8 @@ export async function runTurn(params: {
     generated.intent !== 'goodbye'
   )
     escalate = 'after_hours';
-  else if (call && call.turns >= agent.max_turns) escalate = 'max_turns';
+  // The turn cap protects phone lines; a typed web chat may run as long as the user likes.
+  else if (call && call.channel !== 'web' && call.turns >= agent.max_turns) escalate = 'max_turns';
 
   // Text-to-speech is measured on the client for browser calls; for telephony
   // legs we model it from the utterance length at a realistic synthesis rate.

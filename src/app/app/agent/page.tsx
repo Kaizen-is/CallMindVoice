@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { requireSession } from '@/lib/auth';
 import { get } from '@/lib/db';
 import { liveAgent, listAgents } from '@/lib/engine/calls';
-import { agentEscalation, agentHours } from '@/lib/engine/conversation';
+import { agentEscalation, agentHours, agentTarget } from '@/lib/engine/conversation';
 import { knowledgeStats } from '@/lib/analytics';
 import { translator } from '@/lib/i18n';
 import type { Agent, Locale } from '@/lib/types';
@@ -69,6 +69,7 @@ export default async function AgentPage({
         version: agent.version,
         escalation: agentEscalation(agent),
         hours: agentHours(agent),
+        target: agentTarget(agent),
       }}
     />
   );
