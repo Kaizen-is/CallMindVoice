@@ -118,9 +118,11 @@ function targetBlock(
       'for you; you do not know it and must never guess, hint at or comment on it.',
       ...(justWrong
         ? [
-            '- The year they JUST said does NOT match our records. Do not thank them, do not treat them',
-            '  as confirmed. Say kindly that it does not match, and ask them to say their year of birth',
-            '  once more. They have one try left.',
+            '- The year they JUST said is WRONG — it does not match our records. Do not thank them and',
+            '  do not continue as if they were confirmed. Tell them plainly but politely that this is not',
+            `  correct and that you need to speak with ${name} personally: if they are ${name}, ask them`,
+            `  to say the correct year (one try left); otherwise ask them to pass the phone to ${name},`,
+            '  or to say when he or she can be reached.',
           ]
         : wrongTries
           ? ['- They already gave one wrong year; they have one try left.']
@@ -140,9 +142,11 @@ function targetBlock(
       `${name} can be reached and end politely.`,
     ],
     failed: [
-      'IDENTITY — CHECK FAILED: they gave a wrong year of birth twice. Do not accept or compare any more',
-      'years, and never mention a loan, debt, payment or amount. Say kindly that a colleague will contact',
-      'them, and say goodbye. To anything else, reply only with a short, polite goodbye.',
+      'IDENTITY — CHECK FAILED: they gave a wrong year of birth twice, so you cannot continue with them.',
+      'Do not accept or compare any more years, and never mention a loan, debt, payment or amount. Say',
+      `plainly but politely that the details do not match, that you can only speak with ${name}`,
+      `personally, and ask them to pass the phone to ${name} or have him or her call the company back.`,
+      'Then say goodbye. To anything else, reply only with a short, polite goodbye.',
     ],
   };
 

@@ -36,7 +36,8 @@ const MAX_WRONG_YEARS = 2;
 function spokenYears(line: string): string[] {
   // Kotib already writes digits; typed or other-engine text may not.
   const text = uzbekNumbersToDigits(line);
-  const years = [...text.matchAll(/(?<!\d)(19[2-9]\d|20[01]\d)(?!\d)/g)].map((m) => m[1]);
+  // Any four-digit year counts as an attempt — an absurd one ("1833") is a wrong answer, not silence.
+  const years = [...text.matchAll(/(?<!\d)(1[0-9]{3}|20[0-9]{2})(?!\d)/g)].map((m) => m[1]);
   for (const m of text.matchAll(/(?<!\d)(\d{2})(?:\s*-?\s*(?:го|й))?\s*-?\s*(?:yil|йил|год)/gi)) years.push(m[1]);
   const bare = text.replace(/[\s.,!?;:'"«»()-]/g, '');
   if (/^\d{2}$/.test(bare)) years.push(bare);
