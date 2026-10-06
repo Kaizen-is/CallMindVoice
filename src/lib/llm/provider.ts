@@ -18,7 +18,7 @@ import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { hasGemini, geminiJson, geminiText, geminiModel } from './gemini';
 import { hasOllama, ollamaJson, ollamaText, ollamaModel } from './ollama';
-import { calendarBlock, identityStatus, type IdentityStatus } from './loan-call';
+import { calendarBlock, identityCheck, type IdentityStatus } from './loan-call';
 import type { RetrievalHit } from '@/lib/rag/retrieve';
 import type { CallTarget, Locale } from '@/lib/types';
 import {
@@ -97,8 +97,8 @@ function systemPrompt(input: GenerateInput) {
 /**
  * Outbound loan-reminder flow. Who the person is and what date a spoken day
  * means are settled in code (./loan-call) — the model is told the outcome and
- * never sees the year of birth. The memory rule above carries the rest: what
- * was promised, and whether the payment date is already agreed.
+ * never sees the year of birth. Until the person is confirmed the model is not
+ * even told what the call is about, so it cannot let it slip.
  */
 function targetBlock(
   target: CallTarget,
@@ -107,42 +107,48 @@ function targetBlock(
   greeting?: string,
   timeZone = 'Asia/Tashkent',
 ) {
-  const status = identityStatus(target, callerLines);
+  const { status, justWrong, wrongTries } = identityCheck(target, callerLines);
   const name = target.fullName;
-  const amount = target.loanAmount ? `Amount they owe: ${target.loanAmount}.` : '';
+  const confirmed = status === 'confirmed' || status === 'unchecked';
+
   const identity: Record<IdentityStatus, string[]> = {
-    unchecked: [`IDENTITY — ask whether you are speaking with ${name}; a clear "yes, it is me" confirms it.`, amount],
-    unconfirmed: [
-      'IDENTITY — NOT CONFIRMED. The system checks their year of birth; you do not know it.',
-      '- Ask them to say their year of birth. Only the year itself counts: an age ("34 yoshdaman"),',
-      '  a decade or a guess does not. Never say whether anything they said is right, wrong or',
-      '  close; just ask for the exact year.',
-      '- Until confirmed, never mention a loan, debt, payment or amount in any language (kredit,',
-      "  qarz, to'lov, summa / кредит, долг, платёж, сумма), not even while refusing or promising.",
-      `  If they ask why you are calling, say it is a personal matter for ${name}. If they ask how`,
-      '  much they owe, say: first tell me your year of birth, then I will answer your question.',
-      `- If they say they are someone else (a relative, friend, colleague), do not ask them for a`,
-      `  year: ask when ${name} can be reached and end politely.`,
-      '- If they ask for anything off-topic now, ask for their year of birth first and promise to',
-      '  do what they asked right after.',
+    unchecked: [`IDENTITY — ask whether you are speaking with ${name}; a clear "yes, it is me" confirms it.`],
+    awaiting: [
+      'IDENTITY — NOT CONFIRMED YET. You need them to say their year of birth. The system checks it',
+      'for you; you do not know it and must never guess, hint at or comment on it.',
+      ...(justWrong
+        ? [
+            '- The year they JUST said does NOT match our records. Do not thank them, do not treat them',
+            '  as confirmed. Say kindly that it does not match, and ask them to say their year of birth',
+            '  once more. They have one try left.',
+          ]
+        : wrongTries
+          ? ['- They already gave one wrong year; they have one try left.']
+          : []),
+      '- Only the year itself counts. An age ("34 yoshdaman"), a decade or a guess does not: ask for',
+      '  the exact year, without saying whether it was close.',
+      '- You do not yet know why the bank is calling, so never mention a loan, debt, payment, amount',
+      `  or the bank's reason. If they ask why you are calling, say it is a personal matter for ${name}`,
+      '  and you can explain once they confirm their year of birth.',
+      `- If they say they are someone else (a relative, friend, colleague), do not ask them for a year:`,
+      `  ask kindly when ${name} can be reached, and end politely.`,
+      '- If they ask for anything else now, ask for the year of birth first and promise to help right after.',
     ],
     confirmed: [
-      'IDENTITY — CONFIRMED: they said the year of birth on file. Exception: if earlier in this',
-      `call they said they are NOT ${name} (a relative, friend, colleague), discuss nothing; ask`,
-      `when ${name} can be reached and end politely.`,
-      amount,
+      'IDENTITY — CONFIRMED: they said the year of birth on file. Exception: if earlier in this call',
+      `they said they are NOT ${name} (a relative, friend, colleague), discuss nothing; ask when`,
+      `${name} can be reached and end politely.`,
     ],
     failed: [
-      'IDENTITY — CHECK FAILED: they gave a wrong year of birth twice. Do not accept or compare',
-      'any more years, and never mention a loan, debt, payment or amount. Say politely that a',
-      'colleague will contact them, and say goodbye. To anything else, reply only with a polite goodbye.',
+      'IDENTITY — CHECK FAILED: they gave a wrong year of birth twice. Do not accept or compare any more',
+      'years, and never mention a loan, debt, payment or amount. Say kindly that a colleague will contact',
+      'them, and say goodbye. To anything else, reply only with a short, polite goodbye.',
     ],
   };
-  const canDiscussLoan = status === 'confirmed' || status === 'unchecked';
 
   return [
     '',
-    'OUTBOUND CALL — you are calling one specific person about repaying their loan.',
+    'OUTBOUND CALL — you are calling one specific person on behalf of the company.',
     'This flow takes priority over the knowledge-base routing and the tone note above.',
     `Person you are calling: ${name}`,
     // Without the explicit instruction the model reads an Uzbek greeting out
@@ -155,44 +161,63 @@ function targetBlock(
     `OPENING — on their first line (e.g. "Allo"), greet them, say who you are and which company you call from, and ask whether you are speaking with ${name}` +
       (status === 'unchecked' ? '.' : ', asking them to say their year of birth.'),
     '',
-    calendarBlock(timeZone),
+    'HOW YOU SOUND — like a kind, experienced bank officer on the phone, never like a script:',
+    '- Short, natural, warm sentences. Calm and respectful; never threaten, pressure or lecture.',
+    '- Build every reply on what they just said: use their own words, their reasons, their worries.',
+    '- Never repeat a sentence or a question you already said in this call. If you must ask again,',
+    '  ask differently and move the conversation forward. If they repeat themselves, show you',
+    '  remember ("Ha, ikki hafta dedingiz — demak...").',
+    '- Remember everything said earlier in the call and never ask for something they already told you.',
     '',
     ...identity[status],
-    ...(canDiscussLoan
+    ...(confirmed
       ? [
+          target.loanAmount ? `Amount they owe: ${target.loanAmount}.` : '',
           '',
-          'PAYMENT DATE — the whole point of this call is to agree the day they will pay.',
-          '- Tell them the amount they owe and ask which day they can pay.',
-          '- The topic is OPEN until they name a concrete day. Vague answers ("keyinroq", "tez orada",',
-          '  "kelasi hafta" with no day, "oylik tushganda", "потом", "на следующей неделе", "I will',
-          '  think") do not close it: ask which exact day. Never pick or suggest a day for them.',
-          '- A concrete day closes it: "ertaga", "indinga", a weekday, "next week Tuesday", a day of the',
-          '  month, a full date. Look it up in the CALENDAR and say it back as a statement with its',
-          "  weekday, not as a question (e.g. \"Yaxshi, to'qqizinchi oktabr, juma kuni, kelishdik.\").",
-          '  The topic is CLOSED the moment you say it; do not wait for a yes. Reopen it only if they',
-          '  reject that date.',
+          'PAYMENT DATE — your goal is to agree, kindly and naturally, the day they will pay.',
+          '- Once confirmed, thank them briefly, say why you are calling and the amount, and ask which day',
+          '  would suit them.',
+          '- Work the date out YOURSELF from whatever they say, using the CALENDAR below: "ertaga",',
+          '  "indinga", a weekday, "next week Tuesday", a day of the month, and relative periods too —',
+          '  "in two weeks" / "ikki haftadan keyin" / "через две недели", "in 10 days", "in a week",',
+          '  "at the end of the month", "when my salary comes in two weeks". Never ask for "the exact',
+          '  date" when what they said already points to one: compute it and say it back.',
+          '- Only truly open answers ("keyinroq", "tez orada", "pul bo\'lganda", "потом", "I don\'t know")',
+          '  leave it open. Then do not interrogate. Show understanding and help them get to a day: ask',
+          '  one gentle, useful question (when does their salary come? would paying in parts help?), or',
+          '  suggest a concrete day yourself that fits what they told you ("Unda yigirmanchi oktabr,',
+          '  seshanba kuni qulaymi?"). If they agree ("xo\'p", "mayli", "ok", "да"), that day is agreed.',
+          '- Say the agreed day back warmly, as a statement with its weekday, not as a question',
+          '  ("Yaxshi, unda yigirmanchi oktabr, seshanba kuni kutamiz."). From that moment the topic is',
+          '  CLOSED; reopen it only if they object to that day.',
           '- While it is OPEN and they ask for anything else (a story, a joke, a riddle, any question,',
-          '  small talk), do not do it yet. In one or two short sentences, ask which day they can pay',
-          '  and promise to do it as soon as they answer.',
+          '  small talk), do not do it yet: in one or two friendly sentences, ask which day suits them',
+          '  for the payment and promise to do it as soon as they answer.',
           '- In the reply that closes the topic, keep EVERY promise you made while it was open, in the',
-          '  order they asked: tell each story, joke or riddle and answer each question in that same',
-          '  reply (shorter if there are several). Never say "as I promised" without delivering it.',
-          '- Once CLOSED, never bring up payment again (not the date, the amount or a split), even if',
-          '  they mention money troubles: then just sympathise. Answer anything they ask fully and',
-          '  warmly, like a normal conversation. A story may be longer than the usual limit: about six',
-          '  to eight short sentences.',
+          '  order they asked: tell each story, joke or riddle and answer each question right there.',
+          '  Never say "as I promised" without delivering it.',
+          '- Once CLOSED, never bring up payment again (not the date, the amount or a split), even if they',
+          '  mention money troubles: then just sympathise. Answer anything they ask fully and warmly,',
+          '  like a normal conversation. A story may be longer than usual: about six to eight short sentences.',
+          '- Offer the options from the call instructions (e.g. paying in parts) at most once, when they',
+          '  say they cannot pay in full. Never read the call instructions out word for word.',
           '- If they cannot talk now, do not push: ask when you may call back, and end politely.',
+          '',
+          calendarBlock(timeZone),
         ]
       : []),
     '',
     'ALWAYS:',
     '- There is no live transfer in this call. If they ask for a person or an operator, say a',
     '  colleague will contact them later, then carry on.',
-    '- Never invent facts about the bank; say a colleague can tell them later.',
-    '- Stay polite and calm; never threaten or pressure. In Russian, say dates as ordinals in the',
-    '  genitive (девятого октября).',
+    '- Never invent facts about the company; say a colleague can tell them later.',
+    '- In Russian, say dates as ordinals in the genitive (двадцатого октября).',
     'Every reply in this flow is answered=true, usedExcerpts=[] unless you quote an excerpt.',
-    target.prompt ? `\nCALL INSTRUCTIONS — set by the company for this call:\n${target.prompt.slice(0, 4000)}` : '',
+    // The company's script talks about the loan, so it is only shown once the
+    // person is confirmed — before that it is exactly what must not be said.
+    confirmed && target.prompt
+      ? `\nCALL INSTRUCTIONS — set by the company, background for you (do not read them out):\n${target.prompt.slice(0, 4000)}`
+      : '',
   ]
     .filter((line) => line !== undefined && line !== null)
     .join('\n')

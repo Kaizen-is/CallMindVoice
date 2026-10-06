@@ -18,9 +18,17 @@ import type { CallTarget } from '@/lib/types';
 
 /**
  * `unchecked` — no year of birth on file, so the model asks "is this X?" itself.
- * `failed` — two wrong years; no later year is compared, even the right one.
+ * `awaiting` — no matching year yet. `failed` — two wrong years; no later year
+ * is compared, even the right one.
  */
-export type IdentityStatus = 'unchecked' | 'unconfirmed' | 'confirmed' | 'failed';
+export type IdentityStatus = 'unchecked' | 'awaiting' | 'confirmed' | 'failed';
+
+export interface IdentityCheck {
+  status: IdentityStatus;
+  /** Their latest line gave a year, and it was wrong — the model must say so, not thank them. */
+  justWrong: boolean;
+  wrongTries: number;
+}
 
 const MAX_WRONG_YEARS = 2;
 
@@ -36,18 +44,23 @@ function spokenYears(line: string): string[] {
 }
 
 /** Whether the person has proved who they are, judged from everything they have said. */
-export function identityStatus(target: CallTarget, callerLines: string[]): IdentityStatus {
+export function identityCheck(target: CallTarget, callerLines: string[]): IdentityCheck {
   const year = target.birthYear.trim();
-  if (!/^\d{4}$/.test(year)) return 'unchecked';
+  if (!/^\d{4}$/.test(year)) return { status: 'unchecked', justWrong: false, wrongTries: 0 };
   let wrong = 0;
+  let justWrong = false;
   for (const line of callerLines) {
     const said = spokenYears(line);
+    justWrong = false;
     if (!said.length) continue;
-    if (said.some((y) => y === year || y === year.slice(2))) return 'confirmed';
+    if (said.some((y) => y === year || y === year.slice(2))) {
+      return { status: 'confirmed', justWrong: false, wrongTries: wrong };
+    }
     wrong += 1;
-    if (wrong >= MAX_WRONG_YEARS) return 'failed';
+    justWrong = true;
+    if (wrong >= MAX_WRONG_YEARS) return { status: 'failed', justWrong: true, wrongTries: wrong };
   }
-  return 'unconfirmed';
+  return { status: 'awaiting', justWrong, wrongTries: wrong };
 }
 
 /* ── calendar ────────────────────────────────────────────────── */
@@ -86,6 +99,16 @@ export function calendarBlock(timeZone = 'Asia/Tashkent', now = new Date()): str
     return out.join('; ');
   };
 
+  // Relative periods people actually say: "in two weeks", "at the end of the month".
+  const inMonths = (n: number) => {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + n, 1, 12));
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 12)).getUTCDate();
+    d.setUTCDate(Math.min(today.getUTCDate(), last));
+    return d;
+  };
+  const monthEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0, 12));
+  const nextMonthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1, 12));
+
   return [
     'CALENDAR — look every date up here; never work out a weekday or a date yourself:',
     `- today: ${label(today)} ${today.getUTCFullYear()}`,
@@ -94,10 +117,19 @@ export function calendarBlock(timeZone = 'Asia/Tashkent', now = new Date()): str
     untilSunday >= 3 ? `- rest of this week: ${range(3, untilSunday)}` : '',
     `- next week (kelasi hafta / на следующей неделе): ${range(untilSunday + 1, untilSunday + 7)}`,
     `- the week after: ${range(untilSunday + 8, untilSunday + 14)}`,
+    `- in 3 days (3 kundan keyin / через три дня): ${label(day(3))}`,
+    `- in a week (bir haftadan keyin / через неделю): ${label(day(7))}`,
+    `- in 10 days (10 kundan keyin / через десять дней): ${label(day(10))}`,
+    `- in two weeks (ikki haftadan keyin / через две недели): ${label(day(14))}`,
+    `- in three weeks (uch haftadan keyin / через три недели): ${label(day(21))}`,
+    `- in a month (bir oydan keyin / через месяц): ${label(inMonths(1))}`,
+    `- end of this month (oy oxirida / в конце месяца): ${label(monthEnd)}`,
+    `- start of next month (keyingi oy boshida / в начале следующего месяца): ${label(nextMonthStart)}`,
     'A weekday on its own ("juma kuni", "kelasi juma", "в пятницу") means its nearest date',
     'after today in this list. "Next week" plus a weekday means that weekday under "next',
     'week". A day of the month on its own ("25-chi", "третьего числа") means this month if',
-    'it is still ahead, otherwise next month. Never agree to a date that has passed.',
+    'it is still ahead, otherwise next month. Any other period ("in 5 days", "in two months")',
+    'is counted from today the same way. Never agree to a date that has passed.',
   ]
     .filter(Boolean)
     .join('\n');
