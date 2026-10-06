@@ -8,7 +8,10 @@ import type { Locale } from '@/lib/types';
 import { safeJson } from '@/lib/utils';
 import { listCustomVoices } from '@/lib/voices';
 import { VOICES } from '@/lib/catalog';
+import { callAgents } from '@/lib/playground';
+import { sttConfigured } from '@/lib/speech/stt';
 import { Playground } from './playground';
+import '@/app/demo/view-transitions.css';
 
 export const metadata: Metadata = { title: 'Playground' };
 export const dynamic = 'force-dynamic';
@@ -31,6 +34,9 @@ export default async function PlaygroundPage() {
         tts: Boolean(process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN),
       }}
       agents={agents}
+      callAgents={callAgents(tenant.id)}
+      orgName={tenant.name}
+      callReady={sttConfigured()}
       allVoices={[
         ...VOICES.map((v) => ({ id: v.id, name: v.name, group: 'builtin' as const })),
         ...listCustomVoices(tenant.id).map((v) => ({

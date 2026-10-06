@@ -18,6 +18,7 @@ import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { hasGemini, geminiJson, geminiText, geminiModel } from './gemini';
 import { hasOllama, ollamaJson, ollamaText, ollamaModel } from './ollama';
+import { calendarBlock, identityStatus, type IdentityStatus } from './loan-call';
 import type { RetrievalHit } from '@/lib/rag/retrieve';
 import type { CallTarget, Locale } from '@/lib/types';
 import {
@@ -79,40 +80,123 @@ function systemPrompt(input: GenerateInput) {
         'priority over the tone and style guidance above, but never over the rule against ' +
         `inventing company facts:\n${input.instructions.slice(0, 4000)}`
       : '',
-    input.target?.fullName ? targetBlock(input.target) : '',
+    input.target?.fullName
+      ? targetBlock(
+          input.target,
+          lang,
+          [...(input.history ?? []).filter((h) => h.role === 'caller').map((h) => h.text), input.question],
+          input.greeting,
+          input.timeZone,
+        )
+      : '',
   ]
     .filter(Boolean)
     .join('\n');
 }
 
 /**
- * Outbound loan-reminder flow. The identity check lives in the conversation
- * itself: the memory rule above is what lets the model know, turns later,
- * whether the year of birth was already confirmed.
+ * Outbound loan-reminder flow. Who the person is and what date a spoken day
+ * means are settled in code (./loan-call) — the model is told the outcome and
+ * never sees the year of birth. The memory rule above carries the rest: what
+ * was promised, and whether the payment date is already agreed.
  */
-function targetBlock(target: CallTarget) {
+function targetBlock(
+  target: CallTarget,
+  language: string,
+  callerLines: string[],
+  greeting?: string,
+  timeZone = 'Asia/Tashkent',
+) {
+  const status = identityStatus(target, callerLines);
+  const name = target.fullName;
+  const amount = target.loanAmount ? `Amount they owe: ${target.loanAmount}.` : '';
+  const identity: Record<IdentityStatus, string[]> = {
+    unchecked: [`IDENTITY — ask whether you are speaking with ${name}; a clear "yes, it is me" confirms it.`, amount],
+    unconfirmed: [
+      'IDENTITY — NOT CONFIRMED. The system checks their year of birth; you do not know it.',
+      '- Ask them to say their year of birth. Only the year itself counts: an age ("34 yoshdaman"),',
+      '  a decade or a guess does not. Never say whether anything they said is right, wrong or',
+      '  close; just ask for the exact year.',
+      '- Until confirmed, never mention a loan, debt, payment or amount in any language (kredit,',
+      "  qarz, to'lov, summa / кредит, долг, платёж, сумма), not even while refusing or promising.",
+      `  If they ask why you are calling, say it is a personal matter for ${name}. If they ask how`,
+      '  much they owe, say: first tell me your year of birth, then I will answer your question.',
+      `- If they say they are someone else (a relative, friend, colleague), do not ask them for a`,
+      `  year: ask when ${name} can be reached and end politely.`,
+      '- If they ask for anything off-topic now, ask for their year of birth first and promise to',
+      '  do what they asked right after.',
+    ],
+    confirmed: [
+      'IDENTITY — CONFIRMED: they said the year of birth on file. Exception: if earlier in this',
+      `call they said they are NOT ${name} (a relative, friend, colleague), discuss nothing; ask`,
+      `when ${name} can be reached and end politely.`,
+      amount,
+    ],
+    failed: [
+      'IDENTITY — CHECK FAILED: they gave a wrong year of birth twice. Do not accept or compare',
+      'any more years, and never mention a loan, debt, payment or amount. Say politely that a',
+      'colleague will contact them, and say goodbye. To anything else, reply only with a polite goodbye.',
+    ],
+  };
+  const canDiscussLoan = status === 'confirmed' || status === 'unchecked';
+
   return [
     '',
     'OUTBOUND CALL — you are calling one specific person about repaying their loan.',
-    'This flow takes priority over the knowledge-base routing above.',
-    `Person you are calling: ${target.fullName}`,
-    target.birthYear ? `Their year of birth on file (SECRET): ${target.birthYear}` : '',
-    target.loanAmount ? `Amount they owe: ${target.loanAmount}` : '',
-    'Steps:',
-    `1. Open by greeting them, saying you are calling for ${target.fullName}, and` +
-      (target.birthYear ? ' asking them to confirm their year of birth.' : ' asking them to confirm it is them.'),
-    '2. Never say, hint at or confirm the year of birth yourself before they say it.',
-    '   Compare the year they say with the one on file.',
-    '3. If it does not match, or they refuse: apologise, allow one more try, and never',
-    '   mention the loan or any amount to an unconfirmed person. Then end politely.',
-    '4. Only after the year matches: tell them the amount they owe and ask when they',
-    '   can pay. Get a concrete date, then repeat it back to confirm.',
-    '5. Stay polite and calm. Never threaten or pressure.',
+    'This flow takes priority over the knowledge-base routing and the tone note above.',
+    `Person you are calling: ${name}`,
+    // Without the explicit instruction the model reads an Uzbek greeting out
+    // verbatim to a Russian speaker.
+    greeting
+      ? `Your greeting, set by the company: "${greeting}" — take your name and company from it, ` +
+        `but say it in natural, grammatical ${language} (translate it if it is written in another language, ` +
+        'fix it if it is clumsy), and remember you are the one calling.'
+      : '',
+    `OPENING — on their first line (e.g. "Allo"), greet them, say who you are and which company you call from, and ask whether you are speaking with ${name}` +
+      (status === 'unchecked' ? '.' : ', asking them to say their year of birth.'),
+    '',
+    calendarBlock(timeZone),
+    '',
+    ...identity[status],
+    ...(canDiscussLoan
+      ? [
+          '',
+          'PAYMENT DATE — the whole point of this call is to agree the day they will pay.',
+          '- Tell them the amount they owe and ask which day they can pay.',
+          '- The topic is OPEN until they name a concrete day. Vague answers ("keyinroq", "tez orada",',
+          '  "kelasi hafta" with no day, "oylik tushganda", "потом", "на следующей неделе", "I will',
+          '  think") do not close it: ask which exact day. Never pick or suggest a day for them.',
+          '- A concrete day closes it: "ertaga", "indinga", a weekday, "next week Tuesday", a day of the',
+          '  month, a full date. Look it up in the CALENDAR and say it back as a statement with its',
+          "  weekday, not as a question (e.g. \"Yaxshi, to'qqizinchi oktabr, juma kuni, kelishdik.\").",
+          '  The topic is CLOSED the moment you say it; do not wait for a yes. Reopen it only if they',
+          '  reject that date.',
+          '- While it is OPEN and they ask for anything else (a story, a joke, a riddle, any question,',
+          '  small talk), do not do it yet. In one or two short sentences, ask which day they can pay',
+          '  and promise to do it as soon as they answer.',
+          '- In the reply that closes the topic, keep EVERY promise you made while it was open, in the',
+          '  order they asked: tell each story, joke or riddle and answer each question in that same',
+          '  reply (shorter if there are several). Never say "as I promised" without delivering it.',
+          '- Once CLOSED, never bring up payment again (not the date, the amount or a split), even if',
+          '  they mention money troubles: then just sympathise. Answer anything they ask fully and',
+          '  warmly, like a normal conversation. A story may be longer than the usual limit: about six',
+          '  to eight short sentences.',
+          '- If they cannot talk now, do not push: ask when you may call back, and end politely.',
+        ]
+      : []),
+    '',
+    'ALWAYS:',
+    '- There is no live transfer in this call. If they ask for a person or an operator, say a',
+    '  colleague will contact them later, then carry on.',
+    '- Never invent facts about the bank; say a colleague can tell them later.',
+    '- Stay polite and calm; never threaten or pressure. In Russian, say dates as ordinals in the',
+    '  genitive (девятого октября).',
     'Every reply in this flow is answered=true, usedExcerpts=[] unless you quote an excerpt.',
     target.prompt ? `\nCALL INSTRUCTIONS — set by the company for this call:\n${target.prompt.slice(0, 4000)}` : '',
   ]
-    .filter(Boolean)
-    .join('\n');
+    .filter((line) => line !== undefined && line !== null)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
 }
 
 function contextBlock(hits: RetrievalHit[]) {
@@ -205,13 +289,18 @@ export interface GenerateInput extends SynthesisInput {
   persona?: string;
   instructions?: string;
   target?: CallTarget;
+  /** The agent's configured greeting; the loan flow takes its name and company from it. */
+  greeting?: string;
+  /** Tenant-local time zone, for the date the loan flow agrees on. */
+  timeZone?: string;
 }
 
 export async function generateAnswer(input: GenerateInput): Promise<SynthesisOutput> {
   const intent = classifyIntent(input.question);
 
-  // Explicit "give me a human" never needs a model round-trip.
-  if (intent === 'human') {
+  // Explicit "give me a human" never needs a model round-trip — except on a
+  // loan call, which has no live transfer and must keep pursuing the date.
+  if (intent === 'human' && !input.target?.fullName) {
     return synthesizeLocal(input);
   }
 

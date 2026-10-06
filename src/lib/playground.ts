@@ -1,0 +1,261 @@
+/**
+ * The console Playground's voice call: the same experience as the public demo
+ * (`@/lib/demo`), but for the signed-in team, with the agent they picked and
+ * everything saved on it — its greeting, voice, knowledge base and, when set,
+ * the real person in its "Who to call" card.
+ *
+ * Calls are ordinary Playground chats (from "playground", channel web), so they
+ * appear in the chats rail and keep their memory. Each is billed exactly once,
+ * for the time actually spent talking (see `closePlaygroundCall`).
+ */
+import 'server-only';
+import { all, get, id, now, run, tx } from '@/lib/db';
+import { VOICES } from '@/lib/catalog';
+import { publish } from '@/lib/engine/bus';
+import { endCall, liveAgent, startCall } from '@/lib/engine/calls';
+import { agentHours, agentTarget, type TurnResult } from '@/lib/engine/conversation';
+import { generateAnswer } from '@/lib/llm/provider';
+import { detectLanguage } from '@/lib/rag/text';
+import { fillerLines } from '@/lib/speech/fillers';
+import { cachedPcm, synthesizePcm, ttsConfigured } from '@/lib/speech/tts';
+import type { Agent, Locale } from '@/lib/types';
+import { listCustomVoices } from '@/lib/voices';
+import type { CallAgent, TurnDetail } from './playground-shared';
+
+export type { CallAgent, TurnDetail } from './playground-shared';
+
+/* ── lookups ─────────────────────────────────────────────────── */
+
+export function playgroundAgent(tenantId: string, agentId: unknown): Agent | undefined {
+  return typeof agentId === 'string' && agentId
+    ? get<Agent>('SELECT * FROM agents WHERE id=? AND tenant_id=?', agentId, tenantId)
+    : liveAgent(tenantId);
+}
+
+export function callAgents(tenantId: string): CallAgent[] {
+  return all<Agent>('SELECT * FROM agents WHERE tenant_id=? ORDER BY created_at ASC', tenantId).map((a) => {
+    const target = agentTarget(a);
+    return {
+      id: a.id,
+      name: a.name,
+      primaryLang: a.primary_lang,
+      target: target.fullName ? { fullName: target.fullName, birthYear: target.birthYear } : null,
+    };
+  });
+}
+
+export function callLang(value: unknown, agent: Agent): Locale {
+  return value === 'uz' || value === 'ru' || value === 'en' ? value : agent.primary_lang;
+}
+
+/** The voice asked for, when it is a built-in one or this tenant's own; otherwise the agent's. */
+export function callVoice(agent: Agent, requested: unknown): string {
+  const want = typeof requested === 'string' ? requested.trim() : '';
+  if (!want) return agent.voice_id;
+  const known =
+    VOICES.some((v) => v.id === want) || listCustomVoices(agent.tenant_id).some((v) => v.id === want);
+  return known ? want : agent.voice_id;
+}
+
+interface PlaygroundCallRow {
+  id: string;
+  agent_id: string | null;
+  turns: number;
+  escalated: number;
+  started_at: string;
+  ended_at: string | null;
+}
+
+export function ownedPlaygroundCall(tenantId: string, callId: unknown, agentId?: string) {
+  if (typeof callId !== 'string' || !callId) return undefined;
+  const call = get<PlaygroundCallRow>(
+    `SELECT id, agent_id, turns, escalated, started_at, ended_at FROM calls
+     WHERE id=? AND tenant_id=? AND channel='web' AND from_e164='playground'`,
+    callId,
+    tenantId,
+  );
+  return call && (!agentId || call.agent_id === agentId) ? call : undefined;
+}
+
+/* ── call lifecycle ──────────────────────────────────────────── */
+
+export function openPlaygroundCall(tenantId: string, userName: string, agent: Agent, lang: Locale): string {
+  return startCall({
+    tenantId,
+    agentId: agent.id,
+    from: 'playground',
+    to: 'playground',
+    callerName: `${userName} (test)`,
+    channel: 'web',
+    direction: agentTarget(agent).fullName ? 'outbound' : 'inbound',
+    language: lang,
+  });
+}
+
+/**
+ * End and bill a Playground chat — the only place that does. Whoever sets
+ * `ended_at` first bills; a racing hang-up, beacon or "New chat" finds nothing
+ * left to do. The bill runs to the last message, so idle time is never charged,
+ * and a chat reopened later is not billed again.
+ */
+export function closePlaygroundCall(tenantId: string, callId: unknown, csat?: number | null): boolean {
+  const call = ownedPlaygroundCall(tenantId, callId);
+  if (!call || call.ended_at) return false;
+  const last = get<{ at: string | null }>('SELECT MAX(created_at) AS at FROM turns WHERE call_id=?', call.id)?.at;
+  const endedAt = last ?? call.started_at;
+  if (run('UPDATE calls SET ended_at=? WHERE id=? AND ended_at IS NULL', endedAt, call.id).changes !== 1) {
+    return false;
+  }
+  endCall({
+    tenantId,
+    callId: call.id,
+    endedAt,
+    csat: csat ?? null,
+    outcome: call.turns === 0 ? 'abandoned' : call.escalated ? 'resolved_by_operator' : 'resolved_by_ai',
+  });
+  return true;
+}
+
+/* ── the opening line ────────────────────────────────────────── */
+
+/** What the person "says" on picking up an outbound call. */
+const PICKUP: Record<Locale, string> = { uz: 'Allo', ru: 'Алло', en: 'Hello' };
+
+/** Openings generated by the model, reused for the day. Separate from the demo's cache. */
+const state = ((globalThis as Record<string, unknown>).__callmindPlayground ??= {}) as {
+  openings?: Map<string, Promise<string | null>>;
+  warmed?: Set<string>;
+};
+const openings = (state.openings ??= new Map<string, Promise<string | null>>());
+const warmed = (state.warmed ??= new Set<string>());
+
+/**
+ * The agent's first line. A receptionist simply says its greeting. An agent
+ * with a "Who to call" person is the one calling, so its opening — greeting,
+ * name check, year of birth — comes from the model, once per day.
+ */
+export async function playgroundOpening(agent: Agent, lang: Locale): Promise<string | null> {
+  const target = agentTarget(agent);
+  const greeting = agent.greeting.trim() || null;
+  if (!target.fullName) return greeting;
+
+  const key = `${agent.id}:${agent.updated_at}:${lang}:${new Date().toISOString().slice(0, 10)}`;
+  let line = openings.get(key);
+  if (!line) {
+    if (openings.size > 200) openings.clear();
+    line = generateAnswer({
+      question: PICKUP[lang],
+      hits: [],
+      confidence: 0,
+      language: lang,
+      agentName: agent.name,
+      threshold: agent.confidence_threshold,
+      history: [],
+      persona: agent.persona,
+      instructions: agent.instructions,
+      target,
+      greeting: agent.greeting,
+      timeZone: agentHours(agent).timezone,
+    }).then((out) => {
+      // The local engine knows nothing of the person: greet, and ask the model next time.
+      if (out.engine === 'local') {
+        openings.delete(key);
+        return greeting;
+      }
+      return out.answer;
+    });
+    openings.set(key, line);
+    line.catch(() => openings.delete(key));
+  }
+  return line;
+}
+
+/**
+ * Write the opening down as the call's first exchange, the way `runTurn` would,
+ * so the model sees it as already said. An outbound call starts with the
+ * person's pickup ("Allo"); an inbound one with the agent's greeting alone.
+ */
+export function seedOpening(agent: Agent, callId: string, lang: Locale, text: string) {
+  const outbound = Boolean(agentTarget(agent).fullName);
+  const stamp = now();
+  tx(() => {
+    let ordinal = 0;
+    if (outbound) {
+      run(
+        `INSERT INTO turns (id, tenant_id, call_id, ordinal, role, text, language, created_at)
+         VALUES (?,?,?,?,'caller',?,?,?)`,
+        id('trn'),
+        agent.tenant_id,
+        callId,
+        ordinal++,
+        PICKUP[lang],
+        lang,
+        stamp,
+      );
+    }
+    run(
+      `INSERT INTO turns (id, tenant_id, call_id, ordinal, role, text, language, created_at)
+       VALUES (?,?,?,?,'agent',?,?,?)`,
+      id('trn'),
+      agent.tenant_id,
+      callId,
+      ordinal,
+      text,
+      detectLanguage(text) || lang,
+      stamp,
+    );
+    run(
+      `UPDATE calls SET turns = turns + ?, language=?,
+         status = CASE WHEN status='ringing' THEN 'active' ELSE status END,
+         answered_at = COALESCE(answered_at, ?)
+       WHERE id=?`,
+      outbound ? 1 : 0,
+      lang,
+      stamp,
+      callId,
+    );
+  });
+  publish(agent.tenant_id, {
+    type: 'turn',
+    callId,
+    utterance: outbound ? PICKUP[lang] : '',
+    reply: text,
+    confidence: 1,
+    escalated: false,
+    latencyMs: 0,
+  });
+}
+
+/** Render the "bir daqiqa" fillers in this voice once, so turns can play them from the cache. */
+export function warmFillers(agent: Agent, voiceId: string, lang: Locale) {
+  const key = `${agent.tenant_id}:${voiceId}:${lang}`;
+  if (warmed.has(key) || !ttsConfigured()) return;
+  warmed.add(key);
+  void (async () => {
+    for (const line of fillerLines(lang)) {
+      const opts = { tenantId: agent.tenant_id, voiceId, language: lang, tag: 'demo', cache: true };
+      if (!cachedPcm(line, opts)) await synthesizePcm(line, opts).catch(() => null);
+    }
+  })();
+}
+
+/** The numbers and sources of one turn, for the console's side panels. */
+export function turnDetail(result: TurnResult): TurnDetail {
+  return {
+    language: result.language,
+    intent: result.intent,
+    confidence: result.confidence,
+    answered: result.answered,
+    escalate: result.escalate,
+    summary: result.summary,
+    timings: result.timings as unknown as Record<string, number>,
+    citations: result.citations.map((c) => ({
+      documentTitle: c.documentTitle,
+      heading: c.heading,
+      snippet: c.snippet,
+      score: c.score,
+    })),
+    retrieval: result.retrievalDebug,
+    engine: result.engine,
+  };
+}

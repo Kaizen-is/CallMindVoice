@@ -14,9 +14,14 @@
  * are run **concurrently on the same audio** and the better transcript wins.
  * Because they run in parallel, using two engines costs no more wall-clock than
  * using the slower one alone — the caller waits for max(a, b), never a + b.
+ *
+ * Without Whisper, **Gemini** (`GEMINI_API_KEY`) covers the non-Uzbek side
+ * instead, and stands in for Kotib if the internal model is unreachable.
  */
 import 'server-only';
+import { geminiTranscribe, hasGemini } from '@/lib/llm/gemini';
 import type { Locale } from '@/lib/types';
+import { uzbekNumbersToDigits } from './numbers';
 
 export class SttError extends Error {
   status: number;
@@ -29,7 +34,7 @@ export class SttError extends Error {
 export interface Transcript {
   text: string;
   /** Which engine produced this text — surfaced in logs to debug bad turns. */
-  engine: 'kotib' | 'whisper' | 'none';
+  engine: 'kotib' | 'whisper' | 'gemini' | 'none';
   language: string | null;
 }
 
@@ -56,9 +61,10 @@ async function kotib(audio: ArrayBuffer): Promise<Transcript> {
     headers: { accept: 'application/json' },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
+  // Thrown rather than returned as EMPTY, so "Kotib is down" can be told apart
+  // from "the caller said nothing".
   if (!res.ok) {
-    console.warn(`[stt] kotib ${res.status}: ${(await res.text().catch(() => '')).slice(0, 160)}`);
-    return EMPTY;
+    throw new SttError(`kotib ${res.status}: ${(await res.text().catch(() => '')).slice(0, 160)}`);
   }
   const data = (await res.json()) as { text?: string; language?: string };
   const text = (data.text ?? '').trim();
@@ -91,6 +97,49 @@ async function whisper(audio: ArrayBuffer, language?: Locale): Promise<Transcrip
   const data = (await res.json()) as { text?: string; language?: string };
   const text = (data.text ?? '').trim();
   return text ? { text, engine: 'whisper', language: data.language ?? language ?? null } : EMPTY;
+}
+
+const LANGUAGE_NAME: Record<Locale, string> = {
+  uz: 'Uzbek (Latin script)',
+  ru: 'Russian',
+  en: 'English',
+};
+
+/** Gemini's transcript; EMPTY when it heard no speech, null when it failed. */
+async function gemini(audio: ArrayBuffer, language: Locale): Promise<Transcript | null> {
+  const text = await geminiTranscribe(audio, LANGUAGE_NAME[language] ?? 'Russian');
+  if (text === null) return null;
+  return text && !isHallucination(text) ? { text, engine: 'gemini', language } : EMPTY;
+}
+
+/**
+ * True for a WAV whose samples are all (near) zero: a muted or dead input.
+ * There are no words in it, but a model asked to transcribe it may invent
+ * some — Gemini answers digital silence with "Здравствуйте". Anything that is
+ * not a 16-bit WAV is passed through to the engines untouched.
+ */
+function isSilent(audio: ArrayBuffer): boolean {
+  const view = new DataView(audio);
+  const tag = (at: number) =>
+    at + 4 <= view.byteLength ? String.fromCharCode(...new Uint8Array(audio, at, 4)) : '';
+  if (tag(0) !== 'RIFF' || tag(8) !== 'WAVE') return false;
+
+  let offset = 12;
+  let bits = 0;
+  while (offset + 8 <= view.byteLength) {
+    const id = tag(offset);
+    const size = view.getUint32(offset + 4, true);
+    const body = offset + 8;
+    if (id === 'fmt ' && size >= 16) bits = view.getUint16(body + 14, true);
+    if (id === 'data') {
+      if (bits !== 16) return false;
+      const end = Math.min(view.byteLength, body + size) - 1;
+      for (let i = body; i < end; i += 2) if (Math.abs(view.getInt16(i, true)) > 64) return false;
+      return true;
+    }
+    offset = body + size + (size % 2);
+  }
+  return false;
 }
 
 /* ── choosing between two transcripts ────────────────────────── */
@@ -163,7 +212,19 @@ export async function transcribe(
   const hasWhisper = Boolean(process.env.WHISPER_TRANSCRIBE_URL);
   if (!hasKotib && !hasWhisper) throw new SttError('stt_not_configured', 503);
 
+  if (isSilent(audio)) return EMPTY;
+
   const primary = opts.language ?? 'uz';
+  const geminiEar = !hasWhisper && hasGemini();
+
+  // With no Whisper, Kotib would be the only ear — and it knows only Uzbek:
+  // Russian comes back as Latin transliteration with the numbers garbled
+  // ("ya tysyach to'qson to'qson…"). Gemini hears it properly. Kotib's version
+  // stays the fallback for when Gemini fails, not for when it heard nothing.
+  if (geminiEar && primary !== 'uz') {
+    const heard = await gemini(audio, primary);
+    if (heard) return heard;
+  }
 
   // Kotib only earns its round-trip on an Uzbek-primary agent (or when it is
   // the only engine there is). Whisper runs whenever it is configured — in the
@@ -171,12 +232,24 @@ export async function transcribe(
   const useKotib = hasKotib && (primary === 'uz' || !hasWhisper);
   const useWhisper = hasWhisper;
 
+  let kotibDown = false;
   const [k, w] = await Promise.all([
-    useKotib ? kotib(audio).catch(sttFailed('kotib')) : Promise.resolve(EMPTY),
+    useKotib
+      ? kotib(audio).catch((err: unknown) => {
+          kotibDown = true;
+          return sttFailed('kotib')(err);
+        })
+      : Promise.resolve(EMPTY),
     useWhisper ? whisper(audio, primary).catch(sttFailed('whisper')) : Promise.resolve(EMPTY),
   ]);
 
-  return pick(k, w, primary);
+  const picked = pick(k, w, primary);
+  // Kotib unreachable on an Uzbek turn: Gemini is slower and less exact on
+  // Uzbek, but a caller who is heard late beats one who is not heard at all.
+  if (!picked.text && kotibDown && geminiEar) return (await gemini(audio, primary)) ?? EMPTY;
+  // Kotib spells numbers out; the model compares a year of birth reliably
+  // only as digits. Done after `pick`, which weighs transcripts by length.
+  return picked.engine === 'kotib' ? { ...picked, text: uzbekNumbersToDigits(picked.text) } : picked;
 }
 
 function sttFailed(engine: string) {

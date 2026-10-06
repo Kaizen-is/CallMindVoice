@@ -173,6 +173,8 @@ export async function runTurn(params: {
   /** Simulated speech-recognition time; the browser path measures it for real. */
   sttMs?: number;
   persist?: boolean;
+  /** Replaces the agent's saved call target — the public demo calls a fictional person. */
+  target?: CallTarget;
 }): Promise<TurnResult> {
   const { tenantId, callId, agent, utterance } = params;
   const persist = params.persist !== false;
@@ -216,6 +218,7 @@ export async function runTurn(params: {
   const retrievalMs = performance.now() - tRetrieve;
 
   /* generation */
+  const target = params.target ?? agentTarget(agent);
   const tGen = performance.now();
   const generated = await generateAnswer({
     question: utterance,
@@ -227,7 +230,9 @@ export async function runTurn(params: {
     history: modelHistory,
     persona: agent.persona,
     instructions: agent.instructions,
-    target: agentTarget(agent),
+    target,
+    greeting: agent.greeting,
+    timeZone: agentHours(agent).timezone,
   });
   const llmMs = performance.now() - tGen;
 
@@ -238,9 +243,13 @@ export async function runTurn(params: {
   ).length;
 
   let escalate: EscalationReason | null = null;
-  if (policy.onExplicitRequest && generated.intent === 'human') escalate = 'explicit_request';
+  // A loan call has no live transfer: the agent says a colleague will call back
+  // and keeps working towards the payment date (see the loan flow prompt).
+  if (policy.onExplicitRequest && generated.intent === 'human' && !target.fullName) escalate = 'explicit_request';
   else if (policy.onLowConfidence && !generated.answered) escalate = 'low_confidence';
-  else if (policy.onNegativeSentiment && sentiment <= -0.5) escalate = 'negative_sentiment';
+  // On a loan call, "I have money problems" is the expected answer, not a reason
+  // to pull the person away from the agent that is agreeing a payment date.
+  else if (policy.onNegativeSentiment && sentiment <= -0.5 && !target.fullName) escalate = 'negative_sentiment';
   else if (policy.onRepeatedFailure && !generated.answered && failedBefore + 1 >= policy.maxFailedTurns)
     escalate = 'repeated_failure';
   else if (

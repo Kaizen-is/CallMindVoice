@@ -16,8 +16,9 @@ import {
 } from '@/lib/types';
 import { runTurn, DEFAULT_ESCALATION, DEFAULT_HOURS } from '@/lib/engine/conversation';
 import { liveAgent } from '@/lib/engine/calls';
-import { startCall, endCall } from '@/lib/engine/calls';
+import { startCall } from '@/lib/engine/calls';
 import { GREETINGS, FALLBACKS } from '@/lib/provision';
+import { closePlaygroundCall } from '@/lib/playground';
 import { safeJson } from '@/lib/utils';
 
 export interface AgentDraft {
@@ -221,25 +222,8 @@ export async function playgroundTurnAction(params: {
 
 export async function endPlaygroundCallAction(callId: string, csat?: number) {
   const session = await requireSession();
-  const owned = get<{ escalated: number; ended_at: string | null }>(
-    'SELECT escalated, ended_at FROM calls WHERE id=? AND tenant_id=?',
-    callId,
-    session.tenant.id,
-  );
-  if (!owned) return { ok: false };
-  // A reopened chat was already billed when it first ended; ending it again
-  // would charge the wallet for every day it sat closed.
-  if (owned.ended_at) return { ok: true };
-  // Bill the time actually spent talking, not the time the tab stayed open.
-  const last = get<{ at: string | null }>('SELECT MAX(created_at) AS at FROM turns WHERE call_id=?', callId);
-  endCall({
-    tenantId: session.tenant.id,
-    callId,
-    outcome: owned.escalated ? 'resolved_by_operator' : 'resolved_by_ai',
-    csat: csat ?? null,
-    endedAt: last?.at ?? undefined,
-  });
-  revalidatePath('/app');
+  // Billed once, up to the last message; a chat that was already closed is left alone.
+  if (closePlaygroundCall(session.tenant.id, callId, csat ?? null)) revalidatePath('/app');
   return { ok: true };
 }
 
@@ -282,8 +266,8 @@ export async function loadPlaygroundChatAction(
   callId: string,
 ): Promise<{ ok: boolean; turns?: PlaygroundChatTurn[]; message?: string }> {
   const session = await requireSession();
-  const owned = get<{ escalated: number; ended_at: string | null }>(
-    `SELECT escalated, ended_at FROM calls WHERE id=? AND tenant_id=? AND channel='web' AND from_e164='playground'`,
+  const owned = get(
+    `SELECT id FROM calls WHERE id=? AND tenant_id=? AND channel='web' AND from_e164='playground'`,
     callId,
     session.tenant.id,
   );
@@ -291,15 +275,7 @@ export async function loadPlaygroundChatAction(
 
   // A chat left open (tab closed, or escalated) is billed now, up to its last
   // message — before the new messages land, so the days it sat idle are free.
-  if (!owned.ended_at) {
-    const last = get<{ at: string | null }>('SELECT MAX(created_at) AS at FROM turns WHERE call_id=?', callId);
-    endCall({
-      tenantId: session.tenant.id,
-      callId,
-      outcome: owned.escalated ? 'resolved_by_operator' : 'resolved_by_ai',
-      endedAt: last?.at ?? undefined,
-    });
-  }
+  closePlaygroundCall(session.tenant.id, callId);
 
   const rows = all<Turn>(
     `SELECT * FROM turns WHERE call_id=? AND role IN ('caller','agent') ORDER BY ordinal ASC`,

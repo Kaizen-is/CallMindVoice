@@ -342,7 +342,10 @@ export function reapStaleCalls(tenantId: string, olderThanMs = 15 * 60_000) {
   const cutoff = new Date(Date.now() - olderThanMs).toISOString();
   const stale = all<{ id: string }>(
     `SELECT id FROM calls WHERE tenant_id=? AND status IN ('ringing','active')
-       AND started_at < ?`,
+       AND started_at < ?
+       -- Playground chats close themselves (billed to their last message) and
+       -- demo calls are free; ending them here would bill their idle time.
+       AND NOT (channel='web' AND from_e164 IN ('playground','demo'))`,
     tenantId,
     cutoff,
   );

@@ -35,8 +35,17 @@ const BYTES_PER_SAMPLE = 2;
 
 const CACHE_DIR = path.join(process.cwd(), 'data', 'tts-cache');
 
-/** How many chunks of one reply may render at once against the TTS server. */
-const CHUNK_CONCURRENCY = 3;
+/**
+ * How many chunks of one reply may render at once against the TTS server.
+ *
+ * One, measured (Oct 2026): the server works through requests one at a time
+ * at ~2 s each, and concurrent requests all come back together at the end.
+ * Three sentences fired at once arrived at 6.4 s; one after another they
+ * arrived at 2.0 / 4.3 / 6.5 s — same total, but the caller hears the first
+ * sentence 4 s sooner, and each next one renders while the last one plays.
+ * TTS_CHUNK_CONCURRENCY raises it for a server that renders in parallel.
+ */
+const CHUNK_CONCURRENCY = Math.max(1, Number(process.env.TTS_CHUNK_CONCURRENCY) || 1);
 
 export class TtsError extends Error {
   status: number;
@@ -201,6 +210,13 @@ export async function synthesizePcm(text: string, opts: SynthOptions): Promise<B
     return pcm;
   }
   return renderPcm(spoken, voice, opts.tag ?? 'tts');
+}
+
+/** The disk-cached rendering of `text`, or null. Never renders. */
+export function cachedPcm(text: string, opts: SynthOptions): Buffer | null {
+  const spoken = normalizeForSpeech(text, opts.language ?? 'uz');
+  if (!spoken) return null;
+  return cacheRead(cacheKey(spoken, resolveVoice(opts.tenantId, opts.voiceId)));
 }
 
 /** Render `text` and return a complete WAV — for the browser playground. */

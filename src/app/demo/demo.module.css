@@ -1,0 +1,1180 @@
+/* ═══════════════════════════════════════════════════════════════
+   CallMind · public bank demo
+
+   One screen, three jobs: answer the call, hear the agent, read along.
+   Phone first: in a call the transcript fills the screen and the
+   controls sit in the thumb zone. From 960px the stage and the
+   transcript sit side by side.
+
+   State is two attributes on the root: data-phase (ringing |
+   connecting | live | ended) for layout, data-orb for what the
+   orb is doing. --lvl (0–1) is live loudness, written per frame.
+   ═══════════════════════════════════════════════════════════════ */
+
+.root {
+  --bg: oklch(98.6% 0.004 280);
+  --ink: oklch(21% 0.02 275);
+  --ink-2: oklch(44% 0.018 275);
+  --ink-3: oklch(56% 0.015 275);
+  --ink-4: oklch(76% 0.01 275);
+  --line: oklch(25% 0.03 275 / 0.085);
+  --chip: oklch(100% 0 0 / 0.72);
+  --chip-solid: oklch(95.4% 0.006 275);
+  --thumb: oklch(100% 0 0);
+  --bubble: oklch(94.4% 0.011 275);
+  --panel: oklch(100% 0 0 / 0.62);
+  --shadow: 0 1px 2px oklch(30% 0.05 275 / 0.05), 0 28px 70px -36px oklch(30% 0.09 275 / 0.28);
+  --accept: oklch(63% 0.165 150);
+  --danger: oklch(59% 0.215 25);
+  --rec: oklch(62% 0.22 27);
+  --focus: oklch(58% 0.2 268);
+  --glow-a: oklch(72% 0.16 282 / 0.24);
+  --glow-b: oklch(80% 0.11 200 / 0.17);
+  --grain-opacity: 0.045;
+
+  /* The orb is the same deep glass in both themes. */
+  --orb-deep: oklch(19% 0.07 280);
+  --orb-mid: oklch(33% 0.135 288);
+  --orb-a: oklch(66% 0.22 266);
+  --orb-b: oklch(64% 0.26 312);
+  --orb-c: oklch(84% 0.13 198);
+  --orb-d: oklch(77% 0.16 32);
+  --halo: oklch(66% 0.2 286 / 0.5);
+  --halo-you: oklch(78% 0.14 186 / 0.5);
+  --ripple: oklch(56% 0.17 280 / 0.34);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring: cubic-bezier(0.34, 1.5, 0.64, 1);
+  --lvl: 0;
+
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-demo), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* The console's body sets stylistic alternates for its own font; in Geist
+     they break the spacing of Cyrillic ("Б лагодарю"). */
+  font-feature-settings: normal;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+}
+
+:global(.dark) .root {
+  --bg: oklch(14.2% 0.014 278);
+  --ink: oklch(96.5% 0.004 275);
+  --ink-2: oklch(77% 0.012 275);
+  --ink-3: oklch(62% 0.014 275);
+  --ink-4: oklch(44% 0.014 275);
+  --line: oklch(100% 0 0 / 0.085);
+  --chip: oklch(100% 0 0 / 0.055);
+  --chip-solid: oklch(100% 0 0 / 0.1);
+  --thumb: oklch(100% 0 0 / 0.15);
+  --bubble: oklch(100% 0 0 / 0.085);
+  --panel: oklch(100% 0 0 / 0.035);
+  --shadow: 0 1px 0 oklch(100% 0 0 / 0.04) inset, 0 30px 80px -40px oklch(0% 0 0 / 0.7);
+  --glow-a: oklch(52% 0.17 282 / 0.32);
+  --glow-b: oklch(60% 0.12 200 / 0.14);
+  --grain-opacity: 0.06;
+  --ripple: oklch(72% 0.15 280 / 0.3);
+}
+
+/* Ambient light behind the orb; it follows the orb as the layout changes. */
+.root::before {
+  content: '';
+  position: absolute;
+  inset: -30% -25%;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(34% 30% at 50% 40%, var(--glow-a), transparent 72%),
+    radial-gradient(26% 24% at 60% 54%, var(--glow-b), transparent 72%);
+  transition:
+    transform 0.9s var(--ease),
+    opacity 0.9s var(--ease);
+}
+
+/* Film grain: keeps large soft gradients from banding, and adds tooth. */
+.root::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.root:not([data-phase='ringing'])::before {
+  transform: translateY(33%) scale(0.78);
+  opacity: 0.75;
+}
+
+/* ── header ──────────────────────────────────────────────────── */
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 60px;
+  padding: calc(env(safe-area-inset-top) + 10px) max(16px, env(safe-area-inset-right)) 6px
+    max(16px, env(safe-area-inset-left));
+}
+
+.brand,
+.callChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+}
+
+.mark {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, oklch(100% 0 0 / 0.75), transparent 42%),
+    conic-gradient(from 210deg, var(--orb-a), var(--orb-b), var(--orb-d), var(--orb-c), var(--orb-a));
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 3px 10px -3px var(--halo);
+}
+
+.tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.callChip {
+  display: none;
+}
+
+.callChip .timer {
+  font-weight: 500;
+}
+
+/* ── language switch ─────────────────────────────────────────── */
+
+.lang {
+  position: relative;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--chip);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.lang button {
+  position: relative;
+  z-index: 1;
+  height: 34px;
+  min-width: 48px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  transition: color 0.25s var(--ease);
+}
+
+.lang button[aria-pressed='true'] {
+  color: var(--ink);
+}
+
+.thumb {
+  position: absolute;
+  z-index: 0;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 999px;
+  background: var(--thumb);
+  box-shadow:
+    0 1px 2px oklch(20% 0.03 275 / 0.08),
+    0 4px 12px -3px oklch(20% 0.03 275 / 0.14);
+  transition: transform 0.45s var(--spring);
+}
+
+.lang[data-lang='ru'] .thumb {
+  transform: translateX(100%);
+}
+
+.barEnd {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The voice picker wears the same chip as the language switch beside it. */
+.voice {
+  height: 42px;
+  max-width: 11rem;
+  min-width: 0;
+  padding: 0 30px 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background-color: var(--chip);
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    right 16px center,
+    right 11px center;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: var(--ink-2, var(--ink));
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.voice:focus-visible {
+  outline: 2px solid var(--ink-3);
+  outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .voice {
+    max-width: 7.5rem;
+  }
+}
+
+/* ── main layout ─────────────────────────────────────────────── */
+
+.main {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  grid-template: 'stage' minmax(0, 1fr) / minmax(0, 1fr);
+}
+
+.stage {
+  grid-area: stage;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 20px calc(env(safe-area-inset-bottom) + 28px);
+  text-align: center;
+}
+
+.transcript {
+  display: none;
+}
+
+/* ── the orb ─────────────────────────────────────────────────── */
+
+.orb {
+  --orb-size: min(56vw, 33svh, 248px);
+  position: relative;
+  flex: none;
+  display: block;
+  width: var(--orb-size);
+  height: var(--orb-size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: default;
+  view-transition-name: demo-orb;
+}
+
+.orb[data-action] {
+  cursor: pointer;
+}
+
+.halo {
+  position: absolute;
+  inset: -28%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(closest-side, var(--halo), transparent 72%);
+  opacity: calc(0.42 + var(--lvl) * 0.58);
+  transform: scale(calc(0.9 + var(--lvl) * 0.3));
+  transition: opacity 0.4s var(--ease);
+}
+
+.root[data-orb='hearing'] .halo {
+  background: radial-gradient(closest-side, var(--halo-you), transparent 72%);
+}
+
+.sphere {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 50%;
+  background: radial-gradient(130% 130% at 50% 100%, var(--orb-mid), var(--orb-deep) 60%);
+  box-shadow:
+    inset 0 -14px 30px oklch(0% 0 0 / 0.4),
+    inset 0 10px 24px oklch(100% 0 0 / 0.12),
+    0 24px 54px -24px oklch(30% 0.17 285 / 0.75);
+  transform: scale(calc(1 + var(--lvl) * 0.09));
+  transition: filter 0.6s var(--ease);
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  filter: blur(calc(var(--orb-size) * 0.075));
+  animation: orbit linear infinite;
+  will-change: transform;
+}
+
+.b1 {
+  left: -12%;
+  top: 14%;
+  width: 78%;
+  height: 78%;
+  background: var(--orb-a);
+  transform-origin: 68% 46%;
+  animation-duration: 12s;
+}
+
+.b2 {
+  left: 34%;
+  top: -14%;
+  width: 72%;
+  height: 72%;
+  background: var(--orb-b);
+  transform-origin: 30% 72%;
+  animation-duration: 15s;
+  animation-direction: reverse;
+}
+
+.b3 {
+  left: 22%;
+  top: 46%;
+  width: 66%;
+  height: 66%;
+  background: var(--orb-c);
+  opacity: 0.85;
+  transform-origin: 42% 18%;
+  animation-duration: 10s;
+}
+
+.b4 {
+  left: 52%;
+  top: 48%;
+  width: 40%;
+  height: 40%;
+  background: var(--orb-d);
+  opacity: 0.55;
+  transform-origin: -10% -20%;
+  animation-duration: 8s;
+}
+
+.gloss {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(50% 38% at 34% 20%, oklch(100% 0 0 / 0.5), transparent 72%),
+    radial-gradient(70% 46% at 62% 112%, oklch(100% 0 0 / 0.16), transparent 70%);
+  box-shadow: inset 0 0 0 1px oklch(100% 0 0 / 0.14);
+}
+
+.spinner {
+  position: absolute;
+  inset: -7%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 60%,
+    oklch(84% 0.13 198 / 0.9) 80%,
+    oklch(68% 0.25 310 / 0.95) 93%,
+    transparent 100%
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  opacity: 0;
+  transition: opacity 0.35s var(--ease);
+  animation: orbit 1.1s linear infinite;
+}
+
+.root:is([data-orb='thinking'], [data-orb='connecting']) .spinner {
+  opacity: 1;
+}
+
+.root[data-orb='speaking'] .sphere {
+  filter: saturate(1.15) brightness(1.06);
+}
+
+.root[data-orb='muted'] .sphere {
+  filter: grayscale(0.85) brightness(0.9);
+}
+
+.root[data-orb='idle'] .sphere {
+  filter: grayscale(0.75) brightness(0.95);
+}
+
+.root:is([data-orb='muted'], [data-orb='idle']) .halo {
+  opacity: 0.12;
+}
+
+.root[data-orb='idle'] .blob {
+  animation-play-state: paused;
+}
+
+.ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--ripple);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.root[data-orb='ringing'] .ripple {
+  animation: ripple 2.7s cubic-bezier(0.2, 0.65, 0.25, 1) infinite;
+}
+
+.root[data-orb='ringing'] .r2 {
+  animation-delay: 0.9s;
+}
+
+.root[data-orb='ringing'] .r3 {
+  animation-delay: 1.8s;
+}
+
+.root[data-orb='ringing'] .sphere {
+  animation: bob 2.7s var(--ease) infinite;
+}
+
+/* ── ringing stage ───────────────────────────────────────────── */
+
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 clamp(22px, 5svh, 46px);
+  padding: 7px 15px 7px 13px;
+  border-radius: 999px;
+  background: var(--chip);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.beacon {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accept);
+  animation: beacon 1.6s var(--ease) infinite;
+}
+
+.identity {
+  margin-top: clamp(24px, 5svh, 42px);
+}
+
+.name {
+  margin: 0;
+  font-size: clamp(30px, 7.6vw, 42px);
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+
+.org {
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: 15.5px;
+  letter-spacing: -0.005em;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  margin-top: clamp(26px, 6svh, 48px);
+}
+
+.persona {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 18px 0 0;
+  color: var(--ink-3);
+  font-size: 13.5px;
+}
+
+.persona svg,
+.note svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 20px;
+  margin: 16px 0 0;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.clock::after {
+  content: '';
+  width: 3px;
+  height: 3px;
+  margin-left: 3px;
+  border-radius: 50%;
+  background: var(--ink-4);
+}
+
+.rec {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rec);
+  animation: blink 1.5s ease-in-out infinite;
+}
+
+.timer {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── buttons ─────────────────────────────────────────────────── */
+
+.answer,
+.redial {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 58px;
+  padding: 0 30px 0 24px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 16.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition:
+    transform 0.3s var(--spring),
+    box-shadow 0.3s var(--ease),
+    opacity 0.2s;
+}
+
+.answer {
+  color: #fff;
+  background: var(--accept);
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.25),
+    0 16px 34px -14px color-mix(in oklch, var(--accept) 90%, transparent);
+}
+
+.answer svg {
+  animation: wiggle 2.7s var(--ease) infinite;
+}
+
+.redial {
+  height: 54px;
+  color: var(--bg);
+  background: var(--ink);
+}
+
+.answer:hover,
+.redial:hover {
+  transform: translateY(-1px);
+}
+
+.answer:active,
+.redial:active {
+  transform: scale(0.97);
+}
+
+.answer:disabled,
+.redial:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.answer:disabled svg {
+  animation: none;
+}
+
+.round {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    transform 0.3s var(--spring),
+    background-color 0.25s var(--ease),
+    color 0.25s var(--ease);
+}
+
+.round svg {
+  width: 24px;
+  height: 24px;
+}
+
+.round:active {
+  transform: scale(0.92);
+}
+
+.mute {
+  color: var(--ink);
+  background: var(--chip-solid);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.mute[aria-pressed='true'] {
+  color: var(--bg);
+  background: var(--ink);
+}
+
+.end {
+  color: #fff;
+  background: var(--danger);
+  box-shadow: 0 14px 30px -14px color-mix(in oklch, var(--danger) 90%, transparent);
+}
+
+.root button:focus-visible {
+  outline: 2.5px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.root .orb:focus-visible {
+  outline-offset: 8px;
+}
+
+/* ── notices ─────────────────────────────────────────────────── */
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 340px;
+  margin-top: 22px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in oklch, var(--danger) 24%, transparent);
+  background: color-mix(in oklch, var(--danger) 7%, var(--bg));
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.4;
+  animation: rise 0.4s var(--ease) both;
+}
+
+.notice svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--danger);
+}
+
+.notice p {
+  margin: 0;
+}
+
+.notice strong {
+  display: block;
+  font-weight: 600;
+}
+
+.notice span {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+/* ── transcript ──────────────────────────────────────────────── */
+
+.scroller {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+  padding: 16px max(16px, env(safe-area-inset-right)) 24px max(16px, env(safe-area-inset-left));
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 28px, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 28px, #000 calc(100% - 14px), transparent);
+}
+
+.log {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 14px;
+  min-height: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.agent {
+  align-self: flex-start;
+  max-width: min(94%, 600px);
+  margin: 0 0 4px;
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.55;
+  letter-spacing: -0.008em;
+  text-wrap: pretty;
+  animation: rise 0.45s var(--ease) both;
+}
+
+.unsaid {
+  color: var(--ink-4);
+}
+
+.agent[data-cut] .unsaid {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklch, var(--ink-4) 65%, transparent);
+}
+
+.user {
+  align-self: flex-end;
+  max-width: min(84%, 520px);
+  margin: 0;
+  padding: 10px 16px 11px;
+  border-radius: 22px 22px 7px 22px;
+  background: var(--bubble);
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.45;
+  animation: rise 0.35s var(--ease) both;
+}
+
+.user:not([data-status='final']) {
+  padding: 13px 18px;
+}
+
+.bars,
+.dots,
+.typing {
+  display: flex;
+  align-items: center;
+  height: 18px;
+}
+
+.bars {
+  gap: 3px;
+}
+
+.bars i {
+  --k: 1;
+  width: 3px;
+  height: calc(4px + 14px * var(--lvl) * var(--k));
+  border-radius: 2px;
+  background: var(--ink-2);
+}
+
+.bars i:nth-child(1) {
+  --k: 0.55;
+}
+
+.bars i:nth-child(3) {
+  --k: 0.8;
+}
+
+.bars i:nth-child(4) {
+  --k: 0.95;
+}
+
+.bars i:nth-child(5) {
+  --k: 0.6;
+}
+
+.dots,
+.typing {
+  gap: 4px;
+}
+
+.dots i,
+.typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  animation: dot 1.1s var(--ease) infinite;
+}
+
+.dots i:nth-child(2),
+.typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dots i:nth-child(3),
+.typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.typing {
+  align-self: flex-start;
+  padding: 4px 2px;
+}
+
+.note {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 4px 0;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--chip);
+  color: var(--ink-3);
+  font-size: 12.5px;
+  text-align: center;
+  animation: rise 0.4s var(--ease) both;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── in a call, phone: transcript on top, controls in the thumb zone ── */
+
+.root:not([data-phase='ringing']) .main {
+  grid-template:
+    'log' minmax(0, 1fr)
+    'stage' auto / minmax(0, 1fr);
+}
+
+.root:not([data-phase='ringing']) .transcript {
+  grid-area: log;
+  display: block;
+  position: relative;
+  min-height: 0;
+}
+
+.root:not([data-phase='ringing']) .stage {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  grid-template-areas:
+    'status status status'
+    'mute orb end';
+  align-items: center;
+  justify-items: center;
+  row-gap: 14px;
+  padding: 10px max(30px, env(safe-area-inset-left)) calc(env(safe-area-inset-bottom) + 22px);
+}
+
+.root:not([data-phase='ringing']) :is(.identity, .kicker, .persona) {
+  display: none;
+}
+
+.root:not([data-phase='ringing']) .controls {
+  display: contents;
+}
+
+.root:not([data-phase='ringing']) .orb {
+  --orb-size: 88px;
+  grid-area: orb;
+}
+
+.root:not([data-phase='ringing']) .status {
+  grid-area: status;
+  margin: 0;
+}
+
+.root:not([data-phase='ringing']) .notice {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.root:not([data-phase='ringing']) .round {
+  width: 58px;
+  height: 58px;
+}
+
+.mute {
+  grid-area: mute;
+}
+
+.end {
+  grid-area: end;
+}
+
+.redial {
+  grid-area: orb;
+}
+
+.root[data-phase='ended'] .orb {
+  display: none;
+}
+
+@media (max-width: 959.98px) {
+  .root[data-phase='live'] .brand {
+    display: none;
+  }
+
+  .root[data-phase='live'] .callChip {
+    display: inline-flex;
+  }
+
+  /* The header already shows the clock. */
+  .root[data-phase='live'] .clock {
+    display: none;
+  }
+}
+
+/* ── in a call, wide screens: stage and transcript side by side ── */
+
+@media (min-width: 960px) {
+  .bar {
+    min-height: 72px;
+    padding: 20px 32px 8px;
+  }
+
+  .root[data-phase='ringing'] .orb {
+    --orb-size: 264px;
+  }
+
+  .root:not([data-phase='ringing'])::before {
+    transform: translate(-21%, 2%) scale(0.92);
+    opacity: 0.85;
+  }
+
+  .root:not([data-phase='ringing']) .main {
+    grid-template: 'stage log' minmax(0, 1fr) / minmax(340px, 5fr) minmax(0, 7fr);
+    column-gap: 28px;
+    width: min(100%, 1280px);
+    margin-inline: auto;
+    padding: 4px 32px 32px;
+  }
+
+  .root:not([data-phase='ringing']) .stage {
+    display: flex;
+    padding: 0 0 28px;
+  }
+
+  .root:not([data-phase='ringing']) .identity {
+    display: block;
+  }
+
+  .root:not([data-phase='ringing']) .controls {
+    display: flex;
+  }
+
+  .root:not([data-phase='ringing']) .orb,
+  .root[data-phase='ended'] .orb {
+    display: block;
+    --orb-size: clamp(184px, 19vw, 236px);
+  }
+
+  .root:not([data-phase='ringing']) .status {
+    margin-top: 14px;
+  }
+
+  .root:not([data-phase='ringing']) .notice {
+    margin-top: 22px;
+  }
+
+  .root:not([data-phase='ringing']) .transcript {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(22px) saturate(1.2);
+    -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  }
+
+  .scroller {
+    padding: 34px 40px 40px;
+  }
+
+  .agent {
+    font-size: 18px;
+  }
+}
+
+/* ── motion ──────────────────────────────────────────────────── */
+
+@keyframes orbit {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.85);
+    opacity: 0;
+  }
+}
+
+@keyframes bob {
+  0%,
+  36%,
+  100% {
+    transform: scale(1);
+  }
+  8% {
+    transform: scale(1.035);
+  }
+  16% {
+    transform: scale(0.99);
+  }
+  24% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  36%,
+  100% {
+    transform: rotate(0);
+  }
+  6% {
+    transform: rotate(-14deg);
+  }
+  12% {
+    transform: rotate(12deg);
+  }
+  18% {
+    transform: rotate(-10deg);
+  }
+  24% {
+    transform: rotate(6deg);
+  }
+}
+
+@keyframes beacon {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--accept) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blob,
+  .ripple,
+  .sphere,
+  .beacon,
+  .rec,
+  .answer svg,
+  .dots i,
+  .typing i {
+    animation: none !important;
+  }
+
+  .spinner {
+    animation-duration: 3s;
+  }
+
+  .agent,
+  .user,
+  .note,
+  .notice {
+    animation: none;
+  }
+
+  .root::before,
+  .thumb {
+    transition: none;
+  }
+}
+
+/* ── console embed: the Playground mounts this same call inside a card ──
+   (/demo never sets data-embed, so nothing here can change the demo) */
+
+.root[data-embed] {
+  height: 100%;
+  min-height: 600px;
+}

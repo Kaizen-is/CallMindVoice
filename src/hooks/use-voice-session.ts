@@ -30,10 +30,15 @@ export type VoiceState =
   | 'ai_speaking'
   | 'error';
 
+/** Why a session failed, for callers that show their own localised messages. */
+export type VoiceErrorCode = 'mic_denied' | 'mic_unavailable' | 'recording';
+
 interface UseVoiceSessionOptions {
   onUtterance: (recording: RecordingResult, turnId: number) => Promise<void> | void;
   onBargeIn?: () => void;
-  onError?: (message: string) => void;
+  onError?: (message: string, code: VoiceErrorCode) => void;
+  /** Mic level 0–1 on every animation frame, for visuals that must not re-render React. */
+  onLevel?: (level: number) => void;
 }
 
 const voiceLog = (event: string, detail?: Record<string, unknown>) => {
@@ -42,7 +47,7 @@ const voiceLog = (event: string, detail?: Record<string, unknown>) => {
   else console.debug(`[VOICE] ${event}`);
 };
 
-export function useVoiceSession({ onUtterance, onBargeIn, onError }: UseVoiceSessionOptions) {
+export function useVoiceSession({ onUtterance, onBargeIn, onError, onLevel }: UseVoiceSessionOptions) {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -70,15 +75,19 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError }: UseVoiceSes
   const isFinalizingRef = useRef(false);
   const lastLevelPaintRef = useRef(0);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ownsContextRef = useRef(true);
+  const mutedRef = useRef(false);
   const onUtteranceRef = useRef(onUtterance);
   const onBargeInRef = useRef(onBargeIn);
   const onErrorRef = useRef(onError);
+  const onLevelRef = useRef(onLevel);
 
   useEffect(() => {
     onUtteranceRef.current = onUtterance;
     onBargeInRef.current = onBargeIn;
     onErrorRef.current = onError;
-  }, [onUtterance, onBargeIn, onError]);
+    onLevelRef.current = onLevel;
+  }, [onUtterance, onBargeIn, onError, onLevel]);
 
   const transition = useCallback((next: VoiceState) => {
     stateRef.current = next;
@@ -111,7 +120,7 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError }: UseVoiceSes
       clearCandidate();
       setError(message);
       transition('error');
-      if (notify) onErrorRef.current?.(message);
+      if (notify) onErrorRef.current?.(message, 'recording');
       if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
       if (activeRef.current) {
         recoveryTimerRef.current = setTimeout(() => {
@@ -202,6 +211,7 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError }: UseVoiceSes
     const rms = Math.sqrt(sum / data.length);
     const now = performance.now();
 
+    onLevelRef.current?.(Math.min(1, rms / 0.08));
     if (now - lastLevelPaintRef.current >= 80) {
       lastLevelPaintRef.current = now;
       setLevel(Math.min(1, rms / 0.08));
@@ -298,7 +308,8 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError }: UseVoiceSes
       streamRef.current = null;
       const context = contextRef.current;
       contextRef.current = null;
-      if (context && context.state !== 'closed') void context.close().catch(() => {});
+      // A context the caller lent us (see startSession) is theirs to close.
+      if (context && ownsContextRef.current && context.state !== 'closed') void context.close().catch(() => {});
       if (updateReactState) {
         stateRef.current = 'idle';
         setVoiceState('idle');
@@ -316,8 +327,16 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError }: UseVoiceSes
     if (hadSession) voiceLog('session_stopped');
   }, [cleanup]);
 
-  const startSession = useCallback(async () => {
-    if (activeRef.current || startingRef.current) return;
+  /**
+   * Open the mic and start listening. Resolves true once listening.
+   *
+   * `context` lets the caller supply an AudioContext it created inside the
+   * user's tap. iOS Safari only starts a context during a gesture, and one
+   * created here — after awaiting the mic permission — can stay suspended,
+   * leaving the analyser silent and the VAD deaf.
+   */
+  const startSession = useCallback(async (options?: { context?: AudioContext }): Promise<boolean> => {
+    if (activeRef.current || startingRef.current) return activeRef.current;
     cleanup(true);
     startingRef.current = true;
     const generation = generationRef.current;
@@ -327,16 +346,20 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError }: UseVoiceSes
       const stream = await navigator.mediaDevices.getUserMedia({ audio: VOICE_MIC_CONSTRAINTS });
       if (!startingRef.current || generation !== generationRef.current) {
         stream.getTracks().forEach((track) => track.stop());
-        return;
+        return false;
       }
       // Store resources as soon as they exist so any later setup failure is
       // handled by the same cleanup path (including stopped mic tracks).
       streamRef.current = stream;
+      stream.getAudioTracks().forEach((track) => {
+        track.enabled = !mutedRef.current;
+      });
 
       const AudioContextCtor =
         window.AudioContext ??
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const context = new AudioContextCtor();
+      ownsContextRef.current = !options?.context;
+      const context = options?.context ?? new AudioContextCtor();
       contextRef.current = context;
       if (context.state === 'suspended') await context.resume();
       const analyser = context.createAnalyser();
@@ -357,20 +380,42 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError }: UseVoiceSes
       voiceLog('microphone_ready');
       voiceLog('listening');
       rafRef.current = requestAnimationFrame(analyse);
+      return true;
     } catch (cause) {
       startingRef.current = false;
       cleanup(false);
-      const message =
-        cause instanceof DOMException && cause.name === 'NotAllowedError'
-          ? 'Mikrofonga ruxsat berilmadi'
-          : cause instanceof Error
-            ? cause.message
-            : 'Mikrofon bilan xatolik yuz berdi';
+      const denied =
+        cause instanceof DOMException && (cause.name === 'NotAllowedError' || cause.name === 'SecurityError');
+      const message = denied
+        ? 'Mikrofonga ruxsat berilmadi'
+        : cause instanceof Error
+          ? cause.message
+          : 'Mikrofon bilan xatolik yuz berdi';
       setError(message);
       transition('error');
-      onErrorRef.current?.(message);
+      onErrorRef.current?.(message, denied ? 'mic_denied' : 'mic_unavailable');
+      return false;
     }
   }, [analyse, cleanup, transition]);
+
+  /**
+   * Mute without closing the mic: a disabled track delivers silence, so the VAD
+   * hears nothing and nothing is recorded, and unmuting is instant.
+   */
+  const setMuted = useCallback(
+    (muted: boolean) => {
+      mutedRef.current = muted;
+      streamRef.current?.getAudioTracks().forEach((track) => {
+        track.enabled = !muted;
+      });
+      // A phrase cut off by muting was not meant to be sent.
+      if (muted && stateRef.current === 'user_speaking') {
+        clearCandidate();
+        transition('listening');
+      }
+    },
+    [clearCandidate, transition],
+  );
 
   const setAiSpeaking = useCallback(() => {
     if (!activeRef.current) return;
@@ -396,5 +441,6 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError }: UseVoiceSes
     resumeListening,
     failAndResume,
     sessionIsActive,
+    setMuted,
   };
 }

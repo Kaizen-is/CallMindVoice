@@ -95,3 +95,57 @@ export function geminiJson(system: string, user: string): Promise<string | null>
 export function geminiText(system: string, user: string, maxOutputTokens = 300): Promise<string | null> {
   return call(system, user, { temperature: 0.3, maxOutputTokens });
 }
+
+/* ── speech-to-text ──────────────────────────────────────────── */
+
+const STT_TIMEOUT_MS = 8000;
+const NO_SPEECH = '<empty>';
+
+/**
+ * Transcribe one utterance (a 16 kHz mono WAV). Used for languages the internal
+ * Uzbek model does not know, and as a second ear when that model is down.
+ *
+ * Returns the verbatim transcript, '' when there was no speech, or null on any
+ * failure. A model asked to "say nothing" on silence tends to say something
+ * anyway, so it is given an explicit marker to answer with instead.
+ */
+export async function geminiTranscribe(wav: ArrayBuffer, languageName: string): Promise<string | null> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  const model = process.env.GEMINI_STT_MODEL || 'gemini-flash-lite-latest';
+
+  try {
+    const res = await fetch(`${ENDPOINT}/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text:
+                "You are the speech-to-text engine of a phone line. Transcribe the caller's words " +
+                `verbatim in the language they actually speak (expected: ${languageName}), in that ` +
+                "language's normal script. Write numbers as digits. Never translate, answer, " +
+                `summarise or add anything. If there is no intelligible speech, output exactly: ${NO_SPEECH}`,
+            },
+          ],
+        },
+        contents: [
+          { role: 'user', parts: [{ inlineData: { mimeType: 'audio/wav', data: Buffer.from(wav).toString('base64') } }] },
+        ],
+        generationConfig: { temperature: 0, maxOutputTokens: 400 },
+      }),
+      signal: AbortSignal.timeout(STT_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      console.warn(`[gemini] stt ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      return null;
+    }
+    const data = (await res.json()) as GeminiResponse;
+    const text = (data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '').trim();
+    return text.includes(NO_SPEECH) ? '' : text;
+  } catch (err) {
+    console.warn('[gemini] stt failed:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
