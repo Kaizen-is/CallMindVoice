@@ -2,13 +2,22 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  joinRecordings,
   startRecording,
   VOICE_MIC_CONSTRAINTS,
+  type RawAudio,
   type Recording,
   type RecordingResult,
 } from '@/lib/audio';
 
 export const SILENCE_TIMEOUT_MS = 800;
+/**
+ * A pause this long is usually the end of the phrase, so the utterance is
+ * handed to `onSpeculate` while the rest of SILENCE_TIMEOUT_MS runs out: the
+ * STT works during the wait instead of after it. Speech that resumes in time
+ * is recorded on and joined, so nothing is cut off.
+ */
+export const EARLY_SILENCE_MS = 350;
 export const MIN_SPEECH_MS = 250;
 export const MAX_UTTERANCE_MS = 30_000;
 export const BARGE_IN_SPEECH_MS = 320;
@@ -35,6 +44,12 @@ export type VoiceErrorCode = 'mic_denied' | 'mic_unavailable' | 'recording';
 
 interface UseVoiceSessionOptions {
   onUtterance: (recording: RecordingResult, turnId: number) => Promise<void> | void;
+  /**
+   * The utterance as it stands after EARLY_SILENCE_MS of quiet. If the pause
+   * holds, `onUtterance` receives this very object (same `wav` Blob), so work
+   * started on it can be reused; if speech resumes, it receives a longer one.
+   */
+  onSpeculate?: (recording: RecordingResult, turnId: number) => void;
   onBargeIn?: () => void;
   onError?: (message: string, code: VoiceErrorCode) => void;
   /** Mic level 0–1 on every animation frame, for visuals that must not re-render React. */
@@ -47,7 +62,7 @@ const voiceLog = (event: string, detail?: Record<string, unknown>) => {
   else console.debug(`[VOICE] ${event}`);
 };
 
-export function useVoiceSession({ onUtterance, onBargeIn, onError, onLevel }: UseVoiceSessionOptions) {
+export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, onLevel }: UseVoiceSessionOptions) {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +78,14 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError, onLevel }: Us
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef(0);
   const recordingRef = useRef<Recording | null>(null);
+  /** Finished pieces of the current utterance, split off at early pauses. */
+  const partsRef = useRef<Promise<RawAudio>[]>([]);
+  /** The utterance offered at the current pause; null once speech resumes. */
+  const speculationRef = useRef<Promise<RecordingResult> | null>(null);
+  /** Bumped whenever the utterance is finalized or dropped, to orphan a recorder still starting. */
+  const segmentRef = useRef(0);
+  /** The utterance most recently finalized. */
+  const finalizedRef = useRef<Promise<RecordingResult> | null>(null);
   const candidateSinceRef = useRef(0);
   const candidateLastVoiceAtRef = useRef(0);
   const speechStartedAtRef = useRef(0);
@@ -78,16 +101,18 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError, onLevel }: Us
   const ownsContextRef = useRef(true);
   const mutedRef = useRef(false);
   const onUtteranceRef = useRef(onUtterance);
+  const onSpeculateRef = useRef(onSpeculate);
   const onBargeInRef = useRef(onBargeIn);
   const onErrorRef = useRef(onError);
   const onLevelRef = useRef(onLevel);
 
   useEffect(() => {
     onUtteranceRef.current = onUtterance;
+    onSpeculateRef.current = onSpeculate;
     onBargeInRef.current = onBargeIn;
     onErrorRef.current = onError;
     onLevelRef.current = onLevel;
-  }, [onUtterance, onBargeIn, onError, onLevel]);
+  }, [onUtterance, onSpeculate, onBargeIn, onError, onLevel]);
 
   const transition = useCallback((next: VoiceState) => {
     stateRef.current = next;
@@ -99,6 +124,9 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError, onLevel }: Us
     candidateLastVoiceAtRef.current = 0;
     speechStartedAtRef.current = 0;
     lastVoiceAtRef.current = 0;
+    partsRef.current = [];
+    speculationRef.current = null;
+    segmentRef.current += 1;
     const recording = recordingRef.current;
     recordingRef.current = null;
     recording?.cancel();
@@ -136,24 +164,39 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError, onLevel }: Us
     (reason: 'silence' | 'maximum') => {
       if (isFinalizingRef.current || stateRef.current !== 'user_speaking') return;
       const recording = recordingRef.current;
-      if (!recording) {
+      const speculation = speculationRef.current;
+      // The pause held: the utterance offered at its start is the final one,
+      // and the recorder kept running since holds only silence.
+      const pending: Promise<RecordingResult> | null =
+        reason === 'silence' && speculation
+          ? speculation
+          : recording
+            ? Promise.all([...partsRef.current, recording.stopRaw()]).then(joinRecordings)
+            : partsRef.current.length
+              ? Promise.all(partsRef.current).then(joinRecordings)
+              : null;
+      if (!pending) {
         failAndResume('Audio yozuvini yakunlab bo‘lmadi');
         return;
       }
+      if (pending === speculation) recording?.cancel();
+      finalizedRef.current = pending;
 
       isFinalizingRef.current = true;
       recordingRef.current = null;
+      partsRef.current = [];
+      speculationRef.current = null;
+      segmentRef.current += 1;
       candidateSinceRef.current = 0;
       speechStartedAtRef.current = 0;
       lastVoiceAtRef.current = 0;
       transition('processing');
-      voiceLog('speech_ended', { reason });
+      voiceLog('speech_ended', { reason, early: pending === speculation });
       voiceLog('processing');
 
       const generation = generationRef.current;
       const turnId = turnIdRef.current;
-      void recording
-        .stop()
+      void pending
         .then(async (result) => {
           if (!activeRef.current || generation !== generationRef.current) return;
           voiceLog('utterance_finalized', {
@@ -172,6 +215,42 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError, onLevel }: Us
     },
     [failAndResume, transition],
   );
+
+  /**
+   * At an early pause: close the current piece and offer the utterance so far,
+   * while a fresh recorder — started first, so not a syllable falls between
+   * the two — keeps listening in case the speaker goes on.
+   */
+  const speculate = useCallback(() => {
+    const recording = recordingRef.current;
+    const stream = streamRef.current;
+    if (!recording || !stream || speculationRef.current) return;
+    const segment = segmentRef.current;
+    const turnId = turnIdRef.current;
+    recordingRef.current = null;
+    void startRecording(stream)
+      .then((next) => {
+        if (segment !== segmentRef.current || !activeRef.current) next.cancel();
+        else recordingRef.current = next;
+      })
+      .catch(() => {
+        /* the pause will finalize on the speculation alone */
+      });
+    partsRef.current = [...partsRef.current, recording.stopRaw()];
+    const speculation = Promise.all(partsRef.current).then(joinRecordings);
+    speculationRef.current = speculation;
+    voiceLog('speech_paused', { turnId });
+    void speculation
+      .then((result) => {
+        // Offered while the pause lasts, and also once it has finalized on
+        // this very utterance: that is when the work it starts gets used.
+        const current = speculationRef.current === speculation || finalizedRef.current === speculation;
+        if (current && activeRef.current) onSpeculateRef.current?.(result, turnId);
+      })
+      .catch(() => {
+        /* finalize reports a failed recording */
+      });
+  }, []);
 
   const beginCandidate = useCallback(
     (now: number, expectedState: 'listening' | 'ai_speaking') => {
@@ -282,13 +361,23 @@ export function useVoiceSession({ onUtterance, onBargeIn, onError, onLevel }: Us
       }
     } else if (stateRef.current === 'user_speaking') {
       const threshold = Math.max(MIN_VOICE_RMS, noiseFloorRef.current * NOISE_MULTIPLIER);
-      if (rms >= threshold * RELEASE_RATIO) lastVoiceAtRef.current = now;
-      if (now - lastVoiceAtRef.current >= SILENCE_TIMEOUT_MS) finalizeUtterance('silence');
+      if (rms >= threshold * RELEASE_RATIO) {
+        lastVoiceAtRef.current = now;
+        if (speculationRef.current) {
+          // They went on: the offered utterance is stale; the fresh recorder
+          // carries on and the pieces are joined at the real end.
+          speculationRef.current = null;
+          voiceLog('speech_resumed', { turnId: turnIdRef.current });
+        }
+      }
+      const quiet = now - lastVoiceAtRef.current;
+      if (quiet >= SILENCE_TIMEOUT_MS) finalizeUtterance('silence');
       else if (now - speechStartedAtRef.current >= MAX_UTTERANCE_MS) finalizeUtterance('maximum');
+      else if (quiet >= EARLY_SILENCE_MS && onSpeculateRef.current && !speculationRef.current) speculate();
     }
 
     rafRef.current = requestAnimationFrame(analyse);
-  }, [beginCandidate, clearCandidate, finalizeUtterance, transition]);
+  }, [beginCandidate, clearCandidate, finalizeUtterance, speculate, transition]);
 
   const cleanup = useCallback(
     (updateReactState: boolean) => {

@@ -14,8 +14,16 @@ export interface RecordingResult {
   rms: number;
 }
 
+/** Decoded 16 kHz mono samples, before trimming and normalising. */
+export interface RawAudio {
+  pcm: Float32Array;
+  durationSec: number;
+}
+
 export interface Recording {
   stop: () => Promise<RecordingResult>;
+  /** Like `stop`, but the samples are kept raw so pieces can be joined. */
+  stopRaw: () => Promise<RawAudio>;
   cancel: () => void;
   /** Live mic stream — callers attach analysers for VAD / level metering. */
   stream: MediaStream;
@@ -71,6 +79,24 @@ export async function startRecording(sessionStream?: MediaStream): Promise<Recor
   };
   let settled = false;
 
+  const stopRaw = () =>
+    new Promise<RawAudio>((resolve, reject) => {
+      if (settled) {
+        reject(new Error('recording already finalized'));
+        return;
+      }
+      settled = true;
+      mr.onstop = async () => {
+        cleanup();
+        try {
+          resolve(await decode16k(new Blob(chunks, { type: mr.mimeType || 'audio/webm' })));
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error('encode failed'));
+        }
+      };
+      try { mr.stop(); } catch (e) { reject(e instanceof Error ? e : new Error('stop failed')); }
+    });
+
   return {
     stream,
     cancel: () => {
@@ -81,29 +107,32 @@ export async function startRecording(sessionStream?: MediaStream): Promise<Recor
       try { mr.stop(); } catch { /* already stopped */ }
       cleanup();
     },
-    stop: () =>
-      new Promise<RecordingResult>((resolve, reject) => {
-        if (settled) {
-          reject(new Error('recording already finalized'));
-          return;
-        }
-        settled = true;
-        mr.onstop = async () => {
-          cleanup();
-          try {
-            resolve(await webmToWav16k(new Blob(chunks, { type: mr.mimeType || 'audio/webm' })));
-          } catch (e) {
-            reject(e instanceof Error ? e : new Error('encode failed'));
-          }
-        };
-        try { mr.stop(); } catch (e) { reject(e instanceof Error ? e : new Error('stop failed')); }
-      }),
+    stop: () => stopRaw().then((raw) => joinRecordings([raw])),
+    stopRaw,
   };
 }
 
 const TARGET_RATE = 16000;
 
-async function webmToWav16k(blob: Blob): Promise<RecordingResult> {
+/**
+ * One utterance from one or more consecutive pieces of a recording, trimmed,
+ * normalised and encoded as the STT expects. Joining happens on the raw
+ * samples, so a joined utterance is processed exactly like a single one.
+ */
+export function joinRecordings(parts: RawAudio[]): RecordingResult {
+  const length = parts.reduce((n, p) => n + p.pcm.length, 0);
+  const pcm = parts.length === 1 ? parts[0].pcm : new Float32Array(length);
+  if (parts.length > 1) {
+    let at = 0;
+    for (const part of parts) {
+      pcm.set(part.pcm, at);
+      at += part.pcm.length;
+    }
+  }
+  return finish(pcm, parts.reduce((n, p) => n + p.durationSec, 0));
+}
+
+async function decode16k(blob: Blob): Promise<RawAudio> {
   const buf = await blob.arrayBuffer();
   const Ctx =
     window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -115,8 +144,10 @@ async function webmToWav16k(blob: Blob): Promise<RecordingResult> {
     void ctx.close();
   }
 
-  const pcm = await resampleProper(decoded, TARGET_RATE);
+  return { pcm: await resampleProper(decoded, TARGET_RATE), durationSec: decoded.duration };
+}
 
+function finish(pcm: Float32Array, durationSec: number): RecordingResult {
   // Measure raw energy (before gain) so the caller can reject true silence,
   // and peak-normalise a quiet mic toward full scale to help the STT.
   let peak = 0;
@@ -140,7 +171,7 @@ async function webmToWav16k(blob: Blob): Promise<RecordingResult> {
   const trimmed =
     s1 > s0 ? pcm.subarray(Math.max(0, s0 - pad), Math.min(pcm.length, s1 + pad + 1)) : pcm;
 
-  return { wav: encodeWav(trimmed, TARGET_RATE, gain), durationSec: decoded.duration, rms };
+  return { wav: encodeWav(trimmed, TARGET_RATE, gain), durationSec, rms };
 }
 
 /**

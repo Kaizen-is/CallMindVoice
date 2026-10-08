@@ -175,6 +175,8 @@ export async function runTurn(params: {
   persist?: boolean;
   /** Replaces the agent's saved call target — the public demo calls a fictional person. */
   target?: CallTarget;
+  /** The reply as it is generated, for callers that voice it sentence by sentence. */
+  onDelta?: (delta: string) => void;
 }): Promise<TurnResult> {
   const { tenantId, callId, agent, utterance } = params;
   const persist = params.persist !== false;
@@ -233,7 +235,7 @@ export async function runTurn(params: {
     target,
     greeting: agent.greeting,
     timeZone: agentHours(agent).timezone,
-  });
+  }, params.onDelta);
   const llmMs = performance.now() - tGen;
 
   /* escalation decisioning */

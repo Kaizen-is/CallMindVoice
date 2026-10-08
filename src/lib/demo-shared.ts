@@ -19,6 +19,10 @@ export type DemoEvent =
   | { t: 'call'; callId: string }
   | { t: 'heard'; text: string }
   | { t: 'reply'; text: string; lang: Locale; end: 'transfer' | null; ms?: Record<string, number> }
+  /** The reply so far, grown by the next sentence about to be voiced. */
+  | { t: 'more'; text: string }
+  /** The turn is complete: the whole reply, and whether the call ends with it. */
+  | { t: 'final'; text: string; end: 'transfer' | null; ms?: Record<string, number> }
   /** 8 kHz mono 16-bit PCM, base64. */
   | { t: 'audio'; pcm: string }
   /** A pre-rendered "one moment" to fill the silence while the agent thinks. Same format. */

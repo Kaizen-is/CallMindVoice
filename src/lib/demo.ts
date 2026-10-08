@@ -14,6 +14,7 @@
  * so every conversation shows up in the console's call log and live board.
  */
 import 'server-only';
+import { createHash } from 'node:crypto';
 import { all, get, id, now, run, tx } from '@/lib/db';
 import { publish } from '@/lib/engine/bus';
 import { startCall } from '@/lib/engine/calls';
@@ -21,6 +22,7 @@ import { agentHours, agentTarget } from '@/lib/engine/conversation';
 import { classifyIntent, generateAnswer } from '@/lib/llm/provider';
 import { detectLanguage } from '@/lib/rag/text';
 import { fillerLines } from '@/lib/speech/fillers';
+import { transcribe, type Transcript } from '@/lib/speech/stt';
 import { cachedPcm, synthesizePcm, synthesizeStream, ttsConfigured, type SynthOptions } from '@/lib/speech/tts';
 import { VOICES } from '@/lib/catalog';
 import type { Agent, CallTarget, Locale } from '@/lib/types';
@@ -75,7 +77,7 @@ const WINDOW_MS = 10 * 60_000;
  * one venue Wi-Fi address, so the per-address limits leave room for a crowd;
  * the totals are what cap the spend.
  */
-const LIMITS = { call: [20, 200], turn: [200, 1500] } as const;
+const LIMITS = { call: [20, 200], turn: [200, 1500], prefetch: [300, 2000] } as const;
 
 /**
  * Process-wide state. Each route is its own bundle, so plain module variables
@@ -89,6 +91,7 @@ const state = ((globalThis as Record<string, unknown>).__callmindDemo ??= {}) as
   warmed?: Set<string>;
   /** How many fillers each call has heard, to rotate through the lines. */
   fillers?: Map<string, number>;
+  heard?: Map<string, Prefetched>;
 };
 // Field by field, so a server that reloads this module keeps working.
 const hits = (state.hits ??= new Map<string, number[]>());
@@ -96,6 +99,7 @@ const busy = (state.busy ??= new Set<string>());
 const openings = (state.openings ??= new Map<string, Promise<string>>());
 const warmed = (state.warmed ??= new Set<string>());
 const fillers = (state.fillers ??= new Map<string, number>());
+const heard = (state.heard ??= new Map<string, Prefetched>());
 
 function recent(key: string, at: number): number[] {
   const list = (hits.get(key) ?? []).filter((t) => at - t < WINDOW_MS);
@@ -461,4 +465,132 @@ export async function speak(
   }
   // Nothing rendered: the browser speaks the line itself rather than go silent.
   if (!sent && !signal.aborted) send({ t: 'voice', ok: false });
+}
+
+/**
+ * Voice a reply while the model is still writing it. Each complete sentence
+ * goes to the TTS as soon as the voice is free, so the visitor hears the first
+ * one while the rest is generated. The text shown grows with what is voiced:
+ * `reply` with the first sentence, then `more` with each next one.
+ */
+export function speakAsWritten(
+  agent: Agent,
+  lang: Locale,
+  send: Send,
+  signal: AbortSignal,
+  voiceId = agent.voice_id,
+) {
+  let text = '';
+  let taken = 0; // how much of `text` has been handed to the voice
+  let finished = false;
+  let shown = false;
+  let sent = 0;
+  let wake: (() => void) | null = null;
+  const notify = () => {
+    wake?.();
+    wake = null;
+  };
+
+  /** The next run of complete sentences, or null to wait for more text. */
+  const nextSegment = (): string | null => {
+    const rest = text.slice(taken);
+    if (finished) {
+      taken = text.length;
+      return rest.trim() || null;
+    }
+    const ends = [...rest.matchAll(/[.!?…]+(?=\s)/g)];
+    const last = ends[ends.length - 1];
+    if (!last) return null;
+    const cut = last.index + last[0].length;
+    // A lone "Ha." sounds clipped on its own; it waits for the next sentence.
+    if (rest.slice(0, cut).trim().length < 12) return null;
+    taken += cut;
+    return rest.slice(0, cut).trim();
+  };
+
+  const worker = (async () => {
+    for (;;) {
+      if (signal.aborted) return;
+      const segment = nextSegment();
+      if (!segment) {
+        if (finished) return;
+        await new Promise<void>((resolve) => (wake = resolve));
+        continue;
+      }
+      const said = text.slice(0, taken).trim();
+      send(shown ? { t: 'more', text: said } : { t: 'reply', text: said, lang, end: null });
+      shown = true;
+      if (!ttsConfigured()) continue;
+      try {
+        for await (const pcm of synthesizeStream(segment, voiceOptions(agent, lang, voiceId))) {
+          if (signal.aborted) break;
+          send({ t: 'audio', pcm: pcm.toString('base64') });
+          sent += 1;
+        }
+      } catch (err) {
+        console.warn('[demo] tts failed:', err instanceof Error ? err.message : err);
+      }
+    }
+  })();
+
+  return {
+    push(delta: string) {
+      if (finished) return;
+      text = taken ? text + delta : (text + delta).trimStart();
+      notify();
+    },
+    /** The reply is complete; resolves once all of it has been voiced. */
+    async finish(reply: string) {
+      // The final reply begins with what streamed (see `generateAnswer`); when
+      // nothing streamed it is the whole reply, voiced the old way.
+      if (!text.trim() || reply.startsWith(text.trimEnd())) text = reply;
+      finished = true;
+      notify();
+      await worker;
+      if (!sent && shown && !signal.aborted) send({ t: 'voice', ok: false });
+    },
+  };
+}
+
+/* ── transcribing during the pause ───────────────────────────── */
+
+interface Prefetched {
+  key: string;
+  at: number;
+  transcript: Promise<Transcript>;
+}
+
+const PREFETCH_TTL_MS = 20_000;
+
+function audioKey(audio: ArrayBuffer, lang: DemoLang): string {
+  return `${lang}:${createHash('sha1').update(Buffer.from(audio)).digest('hex')}`;
+}
+
+/**
+ * Start transcribing an utterance the page offered at an early pause (see
+ * EARLY_SILENCE_MS). If the pause holds, the turn arrives with the same bytes
+ * and picks the transcript up — already done, or well under way.
+ */
+export function prefetchHeard(callId: string, audio: ArrayBuffer, lang: DemoLang) {
+  const transcript = transcribe(audio, { language: lang, denoise: true });
+  transcript.catch(() => {}); // a failure is retried by the turn itself
+  heard.set(callId, { key: audioKey(audio, lang), at: Date.now(), transcript });
+  if (heard.size > 500) {
+    const stale = Date.now() - PREFETCH_TTL_MS;
+    for (const [id, entry] of heard) if (entry.at < stale) heard.delete(id);
+  }
+}
+
+/** What the visitor said: the prefetched transcript when it matches, else a fresh one. */
+export async function heardIn(callId: string, audio: ArrayBuffer, lang: DemoLang): Promise<Transcript> {
+  const entry = heard.get(callId);
+  heard.delete(callId);
+  if (entry && entry.key === audioKey(audio, lang) && Date.now() - entry.at < PREFETCH_TTL_MS) {
+    try {
+      return await entry.transcript;
+    } catch {
+      /* transcribe again below */
+    }
+  }
+  return transcribe(audio, { language: lang, denoise: true });
 }

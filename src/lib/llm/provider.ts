@@ -17,7 +17,7 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { hasGemini, geminiJson, geminiText, geminiModel } from './gemini';
-import { hasOllama, ollamaJson, ollamaText, ollamaModel } from './ollama';
+import { hasOllama, ollamaJson, ollamaJsonStream, ollamaText, ollamaModel } from './ollama';
 import { calendarBlock, identityCheck, type IdentityStatus } from './loan-call';
 import type { RetrievalHit } from '@/lib/rag/retrieve';
 import type { CallTarget, Locale } from '@/lib/types';
@@ -324,7 +324,16 @@ export interface GenerateInput extends SynthesisInput {
   timeZone?: string;
 }
 
-export async function generateAnswer(input: GenerateInput): Promise<SynthesisOutput> {
+/**
+ * `onDelta`, when given, receives the spoken answer piece by piece as the
+ * model writes it (Ollama only; the other engines answer in one piece and
+ * never call it). The returned `answer` always starts with everything that was
+ * streamed, so a voice that already spoke part of it is never contradicted.
+ */
+export async function generateAnswer(
+  input: GenerateInput,
+  onDelta?: (delta: string) => void,
+): Promise<SynthesisOutput> {
   const intent = classifyIntent(input.question);
 
   // Explicit "give me a human" never needs a model round-trip — except on a
@@ -365,6 +374,28 @@ export async function generateAnswer(input: GenerateInput): Promise<SynthesisOut
   };
 
   // Any failure below falls through to the local engine rather than dead air.
+  if (active === 'ollama' && onDelta) {
+    let streamed = '';
+    const raw = await ollamaJsonStream(system, user, (delta) => {
+      streamed += delta;
+      onDelta(delta);
+    });
+    try {
+      const parsed = raw
+        ? (JSON.parse(raw) as { answer: string; answered: boolean; usedExcerpts: number[] })
+        : null;
+      if (parsed?.answer?.trim()) return finalize(parsed, engineName());
+    } catch {
+      /* handled below */
+    }
+    // The stream broke after part of the answer went out: keep what was said
+    // rather than swap in a different reply mid-sentence.
+    if (streamed.trim()) {
+      return { answer: streamed.trim(), intent, answered: true, usedHits: [], engine: engineName() };
+    }
+    return synthesizeLocal(input);
+  }
+
   if (active === 'gemini' || active === 'ollama') {
     try {
       const raw = active === 'ollama' ? await ollamaJson(system, user) : await geminiJson(system, user);

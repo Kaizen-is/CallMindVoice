@@ -404,6 +404,7 @@ export function DemoCall({ fontClass, initialLang, available, identity, persona,
 
   const voice = useVoiceSession({
     onUtterance: (recording) => handleUtterance(recording),
+    onSpeculate: (recording) => prefetchUtterance(recording),
     onBargeIn: () => silenceAgent(),
     onError: (_message, code: VoiceErrorCode) => {
       if (code === 'mic_denied') setNotice('micDenied');
@@ -424,6 +425,7 @@ export function DemoCall({ fontClass, initialLang, available, identity, persona,
     const out = outRef.current!;
     let speech: Speech | null = null;
     let reply: { text: string; lang: Locale; end: 'transfer' | null } | null = null;
+    let agentRow = '';
     let browserVoice = false;
     let dropped = false;
 
@@ -443,7 +445,16 @@ export function DemoCall({ fontClass, initialLang, available, identity, persona,
           reply = { text: event.text, lang: event.lang, end: event.end };
           speech = { start: 0, end: 0, done: false, finished: false, stopped: false, frozen: 0, chars: event.text.length };
           speakingRef.current = speech;
-          addRow({ id: rowId(), kind: 'agent', text: typeset(event.text, event.lang), speech });
+          agentRow = rowId();
+          addRow({ id: agentRow, kind: 'agent', text: typeset(event.text, event.lang), speech });
+        } else if ((event.t === 'more' || event.t === 'final') && reply && speech) {
+          // The reply grows a sentence at a time as the model writes it.
+          reply.text = event.text;
+          if (event.t === 'final') reply.end = event.end;
+          speech.chars = event.text.length;
+          const row = agentRow;
+          const shown = typeset(event.text, reply.lang);
+          setRows((list) => list.map((r) => (r.id === row && r.kind === 'agent' ? { ...r, text: shown } : r)));
         } else if (event.t === 'filler') {
           // "Bir daqiqa." — heard while the reply is still being worked out.
           out.enqueue(decodePcm(event.pcm));
@@ -500,6 +511,22 @@ export function DemoCall({ fontClass, initialLang, available, identity, persona,
       return;
     }
     voice.resumeListening();
+  };
+
+  /**
+   * The visitor paused: send what they said ahead, so the server is already
+   * transcribing it while the pause runs out. The turn reuses it when the
+   * pause holds; when they go on, it is simply never asked for.
+   */
+  const prefetchUtterance = ({ wav, durationSec, rms }: RecordingResult) => {
+    const callId = callIdRef.current;
+    if (phaseRef.current !== 'live' || !callId || durationSec < 0.3 || rms < 0.0015 || wav.size <= 44) return;
+    const form = new FormData();
+    form.append('audio', wav, 'speech.wav');
+    form.append('callId', callId);
+    form.append('lang', langRef.current);
+    form.append('voice', voiceRef.current);
+    void fetch('/api/demo/turn?prefetch=1', { method: 'POST', body: form }).catch(() => {});
   };
 
   const handleUtterance = async ({ wav, durationSec, rms }: RecordingResult) => {

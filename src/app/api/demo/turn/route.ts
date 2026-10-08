@@ -13,18 +13,24 @@ import {
   demoVoice,
   eventStream,
   fillerFor,
+  heardIn,
   liveDemoCall,
+  prefetchHeard,
   releaseCall,
-  speak,
+  speakAsWritten,
 } from '@/lib/demo';
 import { runTurn } from '@/lib/engine/conversation';
-import { transcribe } from '@/lib/speech/stt';
+import { detectLanguage } from '@/lib/rag/text';
+import type { Locale } from '@/lib/types';
 
 /** About 40 s of 16 kHz mono speech; the recorder stops itself at 30 s. */
 const MAX_AUDIO_BYTES = 1_400_000;
 
 export async function POST(request: Request): Promise<Response> {
-  if (!admit('turn', request)) return Response.json({ error: 'busy' }, { status: 429 });
+  // `?prefetch=1`: the visitor has paused, probably at the end of the phrase —
+  // transcribe now and keep it for the turn that follows (see `prefetchHeard`).
+  const prefetch = new URL(request.url).searchParams.get('prefetch') === '1';
+  if (!admit(prefetch ? 'prefetch' : 'turn', request)) return Response.json({ error: 'busy' }, { status: 429 });
   const agent = demoAgent();
   if (!agent) return Response.json({ error: 'unavailable' }, { status: 503 });
 
@@ -44,6 +50,10 @@ export async function POST(request: Request): Promise<Response> {
   if (!liveDemoCall(callId)) return Response.json({ error: 'ended' }, { status: 410 });
 
   const wav = await audio.arrayBuffer();
+  if (prefetch) {
+    prefetchHeard(callId, wav, lang);
+    return new Response(null, { status: 202 });
+  }
   if (!claimCall(callId)) return Response.json({ error: 'busy_call' }, { status: 409 });
 
   return eventStream(async (send, signal) => {
@@ -52,14 +62,19 @@ export async function POST(request: Request): Promise<Response> {
     // refused while that reply is still being voiced.
     let sttMs = 0;
     let result: Awaited<ReturnType<typeof runTurn>> | null = null;
+    let voice: ReturnType<typeof speakAsWritten> | null = null;
     try {
       const started = performance.now();
-      const heard = await transcribe(wav, { language: lang, denoise: true });
+      const heard = await heardIn(callId, wav, lang);
       sttMs = Math.round(performance.now() - started);
       send({ t: 'heard', text: heard.text });
       if (heard.text) {
         const filler = fillerFor(agent, callId, heard.text, voiceId);
         if (filler) send({ t: 'filler', pcm: filler });
+        // The reply is voiced sentence by sentence as the model writes it. Its
+        // language is the one `runTurn` answers in: the caller's own.
+        const speaker = speakAsWritten(agent, detectLanguage(heard.text) as Locale, send, signal, voiceId);
+        voice = speaker;
         result = await runTurn({
           tenantId: agent.tenant_id,
           callId,
@@ -67,12 +82,15 @@ export async function POST(request: Request): Promise<Response> {
           utterance: heard.text,
           sttMs,
           target: demoTarget(agent),
+          onDelta: (delta) => speaker.push(delta),
         });
       }
     } finally {
       releaseCall(callId);
     }
-    if (!result) {
+    if (!result || !voice) {
+      // A turn that failed part-way still says what it had already written.
+      await voice?.finish('');
       send({ t: 'done' });
       return;
     }
@@ -80,15 +98,14 @@ export async function POST(request: Request): Promise<Response> {
     // An escalation is a transfer to a human, who is not on this page: the
     // agent says its hand-off line and the call ends.
     const end = result.escalate ? 'transfer' : null;
+    if (end) closeDemoCall(callId, 'resolved_by_operator');
+    await voice.finish(result.reply);
     send({
-      t: 'reply',
+      t: 'final',
       text: result.reply,
-      lang: result.language,
       end,
       ms: { stt: sttMs, retrieval: result.timings.retrievalMs, llm: result.timings.llmMs },
     });
-    if (end) closeDemoCall(callId, 'resolved_by_operator');
-    await speak(agent, result.reply, result.language, send, signal, voiceId);
     send({ t: 'done' });
   });
 }

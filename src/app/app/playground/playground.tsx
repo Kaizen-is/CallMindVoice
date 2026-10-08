@@ -239,6 +239,8 @@ export function Playground({
     streamAbortRef.current?.abort();
     streamAbortRef.current = null;
   }, []);
+  /** An STT request started at an early pause, and the recording it is for. */
+  const prefetchRef = useRef<{ wav: Blob; res: Promise<Response> } | null>(null);
   const voiceUtteranceRef = useRef<(recording: RecordingResult, turnId: number) => Promise<void>>(
     async () => {},
   );
@@ -255,6 +257,14 @@ export function Playground({
     sessionIsActive,
   } = useVoiceSession({
     onUtterance: (recording, turnId) => voiceUtteranceRef.current(recording, turnId),
+    onSpeculate: (recording, turnId) => {
+      // A pause that is probably the end of the phrase: start the STT now. If
+      // the pause holds, the finalized utterance is this same recording and
+      // picks the request up; if speech goes on, it is left unused.
+      const { wav, durationSec, rms } = recording;
+      if (durationSec < 0.25 || rms < 0.0015 || wav.size <= 44) return;
+      prefetchRef.current = { wav, res: transcribeWav(wav, turnId) };
+    },
     onBargeIn: () => {
       ttsPlaybackRef.current += 1;
       stopStream();
@@ -587,6 +597,14 @@ export function Playground({
 
   /* ── internal STT: each VAD-finalized utterance uses the existing endpoint ── */
 
+  const transcribeWav = (wav: Blob, turnId: number) => {
+    const upload = new FormData();
+    upload.append('file', wav, `speech-${turnId}.wav`);
+    upload.append('language', speechLang);
+    upload.append('denoise', '1');
+    return fetch('/api/speech/stt', { method: 'POST', body: upload });
+  };
+
   voiceUtteranceRef.current = async ({ wav, durationSec, rms }, turnId) => {
     const voiceRun = voiceRunRef.current;
     if (process.env.NODE_ENV !== 'production') {
@@ -608,11 +626,9 @@ export function Playground({
     setThinking(true);
     const sttStarted = performance.now();
     try {
-      const upload = new FormData();
-      upload.append('file', wav, `speech-${turnId}.wav`);
-      upload.append('language', speechLang);
-      upload.append('denoise', '1');
-      const res = await fetch('/api/speech/stt', { method: 'POST', body: upload });
+      const prefetched = prefetchRef.current?.wav === wav ? prefetchRef.current.res : null;
+      prefetchRef.current = null;
+      const res = (prefetched && (await prefetched.catch(() => null))) || (await transcribeWav(wav, turnId));
       if (!res.ok) {
         const message = t('play.toast.transcribeFailBody', 'The STT service returned an error.');
         toast.error(t('play.toast.transcribeFailTitle', 'Transcription failed'), message);
