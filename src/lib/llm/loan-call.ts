@@ -36,8 +36,9 @@ const MAX_WRONG_YEARS = 2;
 function spokenYears(line: string): string[] {
   // Kotib already writes digits; typed or other-engine text may not.
   const text = uzbekNumbersToDigits(line);
-  // Any four-digit year counts as an attempt — an absurd one ("1833") is a wrong answer, not silence.
-  const years = [...text.matchAll(/(?<!\d)(1[0-9]{3}|20[0-9]{2})(?!\d)/g)].map((m) => m[1]);
+  // Any four-digit number counts as an attempt — an absurd one ("1833", "2939") is a wrong
+  // answer, not silence; ignoring it let the call carry on as if nothing had been said.
+  const years = [...text.matchAll(/(?<!\d)(\d{4})(?!\d)/g)].map((m) => m[1]);
   for (const m of text.matchAll(/(?<!\d)(\d{2})(?:\s*-?\s*(?:го|й))?\s*-?\s*(?:yil|йил|год)/gi)) years.push(m[1]);
   const bare = text.replace(/[\s.,!?;:'"«»()-]/g, '');
   if (/^\d{2}$/.test(bare)) years.push(bare);
@@ -54,7 +55,8 @@ export function identityCheck(target: CallTarget, callerLines: string[]): Identi
     const said = spokenYears(line);
     justWrong = false;
     if (!said.length) continue;
-    if (said.some((y) => y === year || y === year.slice(2))) {
+    // Every year in the line must be the right one: "1990, 1991, 1992" is a guess, not an answer.
+    if (said.every((y) => y === year || y === year.slice(2))) {
       return { status: 'confirmed', justWrong: false, wrongTries: wrong };
     }
     wrong += 1;

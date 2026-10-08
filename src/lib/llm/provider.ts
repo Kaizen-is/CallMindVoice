@@ -74,7 +74,8 @@ function systemPrompt(input: GenerateInput) {
     'has told you earlier in it (their name, what they asked, details they gave) and',
     'use it. Questions about the conversation itself ("what is my name?", "what did',
     'I ask before?") are answered from the conversation: answered=true, usedExcerpts=[].',
-    input.persona ? `\nTone: ${PERSONA_NOTE[input.persona] ?? input.persona}` : '',
+    // A loan call sets its own tone (see targetBlock); "no small talk" would fight it.
+    input.persona && !input.target?.fullName ? `\nTone: ${PERSONA_NOTE[input.persona] ?? input.persona}` : '',
     input.instructions
       ? '\nAGENT INSTRUCTIONS — set by the company for this agent. Follow them; they take ' +
         'priority over the tone and style guidance above, but never over the rule against ' +
@@ -87,6 +88,7 @@ function systemPrompt(input: GenerateInput) {
           [...(input.history ?? []).filter((h) => h.role === 'caller').map((h) => h.text), input.question],
           input.greeting,
           input.timeZone,
+          [...(input.history ?? [])].reverse().find((h) => h.role === 'agent')?.text,
         )
       : '',
   ]
@@ -106,6 +108,7 @@ function targetBlock(
   callerLines: string[],
   greeting?: string,
   timeZone = 'Asia/Tashkent',
+  lastReply?: string,
 ) {
   const { status, justWrong, wrongTries } = identityCheck(target, callerLines);
   const name = target.fullName;
@@ -114,8 +117,14 @@ function targetBlock(
   const identity: Record<IdentityStatus, string[]> = {
     unchecked: [`IDENTITY — ask whether you are speaking with ${name}; a clear "yes, it is me" confirms it.`],
     awaiting: [
-      'IDENTITY — NOT CONFIRMED YET. You need them to say their year of birth. The system checks it',
-      'for you; you do not know it and must never guess, hint at or comment on it.',
+      'IDENTITY — NOT CONFIRMED YET. Two steps, one at a time:',
+      `  1. First make sure you are speaking with ${name}: ask "Am I speaking with ${name}?" and wait.`,
+      '     Do not ask for the year of birth in the same breath.',
+      `  2. Once they say yes, it is them, thank them and ask for their year of birth, briefly saying why`,
+      '     (to make sure you are talking to the right person). The system checks the year for you;',
+      '     you do not know it and must never guess, hint at or comment on it.',
+      '- A year only counts when the system confirms it. Whatever year they said, you do NOT know whether it',
+      '  is right; never say "thank you" for it or carry on as if they were confirmed.',
       ...(justWrong
         ? [
             '- The year they JUST said is WRONG — it does not match our records. Do not thank them and',
@@ -162,12 +171,19 @@ function targetBlock(
         `but say it in natural, grammatical ${language} (translate it if it is written in another language, ` +
         'fix it if it is clumsy), and remember you are the one calling.'
       : '',
-    `OPENING — on their first line (e.g. "Allo"), greet them, say who you are and which company you call from, and ask whether you are speaking with ${name}` +
-      (status === 'unchecked' ? '.' : ', asking them to say their year of birth.'),
+    `OPENING — on their first line (e.g. "Allo"), greet them, say who you are and which company you call from, and ask whether you are speaking with ${name}.` +
+      ' Only that one question; the year of birth comes after they say yes.',
     '',
-    'HOW YOU SOUND — like a kind, experienced bank officer on the phone, never like a script:',
-    '- Short, natural, warm sentences. Calm and respectful; never threaten, pressure or lecture.',
+    'HOW YOU SOUND — like a kind, experienced bank officer having a real conversation, never like a',
+    'script or a form being filled in:',
+    '- Natural, warm sentences, usually two to four; more when you explain how something works. Calm and',
+    '  respectful; never threaten, pressure or lecture.',
+    '- Answer what they actually asked FIRST, fully and concretely: explain the how and the why in plain',
+    '  words, the way a helpful person would. Never brush a real question off with "a colleague will',
+    '  tell you" when the answer is in what you know.',
     '- Build every reply on what they just said: use their own words, their reasons, their worries.',
+    '- Vary your wording. Use their name now and then, not in every reply. Not every reply has to end',
+    '  with a question, and never ask more than one question at a time.',
     '- Never repeat a sentence or a question you already said in this call. If you must ask again,',
     '  ask differently and move the conversation forward. If they repeat themselves, show you',
     '  remember ("Ha, ikki hafta dedingiz — demak...").',
@@ -176,7 +192,13 @@ function targetBlock(
     ...identity[status],
     ...(confirmed
       ? [
-          target.loanAmount ? `Amount they owe: ${target.loanAmount}.` : '',
+          'WHAT YOU KNOW AND MAY TELL THEM (they are confirmed):',
+          target.loanAmount ? `- Amount they owe: ${target.loanAmount}. Asked "how much?", say this amount plainly.` : '',
+          '- How and where to pay, and any options (such as paying in parts), are in the CALL INSTRUCTIONS',
+          '  below. Asked about them, explain clearly, step by step if useful; for a split, work out each',
+          '  part yourself and say it.',
+          '- Only for what is truly not in here (interest, penalties, account numbers) say a colleague',
+          '  will clarify, and still help with everything you can.',
           '',
           'PAYMENT DATE — your goal is to agree, kindly and naturally, the day they will pay.',
           '- Once confirmed, thank them briefly, say why you are calling and the amount, and ask which day',
@@ -194,9 +216,15 @@ function targetBlock(
           '- Say the agreed day back warmly, as a statement with its weekday, not as a question',
           '  ("Yaxshi, unda yigirmanchi oktabr, seshanba kuni kutamiz."). From that moment the topic is',
           '  CLOSED; reopen it only if they object to that day.',
-          '- While it is OPEN and they ask for anything else (a story, a joke, a riddle, any question,',
-          '  small talk), do not do it yet: in one or two friendly sentences, ask which day suits them',
-          '  for the payment and promise to do it as soon as they answer.',
+          '- Questions about the loan or the payment itself (how much, how, where, why, can I split it,',
+          '  what happens if I am late) are part of agreeing the date: answer them fully first.',
+          '- Never ask about the day in two replies in a row. If your previous reply already asked and they',
+          '  answered with a question instead, just answer it well and stop there — they are still talking',
+          '  it through. Ask again only in a later reply, and in different words each time (for example:',
+          '  "Qachon qulay bo\'ladi sizga?", "Unda qaysi kunni belgilab qo\'yaylik?", "Oylik qachon tushadi?").',
+          '- While it is OPEN and they ask for something unrelated (a story, a joke, a riddle, general',
+          '  questions, small talk), do not do it yet: in one or two friendly sentences, ask which day',
+          '  suits them for the payment and promise to do it as soon as they answer.',
           '- In the reply that closes the topic, keep EVERY promise you made while it was open, in the',
           '  order they asked: tell each story, joke or riddle and answer each question right there.',
           '  Never say "as I promised" without delivering it.',
@@ -206,6 +234,13 @@ function targetBlock(
           '- Offer the options from the call instructions (e.g. paying in parts) at most once, when they',
           '  say they cannot pay in full. Never read the call instructions out word for word.',
           '- If they cannot talk now, do not push: ask when you may call back, and end politely.',
+          // Told in words, the model still asked "which day?" in every reply; the
+          // previous reply is checked here and the model told the outcome.
+          lastReply && askedForDay(lastReply) && isQuestion(callerLines[callerLines.length - 1] ?? '')
+            ? '- THIS REPLY: your previous reply already asked which day suits them, and they answered with a ' +
+              'question. Do NOT ask about the day, the date or when they can pay in this reply: answer their ' +
+              'question well and stop.'
+            : '',
           '',
           calendarBlock(timeZone),
         ]
@@ -226,6 +261,21 @@ function targetBlock(
     .filter((line) => line !== undefined && line !== null)
     .join('\n')
     .replace(/\n{3,}/g, '\n\n');
+}
+
+/** Whether a reply asked the person to name a payment day. */
+function askedForDay(reply: string): boolean {
+  return reply
+    .split(/(?<=[.!?])\s+/)
+    .some((sentence) => sentence.trim().endsWith('?') && /kun|qachon|sana|когда|день|числ|дат|when|day|date/i.test(sentence));
+}
+
+/** Whether the caller's line asks something rather than answers. */
+function isQuestion(line: string): boolean {
+  return (
+    /\?\s*$/.test(line) ||
+    /(?<!\p{L})(qancha|qanday|qanaqa|nima|nega|nimaga|qayerda|qayerga|mumkinmi|bo'ladimi|сколько|как|почему|зачем|где|можно)(?!\p{L})/iu.test(line)
+  );
 }
 
 function contextBlock(hits: RetrievalHit[]) {
