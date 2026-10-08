@@ -19,6 +19,8 @@ export async function POST(request: Request): Promise<Response> {
   // console sends — some reverse proxies/WAFs 403 raw binary POSTs.
   let audio: ArrayBuffer;
   let language: Locale | undefined;
+  // Opt-in: the Playground asks for noise cleaning; the STT lab hears raw audio.
+  let clean = false;
   if (request.headers.get('content-type')?.includes('multipart/form-data')) {
     const form = await request.formData();
     const upload = form.get('file');
@@ -28,13 +30,14 @@ export async function POST(request: Request): Promise<Response> {
     audio = await upload.arrayBuffer();
     const lang = form.get('language');
     if (typeof lang === 'string' && ['uz', 'ru', 'en'].includes(lang)) language = lang as Locale;
+    clean = form.get('denoise') === '1';
   } else {
     audio = await request.arrayBuffer();
   }
   if (!audio.byteLength) return Response.json({ error: 'empty_audio' }, { status: 400 });
 
   try {
-    const heard = await transcribe(audio, { language });
+    const heard = await transcribe(audio, { language, denoise: clean });
     return Response.json({ text: heard.text, language: heard.language, engine: heard.engine });
   } catch (err) {
     const status = err instanceof SttError ? err.status : 502;

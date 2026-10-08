@@ -54,7 +54,7 @@ export async function POST(request: Request): Promise<Response> {
     let result: Awaited<ReturnType<typeof runTurn>> | null = null;
     try {
       const started = performance.now();
-      const heard = await transcribe(wav, { language: lang });
+      const heard = await transcribe(wav, { language: lang, denoise: true });
       sttMs = Math.round(performance.now() - started);
       send({ t: 'heard', text: heard.text });
       if (heard.text) {

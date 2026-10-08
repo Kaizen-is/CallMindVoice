@@ -611,6 +611,7 @@ export function Playground({
       const upload = new FormData();
       upload.append('file', wav, `speech-${turnId}.wav`);
       upload.append('language', speechLang);
+      upload.append('denoise', '1');
       const res = await fetch('/api/speech/stt', { method: 'POST', body: upload });
       if (!res.ok) {
         const message = t('play.toast.transcribeFailBody', 'The STT service returned an error.');

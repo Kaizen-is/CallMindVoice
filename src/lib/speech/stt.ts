@@ -21,6 +21,7 @@
 import 'server-only';
 import { geminiTranscribe, hasGemini } from '@/lib/llm/gemini';
 import type { Locale } from '@/lib/types';
+import { denoise } from './denoise';
 import { uzbekNumbersToDigits } from './numbers';
 
 export class SttError extends Error {
@@ -205,7 +206,11 @@ function pick(a: Transcript, b: Transcript, primary: Locale): Transcript {
  */
 export async function transcribe(
   audio: ArrayBuffer,
-  opts: { language?: Locale } = {},
+  opts: {
+    language?: Locale;
+    /** Run the utterance through the noise cleaner first (see `./denoise`). */
+    denoise?: boolean;
+  } = {},
 ): Promise<Transcript> {
   if (!audio.byteLength) throw new SttError('empty_audio', 400);
   const hasKotib = Boolean(process.env.STT_TRANSCRIBE_URL);
@@ -213,6 +218,7 @@ export async function transcribe(
   if (!hasKotib && !hasWhisper) throw new SttError('stt_not_configured', 503);
 
   if (isSilent(audio)) return EMPTY;
+  if (opts.denoise) audio = await denoise(audio);
 
   const primary = opts.language ?? 'uz';
   const geminiEar = !hasWhisper && hasGemini();
