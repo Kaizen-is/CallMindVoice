@@ -11,8 +11,6 @@ import {
   type PlaygroundReply,
 } from '@/app/actions/agent';
 import { translator, type Translate } from '@/lib/i18n';
-import type { CallAgent, TurnDetail } from '@/lib/playground-shared';
-import { ConsoleCall } from './console-call';
 import type { Locale, UiLocale } from '@/lib/types';
 import { cn, fmtLatency, relativeTime } from '@/lib/utils';
 import { voiceInputAvailable } from '@/lib/catalog';
@@ -28,7 +26,6 @@ import {
   IconHeadset,
   IconMic,
   IconMicOff,
-  IconPhone,
   IconPlus,
   IconRefresh,
   IconSend,
@@ -154,9 +151,6 @@ export function Playground({
   chunks,
   engine,
   speech,
-  callAgents,
-  orgName,
-  callReady,
 }: {
   agent: {
     id: string;
@@ -176,11 +170,6 @@ export function Playground({
   chunks: number;
   engine: string;
   speech: { stt: boolean; tts: boolean };
-  /** Every agent as the demo-style call needs it (greeting comes from the server). */
-  callAgents: CallAgent[];
-  orgName: string;
-  /** Speech recognition is configured, so the hands-free call can run. */
-  callReady: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -207,39 +196,6 @@ export function Playground({
       /* keep the list we have */
     }
   }, [selectedAgentId]);
-  // 'call' is the demo's hands-free call; 'chat' is the transcript with typing.
-  const [mode, setMode] = useState<'call' | 'chat'>(callReady ? 'call' : 'chat');
-  // Bumped to remount the call (and hang up any live one) on "New call".
-  const [callEpoch, setCallEpoch] = useState(0);
-  const callAgent = callAgents.find((a) => a.id === selectedAgentId) ?? callAgents[0];
-
-  // A call's finished exchanges join the transcript, so the side panels and
-  // the text view show exactly what was said.
-  const onCallId = useCallback(
-    (id: string) => {
-      setMessages([]);
-      setCallId(id);
-      rememberChat(selectedAgentId, id);
-    },
-    [selectedAgentId],
-  );
-  const onCallTurn = useCallback(
-    (turn: { heard: string; reply: string; lang: Locale; detail?: TurnDetail }) => {
-      setMessages((m) => [
-        ...m,
-        ...(turn.heard ? [{ id: nextId(), role: 'caller' as const, text: turn.heard }] : []),
-        {
-          id: nextId(),
-          role: 'agent' as const,
-          text: turn.reply,
-          lang: turn.lang,
-          reply: turn.detail ? { ok: true, reply: turn.reply, ...turn.detail } : undefined,
-        },
-      ]);
-      void refreshChats();
-    },
-    [refreshChats],
-  );
   const [input, setInput] = useState('');
   /** The keyboard is opt-in: this page is for talking, not typing. */
   const [typing, setTyping] = useState(false);
@@ -715,7 +671,6 @@ export function Playground({
 
   const reset = async () => {
     stopVoiceConversation();
-    setCallEpoch((e) => e + 1);
     if (callId) await endPlaygroundCallAction(callId, 5);
     clearConversation();
     rememberChat(selectedAgentId, null);
@@ -726,15 +681,9 @@ export function Playground({
   // Reopen a saved conversation: its transcript returns to the screen and the
   // next message continues it, so the agent remembers everything said there.
   const openChat = useCallback(
-    async (id: string, fromRail = true) => {
-      if (id === callId && (mode === 'chat' || !fromRail)) return;
+    async (id: string) => {
+      if (id === callId) return;
       stopVoiceConversation();
-      // A chat picked from the rail is read in the transcript view; the one
-      // restored on page load stays behind the call.
-      if (fromRail) {
-        setMode('chat');
-        setTyping(true);
-      }
       if (callId) void endPlaygroundCallAction(callId, 5);
       clearConversation();
       setOpeningChat(id);
@@ -766,7 +715,7 @@ export function Playground({
         setOpeningChat(null);
       }
     },
-    [callId, mode, clearConversation, refreshChats, selectedAgentId, stopVoiceConversation, t, toast],
+    [callId, clearConversation, refreshChats, selectedAgentId, stopVoiceConversation, t, toast],
   );
 
   // Each agent keeps its own history: load its chats and reopen the one that
@@ -774,7 +723,7 @@ export function Playground({
   useEffect(() => {
     void refreshChats();
     const saved = selectedAgentId ? rememberedChat(selectedAgentId) : null;
-    if (saved) void openChat(saved, false);
+    if (saved) void openChat(saved);
   }, [selectedAgentId]);
 
   // Switching who you talk to starts a fresh session with a clean transcript.
@@ -859,25 +808,6 @@ export function Playground({
         subtitle={t('play.subtitle')}
         actions={
           <>
-            {callReady && (
-              <Button
-                variant="secondary"
-                icon={mode === 'call' ? <IconSend size={15} /> : <IconPhone size={15} />}
-                onClick={() => {
-                  stopVoiceConversation();
-                  if (mode === 'call') {
-                    setMode('chat');
-                    setTyping(true);
-                  } else {
-                    setMode('call');
-                    setCallEpoch((e) => e + 1);
-                  }
-                }}
-              >
-                {mode === 'call' ? t('play.textChat', 'Text chat') : t('play.voiceCall', 'Voice call')}
-              </Button>
-            )}
-            {mode === 'chat' && (
             <Button
               variant="secondary"
               icon={ttsEnabled ? <IconVolume size={15} /> : <IconMicOff size={15} />}
@@ -894,7 +824,6 @@ export function Playground({
             >
               {ttsEnabled ? t('play.voiceOn', 'Voice on') : t('play.voiceOff', 'Voice off')}
             </Button>
-            )}
             <Button variant="secondary" icon={<IconRefresh size={15} />} onClick={() => void reset()}>
               {t('play.newCall', 'New call')}
             </Button>
@@ -965,22 +894,6 @@ export function Playground({
             what it produces. Typing is still available — it is the same engine
             and the same transcript — but it is deliberately the secondary
             affordance, one tap away rather than occupying the composer. ── */}
-        {mode === 'call' && callAgent ? (
-          // The demo's call, embedded: same orb, buttons and hands-free turns.
-          <Card padded={false} className="flex min-h-[600px] flex-col overflow-hidden lg:min-h-0">
-            <ConsoleCall
-              key={`${callAgent.id}:${callEpoch}`}
-              agent={callAgent}
-              orgName={orgName}
-              initialLang={callAgent.primaryLang === 'ru' ? 'ru' : 'uz'}
-              voice={voiceOverride}
-              available={callReady}
-              onCallId={onCallId}
-              onTurn={onCallTurn}
-              onEnded={() => void refreshChats()}
-            />
-          </Card>
-        ) : (
         <Card padded={false} className="flex min-h-[560px] flex-col overflow-hidden lg:min-h-0">
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 hairline-b">
             <div className="flex items-center gap-2.5">
@@ -1212,7 +1125,6 @@ export function Playground({
             )}
           </div>
         </Card>
-        )}
 
         {/* ── Right: what the last turn actually did. The live-voice controls
             used to live here; they now sit in the call surface's dock, because
