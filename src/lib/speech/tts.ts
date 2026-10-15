@@ -1,21 +1,20 @@
 /**
  * The TTS layer — one place that knows how to turn text into telephone audio.
  *
- * Before this module existed, `api/speech/tts` and `api/telephony/bridge/turn`
- * each carried their own copy of the JWT mint, the generate→download two-step
- * and the timeouts. They have now converged here, and gained the three things
- * the voice path actually needs:
+ * Every voice in the product — demo, logistics, Playground, phone bridge, the
+ * TTS lab, cloned and designed voices — is rendered here, through one endpoint:
+ * the TTS server's `generate_v2/stream`, which takes the same voices as
+ * generate_v2 and sends the audio as it is generated. On top of it:
  *
  *   1. **A disk cache.** Greetings, re-prompts and filler lines are the same
  *      bytes on every single call. Rendering them once removes a full TTS
  *      round-trip from the most latency-sensitive moment of the call — the
  *      first second, before the caller has heard anything at all.
  *
- *   2. **Sentence-level streaming.** `synthesizeStream` splits the reply, fires
- *      the chunks concurrently and yields their PCM *in order* as each lands.
- *      The caller starts hearing sentence one while sentence three is still
- *      rendering, which is the single biggest latency win available to us: the
- *      wait collapses from "render the whole reply" to "render one sentence".
+ *   2. **Streaming.** `synthesizeStream` splits the reply into sentences and
+ *      hands each one on in pieces as the server produces them, so the caller
+ *      hears the first words about a second after the text is ready, and each
+ *      next sentence renders while the last one plays.
  *
  *   3. **Telephone-native output.** Everything is converted to 8 kHz mono
  *      signed-16 PCM here, so nothing downstream has to parse WAV containers or
@@ -34,18 +33,6 @@ export const SAMPLE_RATE = 8000;
 const BYTES_PER_SAMPLE = 2;
 
 const CACHE_DIR = path.join(process.cwd(), 'data', 'tts-cache');
-
-/**
- * How many chunks of one reply may render at once against the TTS server.
- *
- * One, measured (Oct 2026): the server works through requests one at a time
- * at ~2 s each, and concurrent requests all come back together at the end.
- * Three sentences fired at once arrived at 6.4 s; one after another they
- * arrived at 2.0 / 4.3 / 6.5 s — same total, but the caller hears the first
- * sentence 4 s sooner, and each next one renders while the last one plays.
- * TTS_CHUNK_CONCURRENCY raises it for a server that renders in parallel.
- */
-const CHUNK_CONCURRENCY = Math.max(1, Number(process.env.TTS_CHUNK_CONCURRENCY) || 1);
 
 export class TtsError extends Error {
   status: number;
@@ -100,54 +87,25 @@ async function ttsToken(): Promise<string> {
 
 /* ── the one real network call ───────────────────────────────── */
 
-let seq = 0;
-
 /**
- * Render one piece of text and return it as 8 kHz mono PCM.
- * `text` must already be normalised — see `normalizeForSpeech`.
+ * Render one piece of text whole, as 8 kHz mono PCM — the stream below,
+ * collected. `text` must already be normalised (see `normalizeForSpeech`).
  */
-async function renderPcm(text: string, voice: ResolvedVoice, tag: string): Promise<Buffer> {
-  const base = baseUrl();
-  const token = await ttsToken();
-  const auth = { Authorization: `Bearer ${token}` };
-
-  // The TTS server keys generated audio by user_id, so every concurrent chunk
-  // needs its own — a shared id would have chunks overwrite each other.
-  const userId = `${tag.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20)}_${Date.now()}_${seq++}`;
-
-  const gen = await fetch(`${base}/api/v1/tts/generate_v2`, {
-    method: 'POST',
-    headers: auth,
-    body: buildTtsForm({ userId, text, voice }),
-    signal: AbortSignal.timeout(60000),
-  });
-  if (!gen.ok) {
-    console.warn(`[tts] generate ${gen.status}: ${(await gen.text().catch(() => '')).slice(0, 160)}`);
-    throw new TtsError('tts_failed', 502);
-  }
-
-  const audioRes = await fetch(`${base}/api/v1/tts/audio/${encodeURIComponent(userId)}?inline=true`, {
-    headers: auth,
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!audioRes.ok) throw new TtsError('tts_audio_failed', 502);
-  return wavToPcm8k(Buffer.from(await audioRes.arrayBuffer()));
+async function renderPcm(text: string, voice: ResolvedVoice): Promise<Buffer> {
+  const parts: Buffer[] = [];
+  for await (const piece of streamPcm(text, voice)) parts.push(piece);
+  if (!parts.length) throw new TtsError('tts_empty_audio', 502);
+  return Buffer.concat(parts);
 }
 
 /* ── streaming render: generate_v2/stream ────────────────────── */
 
 /**
- * The server's streaming twin of generate_v2: the same voices, with the audio
- * sent as it is generated (raw 8 kHz s16le, `format=l16`), so the first sound
- * plays in well under a second instead of after the whole sentence renders.
- *
- * Designed voices keep the full render for now: on long text the server's
- * stream drifts their speaking speed. `TTS_STREAMING=off` turns streaming off.
+ * `generate_v2/stream`: the same voices as generate_v2 (speaker, clone,
+ * design), with the audio sent as it is generated — raw 8 kHz s16le
+ * (`format=l16`) — so the first sound plays in about a second instead of
+ * after the whole sentence renders. It is the only TTS endpoint used.
  */
-function streams(voice: ResolvedVoice): boolean {
-  return process.env.TTS_STREAMING !== 'off' && voice.kind !== 'design';
-}
-
 /** The first piece goes out as soon as there is a little audio; then half-second pieces. */
 const FIRST_PIECE_BYTES = 4000; // 0.25 s
 const PIECE_BYTES = 8000; // 0.5 s
@@ -264,11 +222,11 @@ export async function synthesizePcm(text: string, opts: SynthOptions): Promise<B
     const key = cacheKey(spoken, voice);
     const hit = cacheRead(key);
     if (hit) return hit;
-    const pcm = await renderPcm(spoken, voice, opts.tag ?? 'tts');
+    const pcm = await renderPcm(spoken, voice);
     cacheWrite(key, pcm);
     return pcm;
   }
-  return renderPcm(spoken, voice, opts.tag ?? 'tts');
+  return renderPcm(spoken, voice);
 }
 
 /** The disk-cached rendering of `text`, or null. Never renders. */
@@ -284,12 +242,12 @@ export async function synthesizeWav(text: string, opts: SynthOptions): Promise<B
 }
 
 /**
- * Render `text` as an ordered stream of PCM chunks.
- *
- * Chunks are dispatched up to `CHUNK_CONCURRENCY` at a time but always yielded
- * in reading order, so the audio the caller hears is never scrambled — chunk 2
- * finishing first simply waits for chunk 1. Callers should start playing the
- * first chunk immediately; that is the whole point.
+ * Render `text` as a stream of PCM pieces, in reading order: sentence by
+ * sentence, each handed on as the server produces it. Callers should start
+ * playing the first piece immediately; that is the whole point. Cached
+ * sentences come straight from disk; a streamed one is cached once complete
+ * (a stream cut short throws instead of finishing, so a partial line is never
+ * cached).
  */
 export async function* synthesizeStream(
   text: string,
@@ -298,59 +256,20 @@ export async function* synthesizeStream(
   const spoken = normalizeForSpeech(text, opts.language ?? 'uz');
   if (!spoken) return;
   const voice = resolveVoice(opts.tenantId, opts.voiceId);
-  const chunks = splitForSpeech(spoken);
 
-  if (streams(voice)) {
-    // One chunk at a time: each one starts sounding within a second, while the
-    // previous chunk is still playing. Cached chunks come straight from disk.
-    for (const chunk of chunks) {
-      const key = opts.cache ? cacheKey(chunk, voice) : null;
-      const hit = key ? cacheRead(key) : null;
-      if (hit) {
-        yield hit;
-        continue;
-      }
-      const parts: Buffer[] = [];
-      try {
-        for await (const piece of streamPcm(chunk, voice)) {
-          parts.push(piece);
-          yield piece;
-        }
-        if (key) cacheWrite(key, Buffer.concat(parts));
-        continue;
-      } catch (err) {
-        // Once audio has been heard it cannot be taken back; before that, the
-        // full render below still gets the line said.
-        if (parts.length) throw err;
-        console.warn('[tts] stream failed, using generate_v2:', err instanceof Error ? err.message : err);
-      }
-      const pcm = await renderPcm(chunk, voice, opts.tag ?? 'tts');
-      if (key) cacheWrite(key, pcm);
-      yield pcm;
-    }
-    return;
-  }
-
-  // A sliding window of in-flight renders: `pending[i]` is chunk i's promise.
-  // We await them in order while keeping the window full ahead of the cursor.
-  const pending: Array<Promise<Buffer>> = [];
-  const start = (i: number) => {
-    const key = opts.cache ? cacheKey(chunks[i], voice) : null;
+  for (const chunk of splitForSpeech(spoken)) {
+    const key = opts.cache ? cacheKey(chunk, voice) : null;
     const hit = key ? cacheRead(key) : null;
-    if (hit) return Promise.resolve(hit);
-    return renderPcm(chunks[i], voice, opts.tag ?? 'tts').then((pcm) => {
-      if (key) cacheWrite(key, pcm);
-      return pcm;
-    });
-  };
-
-  for (let i = 0; i < Math.min(CHUNK_CONCURRENCY, chunks.length); i++) pending.push(start(i));
-
-  for (let i = 0; i < chunks.length; i++) {
-    const pcm = await pending[i];
-    const next = i + CHUNK_CONCURRENCY;
-    if (next < chunks.length) pending.push(start(next));
-    yield pcm;
+    if (hit) {
+      yield hit;
+      continue;
+    }
+    const parts: Buffer[] = [];
+    for await (const piece of streamPcm(chunk, voice)) {
+      parts.push(piece);
+      yield piece;
+    }
+    if (key && parts.length) cacheWrite(key, Buffer.concat(parts));
   }
 }
 

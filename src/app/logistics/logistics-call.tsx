@@ -61,6 +61,9 @@ interface Props {
   initialVoice: string;
 }
 
+/** 0.8 s of silence (8 kHz, 16-bit) between the connect chime and the greeting. */
+const GREETING_LEAD_IN_BYTES = 12_800;
+
 /** Speaking rate of the agent's voice, used until a line's true length is known. */
 const SECONDS_PER_CHAR = 0.063;
 
@@ -628,6 +631,10 @@ export function LogisticsCall({ fontClass, initialLang, available, identity, per
     }
 
     out.tone('connect');
+    // A moment of silence before the greeting: opening the mic switches a phone
+    // into call audio, and the first second after that switch is often not
+    // played — which swallowed "Assalomu alaykum".
+    out.enqueue(new Uint8Array(GREETING_LEAD_IN_BYTES));
     startedAtRef.current = Date.now();
     setStartedAt(startedAtRef.current);
     go('live');
