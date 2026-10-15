@@ -53,7 +53,7 @@ export const COPY: Record<DemoLang, Copy> = {
     unmute: 'Mikrofonni yoqish',
     hangUp: 'Qoʻngʻiroqni tugatish',
     interrupt: 'Gapini boʻlish',
-    persona: (tracks) => `Sinab koʻring — trek raqamlar: ${tracks}`,
+    persona: (tracks) => `Sinab koʻring — track raqamlar: ${tracks}`,
     heardNothing: 'Eshitilmadi — qaytadan ayting',
     network: 'Aloqa uzildi — qaytadan ayting',
     busy: 'Liniya band. Birozdan soʻng qoʻngʻiroq qiling',
