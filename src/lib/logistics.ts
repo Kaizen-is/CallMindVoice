@@ -23,7 +23,9 @@ import { fillerLines } from '@/lib/speech/fillers';
 import { gapiTranscribe } from '@/lib/speech/gapi';
 import { transcribe, type Transcript } from '@/lib/speech/stt';
 import { cachedPcm, synthesizePcm, ttsConfigured } from '@/lib/speech/tts';
-import type { Agent } from '@/lib/types';
+import { classifyIntent } from '@/lib/llm/provider';
+import { detectLanguage } from '@/lib/rag/text';
+import type { Agent, Locale } from '@/lib/types';
 import type { DemoLang } from './demo-shared';
 import { LOGISTICS_VOCABULARY, logisticsContext, lookupNote } from './logistics-data';
 
@@ -230,6 +232,35 @@ export function warmLogistics(agent: Agent) {
       }
     }
   })();
+}
+
+/* ── the "bir daqiqa" while the agent thinks ─────────────────── */
+
+const fillerTurns = new Map<string, number>();
+
+/**
+ * A pre-rendered filler for this turn, or null. Like the bank demo's, except
+ * a greeting that carries a number still gets one: callers open with
+ * "Assalomu alaykum, track raqamim …", and that is exactly the turn that has
+ * work to do — skipping the filler there left seconds of silence.
+ */
+export function logisticsFiller(agent: Agent, callId: string, heard: string, voiceId: string): string | null {
+  if (!ttsConfigured()) return null;
+  const intent = classifyIntent(heard);
+  const hasNumber = /\d|\b(bir|ikki|uch|to'rt|besh|olti|yetti|sakkiz|to'qqiz|o'n|yigirma|qirq|ellik|yuz|ming)\b/i.test(
+    heard.replace(/[‘’ʻʼ`]/g, "'"),
+  );
+  if (intent === 'goodbye' || intent === 'affirm' || intent === 'human' || (intent === 'greeting' && !hasNumber)) {
+    return null;
+  }
+  const lang = (detectLanguage(heard) === 'ru' ? 'ru' : 'uz') as DemoLang;
+  const lines = fillerLines(lang as Locale);
+  const turn = fillerTurns.get(callId) ?? 0;
+  const pcm = cachedPcm(lines[turn % lines.length], voiceOptions(agent, lang, voiceId));
+  if (!pcm) return null;
+  fillerTurns.set(callId, turn + 1);
+  if (fillerTurns.size > 2000) fillerTurns.clear();
+  return pcm.toString('base64');
 }
 
 /* ── transcribing (GAPI), also during the pause ─────────────── */

@@ -3,12 +3,13 @@
  * recorded; GAPI transcribes it (after our noise cleaner), the shipment the
  * caller named is looked up, and the reply streams back with its voice.
  */
-import { admit, claimCall, eventStream, fillerFor, releaseCall, speakAsWritten, demoLang } from '@/lib/demo';
+import { admit, claimCall, eventStream, releaseCall, speakAsWritten, demoLang } from '@/lib/demo';
 import { runTurn } from '@/lib/engine/conversation';
 import {
   closeLogisticsCall,
   heardIn,
   liveLogisticsCall,
+  logisticsFiller,
   logisticsAgent,
   logisticsVoice,
   prefetchHeard,
@@ -50,6 +51,14 @@ export async function POST(request: Request): Promise<Response> {
   if (!claimCall(callId)) return Response.json({ error: 'busy_call' }, { status: 409 });
 
   return eventStream(async (send, signal) => {
+    // Per-turn timing in the server log, to see where a slow reply spent its time.
+    const t0 = performance.now();
+    let firstAudioMs = 0;
+    let fillerSent = false;
+    const timedSend: typeof send = (event) => {
+      if (event.t === 'audio' && !firstAudioMs) firstAudioMs = Math.round(performance.now() - t0);
+      send(event);
+    };
     let sttMs = 0;
     let result: Awaited<ReturnType<typeof runTurn>> | null = null;
     let voice: ReturnType<typeof speakAsWritten> | null = null;
@@ -62,9 +71,10 @@ export async function POST(request: Request): Promise<Response> {
       sttMs = Math.round(performance.now() - started);
       send({ t: 'heard', text: heard.text });
       if (heard.text) {
-        const filler = fillerFor(agent, callId, heard.text, voiceId);
+        const filler = logisticsFiller(agent, callId, heard.text, voiceId);
         if (filler) send({ t: 'filler', pcm: filler });
-        const speaker = speakAsWritten(agent, detectLanguage(heard.text) as Locale, send, signal, voiceId);
+        fillerSent = Boolean(filler);
+        const speaker = speakAsWritten(agent, detectLanguage(heard.text) as Locale, timedSend, signal, voiceId);
         voice = speaker;
         result = await runTurn({
           tenantId: agent.tenant_id,
@@ -96,6 +106,11 @@ export async function POST(request: Request): Promise<Response> {
       end,
       ms: { stt: sttMs, retrieval: result.timings.retrievalMs, llm: result.timings.llmMs },
     });
+    console.log(
+      `[logistics] turn ${callId.slice(-6)}: stt ${sttMs} ms, llm ${result.timings.llmMs} ms, ` +
+        `first audio ${firstAudioMs} ms, all voiced ${Math.round(performance.now() - t0)} ms` +
+        `, filler ${fillerSent ? 'yes' : 'no'}, ${result.reply.split(/\s+/).length} words`,
+    );
     send({ t: 'done' });
   });
 }
