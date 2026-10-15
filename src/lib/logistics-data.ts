@@ -223,8 +223,15 @@ function joinedDigits(line: string): string[] {
   return [...text.matchAll(/\d+/g)].map((m) => m[0]);
 }
 
+/**
+ * Candidate numbers in a line, read twice: as written, and with punctuation
+ * dropped — GAPI may put a comma inside a number said in words ("yetti yuz
+ * o'ttiz to'qqiz ming, bir yuz sakson to'rt"), which splits it in two.
+ */
 function numbersIn(line: string): string[] {
-  return joinedDigits(line).filter((n) => n.length >= 6 && n.length <= 12);
+  const unpunctuated = line.replace(/[,.;:!?]+/g, ' ');
+  const all = [...joinedDigits(line), ...joinedDigits(unpunctuated)];
+  return [...new Set(all)].filter((n) => n.length >= 6 && n.length <= 12);
 }
 
 export interface Lookup {

@@ -5,8 +5,11 @@
  * Everything GAPI does by default that a live turn does not need is switched
  * off: speaker recognition and enrolment (it would store every caller's
  * voiceprint), PII redaction, gender, call-outcome detection, diarization.
- * Numbers come back as digits (`itn`), which is what the tracking-number
- * lookup reads.
+ *
+ * Numbers come back as words (`itn: false`). GAPI hears them right ("qirq
+ * sakkiz yigirma to'qqiz o'n uch") but its own number normalisation mangles
+ * them ("48, 20 009 10 03"); the app's converter (`./numbers`) reads the
+ * words reliably, so the track-number lookup does that itself.
  *
  * GAPI does not clean noise or report it, so noisy audio goes through our
  * CleanVoice step (`./denoise`) first.
@@ -20,7 +23,7 @@ const TIMEOUT_MS = 12_000;
 
 const SETTINGS = {
   diarization: false,
-  itn: true,
+  itn: false,
   formatting: true,
   pii: false,
   gender: false,
