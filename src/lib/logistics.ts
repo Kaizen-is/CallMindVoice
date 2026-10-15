@@ -3,7 +3,8 @@
  * that delivers from China to Uzbekistan and asks where their parcel is.
  *
  * Built on the bank demo's call engine (`@/lib/demo` — event stream, streamed
- * voice, fillers, per-call lock, rate limits), with three differences:
+ * voice, per-call lock, rate limits), with three differences (and no "bir
+ * daqiqa" fillers):
  *   • Uzbek speech is transcribed by GAPI (`@/lib/speech/gapi`) as recorded,
  *     instead of the internal Kotib model (Russian keeps the app's own path:
  *     GAPI writes Latin-script Uzbek only);
@@ -19,13 +20,10 @@ import { createHash } from 'node:crypto';
 import { all, get, id, now, run } from '@/lib/db';
 import { publish } from '@/lib/engine/bus';
 import { startCall } from '@/lib/engine/calls';
-import { fillerLines } from '@/lib/speech/fillers';
 import { gapiTranscribe } from '@/lib/speech/gapi';
 import { transcribe, type Transcript } from '@/lib/speech/stt';
 import { cachedPcm, synthesizePcm, ttsConfigured } from '@/lib/speech/tts';
-import { classifyIntent } from '@/lib/llm/provider';
-import { detectLanguage } from '@/lib/rag/text';
-import type { Agent, Locale } from '@/lib/types';
+import type { Agent } from '@/lib/types';
 import type { DemoLang } from './demo-shared';
 import { LOGISTICS_VOCABULARY, logisticsContext, lookupNote } from './logistics-data';
 
@@ -206,7 +204,7 @@ export function seedGreeting(agent: Agent, callId: string, lang: DemoLang, text:
   publish(agent.tenant_id, { type: 'turn', callId, utterance: '', reply: text, confidence: 1, escalated: false, latencyMs: 0 });
 }
 
-/* ── warming: greetings and fillers in both voices ───────────── */
+/* ── warming: the greetings in both voices ───────────────────── */
 
 const state = ((globalThis as Record<string, unknown>).__callmindLogistics ??= {}) as {
   warmed?: boolean;
@@ -218,7 +216,7 @@ export function voiceOptions(agent: Agent, lang: DemoLang, voiceId: string) {
   return { tenantId: agent.tenant_id, voiceId, language: lang, tag: 'demo', cache: true };
 }
 
-/** Render the greetings and "bir daqiqa" fillers once, so the first visitor hears them instantly. */
+/** Render the greetings once, so the first visitor hears one instantly. (No fillers on this demo.) */
 export function warmLogistics(agent: Agent) {
   if (state.warmed || !ttsConfigured()) return;
   state.warmed = true;
@@ -226,41 +224,11 @@ export function warmLogistics(agent: Agent) {
     for (const voice of LOGISTICS_VOICES) {
       for (const lang of ['uz', 'ru'] as const) {
         const opts = voiceOptions(agent, lang, voice.id);
-        for (const line of [greetingFor(lang, voice.id), ...fillerLines(lang)]) {
-          if (!cachedPcm(line, opts)) await synthesizePcm(line, opts).catch(() => null);
-        }
+        const line = greetingFor(lang, voice.id);
+        if (!cachedPcm(line, opts)) await synthesizePcm(line, opts).catch(() => null);
       }
     }
   })();
-}
-
-/* ── the "bir daqiqa" while the agent thinks ─────────────────── */
-
-const fillerTurns = new Map<string, number>();
-
-/**
- * A pre-rendered filler for this turn, or null. Like the bank demo's, except
- * a greeting that carries a number still gets one: callers open with
- * "Assalomu alaykum, track raqamim …", and that is exactly the turn that has
- * work to do — skipping the filler there left seconds of silence.
- */
-export function logisticsFiller(agent: Agent, callId: string, heard: string, voiceId: string): string | null {
-  if (!ttsConfigured()) return null;
-  const intent = classifyIntent(heard);
-  const hasNumber = /\d|\b(bir|ikki|uch|to'rt|besh|olti|yetti|sakkiz|to'qqiz|o'n|yigirma|qirq|ellik|yuz|ming)\b/i.test(
-    heard.replace(/[‘’ʻʼ`]/g, "'"),
-  );
-  if (intent === 'goodbye' || intent === 'affirm' || intent === 'human' || (intent === 'greeting' && !hasNumber)) {
-    return null;
-  }
-  const lang = (detectLanguage(heard) === 'ru' ? 'ru' : 'uz') as DemoLang;
-  const lines = fillerLines(lang as Locale);
-  const turn = fillerTurns.get(callId) ?? 0;
-  const pcm = cachedPcm(lines[turn % lines.length], voiceOptions(agent, lang, voiceId));
-  if (!pcm) return null;
-  fillerTurns.set(callId, turn + 1);
-  if (fillerTurns.size > 2000) fillerTurns.clear();
-  return pcm.toString('base64');
 }
 
 /* ── transcribing (GAPI), also during the pause ─────────────── */

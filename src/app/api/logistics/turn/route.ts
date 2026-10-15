@@ -9,7 +9,6 @@ import {
   closeLogisticsCall,
   heardIn,
   liveLogisticsCall,
-  logisticsFiller,
   logisticsAgent,
   logisticsVoice,
   prefetchHeard,
@@ -54,7 +53,6 @@ export async function POST(request: Request): Promise<Response> {
     // Per-turn timing in the server log, to see where a slow reply spent its time.
     const t0 = performance.now();
     let firstAudioMs = 0;
-    let fillerSent = false;
     const timedSend: typeof send = (event) => {
       if (event.t === 'audio' && !firstAudioMs) firstAudioMs = Math.round(performance.now() - t0);
       send(event);
@@ -71,9 +69,7 @@ export async function POST(request: Request): Promise<Response> {
       sttMs = Math.round(performance.now() - started);
       send({ t: 'heard', text: heard.text });
       if (heard.text) {
-        const filler = logisticsFiller(agent, callId, heard.text, voiceId);
-        if (filler) send({ t: 'filler', pcm: filler });
-        fillerSent = Boolean(filler);
+        // No "bir daqiqa" filler here: the reply itself is the first thing heard.
         const speaker = speakAsWritten(agent, detectLanguage(heard.text) as Locale, timedSend, signal, voiceId);
         voice = speaker;
         result = await runTurn({
@@ -109,7 +105,7 @@ export async function POST(request: Request): Promise<Response> {
     console.log(
       `[logistics] turn ${callId.slice(-6)}: stt ${sttMs} ms, llm ${result.timings.llmMs} ms, ` +
         `first audio ${firstAudioMs} ms, all voiced ${Math.round(performance.now() - t0)} ms` +
-        `, filler ${fillerSent ? 'yes' : 'no'}, ${result.reply.split(/\s+/).length} words`,
+        `, ${result.reply.split(/\s+/).length} words`,
     );
     send({ t: 'done' });
   });
