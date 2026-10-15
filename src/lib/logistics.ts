@@ -175,7 +175,7 @@ export function greetingFor(lang: DemoLang, voiceId: string): string {
   const name = voiceName(voiceId);
   return lang === 'ru'
     ? `Здравствуйте! Служба доставки, меня зовут ${name}. Подскажите номер отслеживания или номер телефона, и я проверю, где ваш груз.`
-    : `Assalomu alaykum! Yetkazib berish xizmati, men ${name}. Trek raqamingizni yoki telefon raqamingizni ayting, yukingiz qayerdaligini tekshirib beraman.`;
+    : `Assalomu alaykum! Yetkazib berish xizmati, men ${name}. Track raqamingizni yoki telefon raqamingizni ayting, yukingiz qayerdaligini tekshirib beraman.`;
 }
 
 /** Record the greeting as the call's first line, so the model knows it was said. */

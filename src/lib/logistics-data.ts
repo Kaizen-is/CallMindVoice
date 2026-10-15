@@ -198,7 +198,7 @@ export const TRY_TRACKS = ['482913', '615027', '739184', '827405'] as const;
 /** Terms GAPI should expect on these calls (at most 20). */
 export const LOGISTICS_VOCABULARY = [
   'Yiwu', 'Guangzhou', 'Shenzhen', 'Urumchi', 'Xorgos', 'Olmaota', 'Yallama', 'Toshkent',
-  'posilka', 'trek raqam', 'yuk', 'bojxona', 'kuryer', 'terminal', 'kargo', 'avia',
+  'posilka', 'track raqam', 'trek raqam', 'yuk', 'bojxona', 'kuryer', 'terminal', 'kargo', 'avia',
 ] as const;
 
 /* ── lookup ──────────────────────────────────────────────────── */
@@ -284,7 +284,7 @@ export function logisticsContext(callerLines: string[], agentName: string, timeZ
         'NO SHIPMENT IDENTIFIED YET.',
         unknownNumber
           ? `- The number they gave (${unknownNumber}) matches nothing. Say you cannot find it, and ask them to repeat it slowly digit by digit, or to give the phone number the parcel was sent to.`
-          : '- Ask for the 6-digit tracking number (trek raqam) or the phone number the parcel was sent to. The system looks it up; never guess or make up a status.',
+          : '- Ask for the 6-digit track number or the phone number the parcel was sent to. The system looks it up; never guess or make up a status.',
       ];
 
   return [
@@ -297,6 +297,7 @@ export function logisticsContext(callerLines: string[], agentName: string, timeZ
     '- Short, natural, warm sentences, in the caller’s language. Build on what they just said.',
     '- Never repeat a sentence you already said; never ask again for something they told you.',
     '- If they are worried or angry about a delay, acknowledge it first, then give the facts.',
+    '- In Uzbek, always call it "track raqam" (never "trek"); in Russian, "трек-номер".',
     '',
     ...shipment.filter(Boolean),
     '',
