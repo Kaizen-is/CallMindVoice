@@ -203,34 +203,63 @@ export const LOGISTICS_VOCABULARY = [
 
 /* ── lookup ──────────────────────────────────────────────────── */
 
-/** Digits as said: "48 29 13" and "48-29-13" are one number. */
+const DIGIT_WORDS: Record<string, string> = {
+  nol: '0', bir: '1', ikki: '2', uch: '3', "to'rt": '4', tort: '4', besh: '5',
+  olti: '6', yetti: '7', sakkiz: '8', "to'qqiz": '9', toqqiz: '9',
+};
+
+/** "olti bir besh nol ikki yetti" — a number said digit by digit — as digits. */
+function spelledDigits(line: string): string {
+  const text = line.replace(/[‘’ʻʼ`]/g, "'");
+  const word = "(?:nol|bir|ikki|uch|to'rt|tort|besh|olti|yetti|sakkiz|to'qqiz|toqqiz)";
+  return text.replace(new RegExp(`\\b${word}(?:[\\s,.-]+${word}){2,}\\b`, 'gi'), (run) =>
+    run.split(/[\s,.-]+/).map((w) => DIGIT_WORDS[w.toLowerCase()] ?? '').join(''),
+  );
+}
+
+/** Digits as said: "48 29 13", "48, 29, 13" and "48-29-13" are one number. */
+function joinedDigits(line: string): string[] {
+  const text = uzbekNumbersToDigits(spelledDigits(line)).replace(/(\d)[\s.,-]+(?=\d)/g, '$1');
+  return [...text.matchAll(/\d+/g)].map((m) => m[0]);
+}
+
 function numbersIn(line: string): string[] {
-  const text = uzbekNumbersToDigits(line).replace(/(\d)[\s.-]+(?=\d)/g, '$1');
-  return [...text.matchAll(/\d{6,12}/g)].map((m) => m[0]);
+  return joinedDigits(line).filter((n) => n.length >= 6 && n.length <= 12);
 }
 
 export interface Lookup {
   found: Shipment[];
+  /** How each found shipment was matched, by its track number. */
+  matchedBy: Map<string, string>;
   /** The caller gave a number that matched nothing (and nothing was found since). */
   unknownNumber: string | null;
+  /** Digits in their latest line too short to be a number (part of one, or misheard). */
+  partial: string | null;
 }
 
-/** Everything the caller has said, searched for tracking and phone numbers. */
+/** Everything the caller has said, searched for track and phone numbers. */
 export function lookupShipments(callerLines: string[]): Lookup {
   const found: Shipment[] = [];
+  const matchedBy = new Map<string, string>();
   let unknownNumber: string | null = null;
   for (const line of callerLines) {
     for (const n of numbersIn(line)) {
       const hits = SHIPMENTS.filter((s) => n.includes(s.track) || (n.length >= 9 && s.phone === n.slice(-9)));
       if (hits.length) {
-        for (const h of hits) if (!found.includes(h)) found.push(h);
+        for (const h of hits) {
+          if (!found.includes(h)) found.push(h);
+          matchedBy.set(h.track, n.includes(h.track) ? `the track number ${h.track} they gave` : `the phone number ${n} they gave`);
+        }
         unknownNumber = null;
       } else {
         unknownNumber = n;
       }
     }
   }
-  return { found, unknownNumber };
+  const last = callerLines[callerLines.length - 1] ?? '';
+  const short = joinedDigits(last).filter((n) => n.length >= 2 && n.length < 6);
+  const partial = !found.length && !numbersIn(last).length && short.length ? short.join(' ') : null;
+  return { found, matchedBy, unknownNumber, partial };
 }
 
 /* ── what the model is told ──────────────────────────────────── */
@@ -250,9 +279,10 @@ function dayLabel(offset: number, timeZone: string, now = new Date()): string {
   return `${rel}${en} (${DAY_UZ[d.getUTCDay()]} / ${DAY_RU[d.getUTCDay()]})`;
 }
 
-function describe(s: Shipment, timeZone: string): string {
+function describe(s: Shipment, timeZone: string, matchedBy?: string): string {
   return [
-    `Tracking number ${s.track} — recipient ${s.name}, phone ending ${s.phone.slice(-4)}`,
+    `Track number ${s.track} — recipient ${s.name}, phone ending ${s.phone.slice(-4)}` +
+      (matchedBy ? ` (found by ${matchedBy})` : ''),
     `  Goods: ${s.goods}; ${s.boxes} box(es), ${s.kg} kg; sent by ${s.method} from ${s.origin}.`,
     '  Route so far:',
     ...s.history.map(([d, e]) => `    - ${dayLabel(d, timeZone)}: ${e}`),
@@ -266,48 +296,69 @@ function describe(s: Shipment, timeZone: string): string {
 }
 
 /**
- * The system-prompt part for one logistics turn: who the agent is, how it
- * talks, the shipment(s) found so far, and the company's general answers.
+ * The prompt part for one logistics turn: who the agent is, how a real
+ * operator call goes, the shipment(s) found so far, and the company's answers.
  */
 export function logisticsContext(callerLines: string[], agentName: string, timeZone = 'Asia/Tashkent'): string {
-  const { found, unknownNumber } = lookupShipments(callerLines);
+  const { found, matchedBy, unknownNumber, partial } = lookupShipments(callerLines);
+  const spaced = (n: string) => n.split('').join(' ');
   const shipment = found.length
     ? [
         'SHIPMENT FOUND in the company system — the only source of truth; never add to it:',
-        ...found.map((s) => describe(s, timeZone)),
-        '- Tell them where it is now and when to expect it, naturally and in your own words. Say',
-        '  dates as people say them; never read out the raw list. Mention the delivery method and',
-        '  anything still to pay or do (a note) once, when it fits.',
+        ...found.map((s) => describe(s, timeZone, matchedBy.get(s.track))),
+        '- If you said earlier that you could not find it, say now that you have found it.',
         found.length > 1 ? '- Several shipments match: briefly name each by its goods and ask which one they mean.' : '',
       ]
     : [
-        'NO SHIPMENT IDENTIFIED YET.',
+        'NO SHIPMENT IDENTIFIED YET — the system found nothing for what they said. You know nothing',
+        'about any parcel: never describe a parcel, name a recipient, goods, place or date, and never',
+        'say it is on the way. Inventing a parcel is the worst possible mistake here.',
         unknownNumber
-          ? `- The number they gave (${unknownNumber}) matches nothing. Say you cannot find it, and ask them to repeat it slowly digit by digit, or to give the phone number the parcel was sent to.`
-          : '- Ask for the 6-digit track number or the phone number the parcel was sent to. The system looks it up; never guess or make up a status.',
+          ? `- The number heard was ${spaced(unknownNumber)} and it matches nothing. Speech recognition may have misheard: read it back digit by digit and ask them to say the track number again slowly, or to give the phone number the parcel was sent to.`
+          : partial
+            ? `- You only caught part of a number (${partial}). Ask kindly for all six digits of the track number, slowly.`
+            : '- Ask for the 6-digit track number or the phone number the parcel was sent to.',
       ];
 
   return [
-    'LOGISTICS SUPPORT — this takes priority over the knowledge-base routing above.',
+    'COMPANY SYSTEM — LOGISTICS SUPPORT. This takes priority over the knowledge-base routing.',
     `You are ${agentName}, an operator of a cargo company that delivers goods from China to`,
     'Uzbekistan. Customers call to ask where their cargo is and when it will arrive. Your name and',
-    `the language of the call are already set; never invent a company name.`,
+    'the language of the call are already set; never invent a company name.',
+    '',
+    'HOW A GOOD CALL GOES:',
+    '1. Get the 6-digit track number (or the phone number the parcel was sent to). The lookup below',
+    '   is instant and already done for this turn: never say "I will check", "one moment" or "please',
+    '   wait" — give the result now.',
+    '2. When a shipment is found, in ONE reply: confirm it in a few words (whose name it is in and',
+    '   what is inside), then say where it is now and since when, the reason if it is delayed, what',
+    '   happens next, and the expected date with its weekday. Then the delivery method and anything',
+    '   they still have to pay or do. This status reply may be four to six short sentences; for it',
+    '   the usual two-or-three-sentence limit does not apply.',
+    '3. End EVERY reply with one natural next step or question that fits their situation, e.g. offer',
+    '   the SMS when it reaches Tashkent, switching between pickup and courier, how to send the',
+    '   passport copy, or whether they have another parcel to check. Never close the call yourself;',
+    '   only when they say goodbye, thank them and wish them well.',
+    '4. Follow-up questions are answered from the record (route dates, boxes, weight, method,',
+    '   origin), building on what you already said — never repeat the same sentence.',
     '',
     'HOW YOU SOUND — like a friendly, experienced operator, never like a script:',
-    '- Short, natural, warm sentences, in the caller’s language. Build on what they just said.',
-    '- Never repeat a sentence you already said; never ask again for something they told you.',
+    '- Natural, warm sentences in the caller’s language. Use their name once you know it.',
     '- If they are worried or angry about a delay, acknowledge it first, then give the facts.',
     '- In Uzbek, always call it "track raqam" (never "trek"); in Russian, "трек-номер".',
+    '- Say dates and numbers the way people say them out loud.',
     '',
     ...shipment.filter(Boolean),
     '',
     'GENERAL ANSWERS (use only these; anything else: a manager will call them back today):',
     '- Delivery time from the China warehouse to Tashkent: by truck about 12–18 days, by rail',
     '  15–20 days, by air 5–7 days. Customs clearance in Tashkent usually takes 1–2 days.',
+    '- The company sends an SMS when the parcel reaches the Tashkent terminal and when the courier',
+    '  sets off. Switching between pickup and courier is possible until the parcel reaches Tashkent.',
     '- Prices depend on weight, volume and method; a manager sends the current price list on Telegram.',
     '- The company handles customs clearance; sometimes a copy of the recipient’s passport is needed.',
     '- Pickup at the Tashkent terminal: Monday to Saturday, 9:00–19:00, with a passport and the',
-    '  tracking number. Courier delivery in Tashkent the day after clearance; regions 1–3 days more.',
+    '  track number. Courier delivery in Tashkent the day after clearance; regions 1–3 days more.',
     '- Not accepted: liquids, loose batteries, flammable goods, medicines, weapons, counterfeit goods.',
     '- Damage, a missing box or a complaint: apologise, take down what happened, and say a manager',
     '  will call them back today. There is no live transfer in this call.',

@@ -4,9 +4,9 @@
  *
  * Built on the bank demo's call engine (`@/lib/demo` — event stream, streamed
  * voice, fillers, per-call lock, rate limits), with three differences:
- *   • Uzbek speech is transcribed by GAPI (`@/lib/speech/gapi`), after our
- *     noise cleaner, instead of the internal Kotib model (Russian keeps the
- *     app's own path: GAPI writes Latin-script Uzbek only);
+ *   • Uzbek speech is transcribed by GAPI (`@/lib/speech/gapi`) as recorded,
+ *     instead of the internal Kotib model (Russian keeps the app's own path:
+ *     GAPI writes Latin-script Uzbek only);
  *   • the visitor is the caller, so the agent answers with a greeting;
  *   • every turn looks the caller's tracking or phone number up in the demo
  *     shipment system (`./logistics-data`) and hands the model only that.
@@ -238,13 +238,15 @@ function audioKey(audio: ArrayBuffer, lang: DemoLang): string {
 }
 
 /**
- * Uzbek goes to GAPI. GAPI writes Latin-script Uzbek only ("no Cyrillic on
- * output"), so a Russian call uses the app's own Russian path, as /demo does.
+ * Uzbek goes to GAPI, as recorded — no noise cleaning: on these calls the
+ * cleaner made GAPI's transcripts worse, not better. GAPI writes Latin-script
+ * Uzbek only ("no Cyrillic on output"), so a Russian call uses the app's own
+ * Russian path, as /demo does.
  */
 function transcribeLogistics(audio: ArrayBuffer, lang: DemoLang): Promise<Transcript> {
   return lang === 'ru'
-    ? transcribe(audio, { language: 'ru', denoise: true })
-    : gapiTranscribe(audio, { language: lang, vocabulary: LOGISTICS_VOCABULARY, denoise: true });
+    ? transcribe(audio, { language: 'ru' })
+    : gapiTranscribe(audio, { language: lang, vocabulary: LOGISTICS_VOCABULARY });
 }
 
 /** Start transcribing at an early pause; the turn that follows picks it up if the audio matches. */
