@@ -175,6 +175,8 @@ export async function runTurn(params: {
   persist?: boolean;
   /** Replaces the agent's saved call target — the public demo calls a fictional person. */
   target?: CallTarget;
+  /** Extra prompt facts worked out from everything the caller has said (e.g. a looked-up shipment). */
+  context?: (callerLines: string[]) => string;
   /** The reply as it is generated, for callers that voice it sentence by sentence. */
   onDelta?: (delta: string) => void;
 }): Promise<TurnResult> {
@@ -235,6 +237,10 @@ export async function runTurn(params: {
     target,
     greeting: agent.greeting,
     timeZone: agentHours(agent).timezone,
+    extraSystem: params.context?.([
+      ...modelHistory.filter((turn) => turn.role === 'caller').map((turn) => turn.text),
+      utterance,
+    ]),
   }, params.onDelta);
   const llmMs = performance.now() - tGen;
 

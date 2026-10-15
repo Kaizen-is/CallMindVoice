@@ -35,7 +35,7 @@ export class SttError extends Error {
 export interface Transcript {
   text: string;
   /** Which engine produced this text — surfaced in logs to debug bad turns. */
-  engine: 'kotib' | 'whisper' | 'gemini' | 'none';
+  engine: 'kotib' | 'whisper' | 'gemini' | 'gapi' | 'none';
   language: string | null;
 }
 

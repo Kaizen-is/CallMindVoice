@@ -372,6 +372,8 @@ export interface GenerateInput extends SynthesisInput {
   greeting?: string;
   /** Tenant-local time zone, for the date the loan flow agrees on. */
   timeZone?: string;
+  /** Facts a caller of runTurn looked up for this turn (e.g. a shipment), given in place of the excerpts. */
+  extraSystem?: string;
 }
 
 /**
@@ -399,7 +401,12 @@ export async function generateAnswer(
   // user turn carrying the excerpts, recent history and the question.
   const system = systemPrompt(input);
   const user = [
-    contextBlock(input.hits),
+    (input.extraSystem
+      ? // A lookup the caller of runTurn made (e.g. a shipment) goes where the
+        // excerpts would: next to the question. Placed in the system prompt it
+        // lost to "none matched" here, and the model said nothing was found.
+        input.extraSystem
+      : contextBlock(input.hits)),
     '',
     ...(input.history ?? [])
       // Twenty caller/agent exchanges: enough for the agent to remember the
