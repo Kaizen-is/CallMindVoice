@@ -1178,3 +1178,28 @@
   height: 100%;
   min-height: 600px;
 }
+
+/* ── logistics demo (/logistics sets data-logistics; /demo never does) ──
+   Its call chip ("Logistika operatori" + timer), the voice picker and the
+   language switch don't fit a phone's width side by side. An auto-sized
+   column would then grow to fit the header and push the transcript off the
+   right edge, so the column is pinned to the screen and the chip gives way. */
+
+.root[data-logistics] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.root[data-logistics] .bar {
+  min-width: 0;
+}
+
+.root[data-logistics] .callChip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.root[data-logistics] .barEnd {
+  flex: none;
+}
+

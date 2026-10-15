@@ -849,7 +849,7 @@ export function LogisticsCall({ fontClass, initialLang, available, identity, per
   const personaLine = copy.persona(persona.name[lang], persona.birthYear);
 
   return (
-    <div ref={rootRef} className={`${s.root} ${fontClass}`} data-phase={phase} data-orb={orb} lang={lang}>
+    <div ref={rootRef} className={`${s.root} ${fontClass}`} data-logistics="" data-phase={phase} data-orb={orb} lang={lang}>
       <header className={s.bar}>
         <div className={s.brand}>
           <span className={s.mark} aria-hidden />
