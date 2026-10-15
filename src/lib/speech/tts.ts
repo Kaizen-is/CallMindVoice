@@ -134,6 +134,65 @@ async function renderPcm(text: string, voice: ResolvedVoice, tag: string): Promi
   return wavToPcm8k(Buffer.from(await audioRes.arrayBuffer()));
 }
 
+/* ── streaming render: generate_v2/stream ────────────────────── */
+
+/**
+ * The server's streaming twin of generate_v2: the same voices, with the audio
+ * sent as it is generated (raw 8 kHz s16le, `format=l16`), so the first sound
+ * plays in well under a second instead of after the whole sentence renders.
+ *
+ * Designed voices keep the full render for now: on long text the server's
+ * stream drifts their speaking speed. `TTS_STREAMING=off` turns streaming off.
+ */
+function streams(voice: ResolvedVoice): boolean {
+  return process.env.TTS_STREAMING !== 'off' && voice.kind !== 'design';
+}
+
+/** The first piece goes out as soon as there is a little audio; then half-second pieces. */
+const FIRST_PIECE_BYTES = 4000; // 0.25 s
+const PIECE_BYTES = 8000; // 0.5 s
+
+async function* streamPcm(text: string, voice: ResolvedVoice): AsyncGenerator<Buffer, void, unknown> {
+  const token = await ttsToken();
+  const form = buildTtsForm({ userId: 'stream', text, voice });
+  // The stream keeps no file to download, so it needs no user_id or phone.
+  form.delete('user_id');
+  form.delete('phone');
+  form.set('format', 'l16');
+  // Smaller pieces start sooner; the server's default is 2 s.
+  if (process.env.TTS_STREAM_CHUNK_SEC) form.set('chunk_sec', process.env.TTS_STREAM_CHUNK_SEC);
+
+  const res = await fetch(`${baseUrl()}/api/v1/tts/generate_v2/stream`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!res.ok || !res.body) {
+    console.warn(`[tts] stream ${res.status}: ${(await res.text().catch(() => '')).slice(0, 160)}`);
+    throw new TtsError('tts_stream_failed', 502);
+  }
+
+  // A stream cut short mid-way makes the read throw (the chunked body never
+  // ends properly), so reaching `done` means the audio is complete.
+  const reader = res.body.getReader();
+  let held = Buffer.alloc(0);
+  let first = true;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    held = held.length ? Buffer.concat([held, Buffer.from(value)]) : Buffer.from(value);
+    if (held.length >= (first ? FIRST_PIECE_BYTES : PIECE_BYTES)) {
+      const whole = held.length - (held.length % 2); // never split a 16-bit sample
+      yield held.subarray(0, whole);
+      held = held.subarray(whole);
+      first = false;
+    }
+  }
+  const whole = held.length - (held.length % 2);
+  if (whole) yield held.subarray(0, whole);
+}
+
 /* ── the disk cache ──────────────────────────────────────────── */
 
 /**
@@ -240,6 +299,37 @@ export async function* synthesizeStream(
   if (!spoken) return;
   const voice = resolveVoice(opts.tenantId, opts.voiceId);
   const chunks = splitForSpeech(spoken);
+
+  if (streams(voice)) {
+    // One chunk at a time: each one starts sounding within a second, while the
+    // previous chunk is still playing. Cached chunks come straight from disk.
+    for (const chunk of chunks) {
+      const key = opts.cache ? cacheKey(chunk, voice) : null;
+      const hit = key ? cacheRead(key) : null;
+      if (hit) {
+        yield hit;
+        continue;
+      }
+      const parts: Buffer[] = [];
+      try {
+        for await (const piece of streamPcm(chunk, voice)) {
+          parts.push(piece);
+          yield piece;
+        }
+        if (key) cacheWrite(key, Buffer.concat(parts));
+        continue;
+      } catch (err) {
+        // Once audio has been heard it cannot be taken back; before that, the
+        // full render below still gets the line said.
+        if (parts.length) throw err;
+        console.warn('[tts] stream failed, using generate_v2:', err instanceof Error ? err.message : err);
+      }
+      const pcm = await renderPcm(chunk, voice, opts.tag ?? 'tts');
+      if (key) cacheWrite(key, pcm);
+      yield pcm;
+    }
+    return;
+  }
 
   // A sliding window of in-flight renders: `pending[i]` is chunk i's promise.
   // We await them in order while keeping the window full ahead of the cursor.
