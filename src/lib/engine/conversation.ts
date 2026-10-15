@@ -163,6 +163,15 @@ function recordGap(tenantId: string, question: string, score: number) {
   }
 }
 
+function lookupFor(
+  context: ((callerLines: string[]) => string | { facts: string; note?: string }) | undefined,
+  callerLines: string[],
+): { extraSystem?: string; extraNote?: string } {
+  const out = context?.(callerLines);
+  if (!out) return {};
+  return typeof out === 'string' ? { extraSystem: out } : { extraSystem: out.facts, extraNote: out.note };
+}
+
 /* ── the turn ────────────────────────────────────────────────── */
 
 export async function runTurn(params: {
@@ -175,8 +184,11 @@ export async function runTurn(params: {
   persist?: boolean;
   /** Replaces the agent's saved call target — the public demo calls a fictional person. */
   target?: CallTarget;
-  /** Extra prompt facts worked out from everything the caller has said (e.g. a looked-up shipment). */
-  context?: (callerLines: string[]) => string;
+  /**
+   * Extra prompt facts worked out from everything the caller has said (e.g. a
+   * looked-up shipment), and optionally a one-line outcome read last.
+   */
+  context?: (callerLines: string[]) => string | { facts: string; note?: string };
   /** The reply as it is generated, for callers that voice it sentence by sentence. */
   onDelta?: (delta: string) => void;
 }): Promise<TurnResult> {
@@ -237,7 +249,7 @@ export async function runTurn(params: {
     target,
     greeting: agent.greeting,
     timeZone: agentHours(agent).timezone,
-    extraSystem: params.context?.([
+    ...lookupFor(params.context, [
       ...modelHistory.filter((turn) => turn.role === 'caller').map((turn) => turn.text),
       utterance,
     ]),

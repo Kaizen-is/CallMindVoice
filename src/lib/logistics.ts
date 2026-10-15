@@ -25,7 +25,7 @@ import { transcribe, type Transcript } from '@/lib/speech/stt';
 import { cachedPcm, synthesizePcm, ttsConfigured } from '@/lib/speech/tts';
 import type { Agent } from '@/lib/types';
 import type { DemoLang } from './demo-shared';
-import { LOGISTICS_VOCABULARY, logisticsContext } from './logistics-data';
+import { LOGISTICS_VOCABULARY, logisticsContext, lookupNote } from './logistics-data';
 
 export { TRY_TRACKS } from './logistics-data';
 
@@ -89,7 +89,10 @@ export function voiceName(voiceId: string): string {
 
 /** The system-prompt part for one turn, from everything the caller has said. */
 export function turnContext(voiceId: string) {
-  return (callerLines: string[]) => logisticsContext(callerLines, voiceName(voiceId));
+  return (callerLines: string[]) => ({
+    facts: logisticsContext(callerLines, voiceName(voiceId)),
+    note: lookupNote(callerLines),
+  });
 }
 
 /* ── call lifecycle (mirrors the bank demo; never billed) ────── */

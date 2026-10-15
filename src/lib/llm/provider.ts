@@ -374,6 +374,8 @@ export interface GenerateInput extends SynthesisInput {
   timeZone?: string;
   /** Facts a caller of runTurn looked up for this turn (e.g. a shipment), given in place of the excerpts. */
   extraSystem?: string;
+  /** A one-line outcome of that lookup, placed after the caller's words — the last thing the model reads. */
+  extraNote?: string;
 }
 
 /**
@@ -414,6 +416,7 @@ export async function generateAnswer(
       .slice(-40)
       .map((h) => `${h.role === 'caller' ? 'CALLER' : 'YOU'}: ${h.text}`),
     `CALLER: ${input.question}`,
+    ...(input.extraNote ? ['', input.extraNote] : []),
   ].join('\n');
 
   const finalize = (

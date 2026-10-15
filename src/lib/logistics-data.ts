@@ -248,7 +248,7 @@ export function lookupShipments(callerLines: string[]): Lookup {
       if (hits.length) {
         for (const h of hits) {
           if (!found.includes(h)) found.push(h);
-          matchedBy.set(h.track, n.includes(h.track) ? `the track number ${h.track} they gave` : `the phone number ${n} they gave`);
+          matchedBy.set(h.track, n.includes(h.track) ? 'the track number they gave' : 'the phone number they gave');
         }
         unknownNumber = null;
       } else {
@@ -281,8 +281,8 @@ function dayLabel(offset: number, timeZone: string, now = new Date()): string {
 
 function describe(s: Shipment, timeZone: string, matchedBy?: string): string {
   return [
-    `Track number ${s.track} — recipient ${s.name}, phone ending ${s.phone.slice(-4)}` +
-      (matchedBy ? ` (found by ${matchedBy})` : ''),
+    // No digits: the voice mispronounces long numbers, so the model is never given any to say.
+    `Shipment of ${s.name}` + (matchedBy ? ` (found by ${matchedBy})` : ''),
     `  Goods: ${s.goods}; ${s.boxes} box(es), ${s.kg} kg; sent by ${s.method} from ${s.origin}.`,
     '  Route so far:',
     ...s.history.map(([d, e]) => `    - ${dayLabel(d, timeZone)}: ${e}`),
@@ -295,13 +295,20 @@ function describe(s: Shipment, timeZone: string, matchedBy?: string): string {
     .join('\n');
 }
 
+/** The lookup's outcome in one line, read by the model right after the caller's words. */
+export function lookupNote(callerLines: string[]): string {
+  const { found } = lookupShipments(callerLines);
+  return found.length
+    ? `[Company system, this turn: shipment found for ${found.map((s) => s.name).join(', ')} — use only that record.]`
+    : '[Company system, this turn: NOTHING FOUND for what they said. Do not describe any parcel, recipient, goods, place or date.]';
+}
+
 /**
  * The prompt part for one logistics turn: who the agent is, how a real
  * operator call goes, the shipment(s) found so far, and the company's answers.
  */
 export function logisticsContext(callerLines: string[], agentName: string, timeZone = 'Asia/Tashkent'): string {
   const { found, matchedBy, unknownNumber, partial } = lookupShipments(callerLines);
-  const spaced = (n: string) => n.split('').join(' ');
   const shipment = found.length
     ? [
         'SHIPMENT FOUND in the company system — the only source of truth; never add to it:',
@@ -314,9 +321,9 @@ export function logisticsContext(callerLines: string[], agentName: string, timeZ
         'about any parcel: never describe a parcel, name a recipient, goods, place or date, and never',
         'say it is on the way. Inventing a parcel is the worst possible mistake here.',
         unknownNumber
-          ? `- The number heard was ${spaced(unknownNumber)} and it matches nothing. Speech recognition may have misheard: read it back digit by digit and ask them to say the track number again slowly, or to give the phone number the parcel was sent to.`
+          ? '- The number they gave matches nothing; speech recognition may have misheard it. Say you could not find that number, and ask them to say the track number again slowly, or to give the phone number the parcel was sent to.'
           : partial
-            ? `- You only caught part of a number (${partial}). Ask kindly for all six digits of the track number, slowly.`
+            ? '- You only caught part of a number. Ask kindly for all six digits of the track number, slowly.'
             : '- Ask for the 6-digit track number or the phone number the parcel was sent to.',
       ];
 
@@ -346,7 +353,9 @@ export function logisticsContext(callerLines: string[], agentName: string, timeZ
     '- Natural, warm sentences in the caller’s language. Use their name once you know it.',
     '- If they are worried or angry about a delay, acknowledge it first, then give the facts.',
     '- In Uzbek, always call it "track raqam" (never "trek"); in Russian, "трек-номер".',
-    '- Say dates and numbers the way people say them out loud.',
+    '- Never say a track number or a phone number out loud, not even to repeat it back or confirm',
+    '  it — the voice mispronounces long numbers. Refer to it as "track raqamingiz" / "this number".',
+    '- Say dates, prices and weights the way people say them out loud.',
     '',
     ...shipment.filter(Boolean),
     '',
