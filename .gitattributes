@@ -1,0 +1,14 @@
+# Normalise line endings: LF in the repository, so a Windows checkout and a
+# Linux server checkout produce identical files.
+* text=auto eol=lf
+
+# Binary types git should never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.db binary

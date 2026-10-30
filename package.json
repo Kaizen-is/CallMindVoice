@@ -1,0 +1,35 @@
+{
+  "name": "ovoz-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ovoz AI — AI Customer Service Platform. Turn your documents into a voice agent that answers your phones.",
+  "scripts": {
+    "dev": "next dev --webpack -p 3000",
+    "dev:turbo": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "reset": "node scripts/reset.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
+    "mammoth": "^1.8.0",
+    "next": "^16.3.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "server-only": "^0.0.1",
+    "unpdf": "^0.12.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

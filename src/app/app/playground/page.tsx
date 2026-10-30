@@ -1,0 +1,59 @@
+import type { Metadata } from 'next';
+import { requireSession } from '@/lib/auth';
+import { knowledgeStats } from '@/lib/analytics';
+import { liveAgent, listAgents } from '@/lib/engine/calls';
+import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
+import { translator } from '@/lib/i18n';
+import type { Locale } from '@/lib/types';
+import { safeJson } from '@/lib/utils';
+import { listCustomVoices } from '@/lib/voices';
+import { VOICES } from '@/lib/catalog';
+import { Playground } from './playground';
+
+export const metadata: Metadata = { title: 'Playground' };
+export const dynamic = 'force-dynamic';
+
+export default async function PlaygroundPage() {
+  const { tenant, user } = await requireSession();
+  const agent = liveAgent(tenant.id);
+  const agents = listAgents(tenant.id);
+  const kb = knowledgeStats(tenant.id);
+  const t = translator(user.locale);
+
+  return (
+    <Playground
+      locale={user.locale}
+      industry={tenant.industry}
+      chunks={kb.chunks}
+      engine={engineIsHosted() ? engineLabel() : t('play.localSynth', 'Local synthesiser')}
+      speech={{
+        stt: Boolean(process.env.STT_TRANSCRIBE_URL),
+        tts: Boolean(process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN),
+      }}
+      agents={agents}
+      allVoices={[
+        ...VOICES.map((v) => ({ id: v.id, name: v.name, group: 'builtin' as const })),
+        ...listCustomVoices(tenant.id).map((v) => ({
+          id: v.id,
+          name: v.name,
+          group: v.mode,
+        })),
+      ]}
+      agent={
+        agent
+          ? {
+              id: agent.id,
+              name: agent.name,
+              greeting: agent.greeting,
+              voiceId: agent.voice_id,
+              speakingRate: agent.speaking_rate,
+              primaryLang: agent.primary_lang,
+              languages: safeJson<Locale[]>(agent.languages_json, ['uz', 'ru', 'en']),
+              threshold: agent.confidence_threshold,
+              status: agent.status,
+            }
+          : null
+      }
+    />
+  );
+}
