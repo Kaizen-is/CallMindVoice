@@ -1,14 +1,16 @@
 'use client';
 
 /**
- * Word-by-word transcript from the local streaming STT sidecar (`stt-stream/`).
+ * Word-by-word transcript from Zipformer, the streaming Uzbek model that runs
+ * inside the app (`@/lib/speech/zipformer`, route `/api/speech/live`).
  *
- * While `active`, the microphone is resampled to 16 kHz mono float32 by the
- * AudioContext and streamed over a WebSocket in ~100 ms frames; the sidecar
- * answers with the growing transcript (`partial`) and a sentence at each pause
- * (`final`). In the Playground's voice call this is the transcript itself:
- * when the phrase ends, `finish` flushes the last words and the turn is sent
- * as text, so the agent starts thinking without waiting for a separate STT pass.
+ * While `active`, the microphone is resampled to 16 kHz mono by the
+ * AudioContext and posted in ~quarter-second pieces; each answer is the whole
+ * utterance heard so far. One request is in flight at a time: audio that piles
+ * up meanwhile goes out together in the next one, so a slow network never
+ * builds a backlog. In the Playground's voice call this is the transcript
+ * itself: when the phrase ends, `finish` sends the last piece and the turn is
+ * sent as text, so the agent starts thinking without a separate STT pass.
  *
  * It opens its own microphone stream next to the voice session's; browsers
  * share one device between both, and echo cancellation keeps the agent's own
@@ -17,7 +19,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const SAMPLE_RATE = 16000;
-const FRAME_SAMPLES = 1600; // 100 ms
+const FRAME_SAMPLES = 1600; // the worklet posts every 100 ms
+const SEND_EVERY_SAMPLES = 4000; // a request at most every 250 ms
 
 /** Collects mic samples on the audio thread and posts them in fixed frames. */
 const WORKLET = `
@@ -35,49 +38,116 @@ class Tap extends AudioWorkletProcessor {
 registerProcessor('live-stt-tap', Tap);
 `;
 
+function toPcm16(frames: Float32Array[]): Blob {
+  const total = frames.reduce((n, f) => n + f.length, 0);
+  const out = new Int16Array(total);
+  let at = 0;
+  for (const f of frames) {
+    for (let i = 0; i < f.length; i++) {
+      const s = Math.max(-1, Math.min(1, f[i]));
+      out[at++] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+  }
+  return new Blob([out.buffer], { type: 'application/octet-stream' });
+}
+
 export function useLiveTranscript({ url, active }: { url: string | null; active: boolean }) {
   const [text, setText] = useState('');
   const [connected, setConnected] = useState(false);
-  const socketRef = useRef<WebSocket | null>(null);
-  const finalsRef = useRef('');
-  /** The whole utterance so far — finished sentences plus the one in progress. */
+  /** The whole utterance so far. */
   const textRef = useRef('');
-  /** Set while `finish` waits for the sidecar to flush the last words. */
-  const flushRef = useRef<(() => void) | null>(null);
+  const sidRef = useRef('');
+  const pendingRef = useRef<Float32Array[]>([]);
+  const pendingSamplesRef = useRef(0);
+  /** The request in flight, so control calls can wait for it. */
+  const inflightRef = useRef<Promise<void> | null>(null);
+  /** Bumped by reset/finish: answers to older requests are ignored. */
+  const genRef = useRef(0);
+  const urlRef = useRef(url);
+  urlRef.current = url;
 
   const show = (value: string) => {
     textRef.current = value;
     setText(value);
   };
 
-  /** Start a new utterance: forget what was heard so far. */
-  const reset = useCallback(() => {
-    finalsRef.current = '';
-    show('');
-    const ws = socketRef.current;
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'reset' }));
+  const post = useCallback(async (op: string, audio?: Blob): Promise<string | null> => {
+    const target = urlRef.current;
+    if (!target || !sidRef.current) return null;
+    const form = new FormData();
+    form.append('sid', sidRef.current);
+    form.append('op', op);
+    if (audio) form.append('audio', audio, 'piece.pcm');
+    try {
+      const res = await fetch(target, { method: 'POST', body: form });
+      if (!res.ok) {
+        if (res.status === 503 || res.status === 401) setConnected(false);
+        return null;
+      }
+      setConnected(true);
+      const data = (await res.json()) as { text?: string };
+      return data.text ?? '';
+    } catch {
+      return null;
+    }
   }, []);
 
+  /** Take whatever audio has piled up. */
+  const takePending = () => {
+    const frames = pendingRef.current;
+    pendingRef.current = [];
+    pendingSamplesRef.current = 0;
+    return frames;
+  };
+
+  /** Send the piled-up audio if nothing is in flight. */
+  const pump = useCallback(() => {
+    if (inflightRef.current || pendingSamplesRef.current < SEND_EVERY_SAMPLES) return;
+    const gen = genRef.current;
+    const audio = toPcm16(takePending());
+    const job = post('feed', audio).then((heard) => {
+      if (heard !== null && gen === genRef.current) show(heard);
+    });
+    inflightRef.current = job.finally(() => {
+      inflightRef.current = null;
+      pump();
+    });
+  }, [post]);
+
+  /** Start a new utterance: forget what was heard so far. */
+  const reset = useCallback(() => {
+    genRef.current++;
+    takePending();
+    show('');
+    const prior = inflightRef.current ?? Promise.resolve();
+    void prior.then(() => post('reset'));
+  }, [post]);
+
   /**
-   * The phrase just ended: have the sidecar decode its last few hundred
-   * milliseconds and resolve with the whole utterance. Because the model has
-   * been transcribing all along, this takes milliseconds — no upload, no
-   * second pass. Resolves with what is known after `timeoutMs` regardless.
+   * The phrase just ended: send the last piece and resolve with the whole
+   * utterance. The model has been transcribing all along, so this is one short
+   * request. Resolves with what is known after `timeoutMs` regardless.
    */
   const finish = useCallback(
-    (timeoutMs = 350): Promise<string> =>
+    (timeoutMs = 900): Promise<string> =>
       new Promise((resolve) => {
-        const ws = socketRef.current;
-        const done = () => {
-          flushRef.current = null;
-          resolve(textRef.current.trim());
+        let settled = false;
+        const done = (value: string) => {
+          if (settled) return;
+          settled = true;
+          resolve(value.trim());
         };
-        if (ws?.readyState !== WebSocket.OPEN) return done();
-        flushRef.current = done;
-        ws.send(JSON.stringify({ type: 'flush' }));
-        setTimeout(() => flushRef.current === done && done(), timeoutMs);
+        setTimeout(() => done(textRef.current), timeoutMs);
+        const prior = inflightRef.current ?? Promise.resolve();
+        void prior.then(async () => {
+          const gen = ++genRef.current;
+          const frames = takePending();
+          const heard = await post('finish', frames.length ? toPcm16(frames) : undefined);
+          if (gen === genRef.current && heard !== null) show(heard);
+          done(heard ?? textRef.current);
+        });
       }),
-    [],
+    [post],
   );
 
   useEffect(() => {
@@ -86,28 +156,10 @@ export function useLiveTranscript({ url, active }: { url: string | null; active:
     let media: MediaStream | null = null;
     let ctx: AudioContext | null = null;
     let moduleUrl = '';
-
-    const ws = new WebSocket(url);
-    ws.binaryType = 'arraybuffer';
-    socketRef.current = ws;
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onmessage = (event) => {
-      let msg: { type?: string; text?: string };
-      try {
-        msg = JSON.parse(String(event.data));
-      } catch {
-        return;
-      }
-      if (!msg.text) return;
-      if (msg.type === 'final') {
-        finalsRef.current = `${finalsRef.current} ${msg.text}`.trim();
-        show(finalsRef.current);
-        flushRef.current?.();
-      } else {
-        show(`${finalsRef.current} ${msg.text}`.trim());
-      }
-    };
+    sidRef.current = crypto.randomUUID();
+    const sid = sidRef.current;
+    // Ask once whether the model is there, so the switch can say so.
+    void post('reset');
 
     (async () => {
       try {
@@ -122,7 +174,9 @@ export function useLiveTranscript({ url, active }: { url: string | null; active:
         const source = ctx.createMediaStreamSource(media);
         const tap = new AudioWorkletNode(ctx, 'live-stt-tap');
         tap.port.onmessage = (e: MessageEvent<Float32Array>) => {
-          if (ws.readyState === WebSocket.OPEN) ws.send(e.data.buffer);
+          pendingRef.current.push(e.data);
+          pendingSamplesRef.current += e.data.length;
+          pump();
         };
         source.connect(tap);
       } catch (err) {
@@ -132,16 +186,21 @@ export function useLiveTranscript({ url, active }: { url: string | null; active:
 
     return () => {
       cancelled = true;
-      ws.close();
-      socketRef.current = null;
+      genRef.current++;
       media?.getTracks().forEach((track) => track.stop());
       void ctx?.close().catch(() => {});
       if (moduleUrl) URL.revokeObjectURL(moduleUrl);
-      finalsRef.current = '';
+      takePending();
+      // Free the server-side stream; keepalive survives a closing tab.
+      const form = new FormData();
+      form.append('sid', sid);
+      form.append('op', 'close');
+      void fetch(url, { method: 'POST', body: form, keepalive: true }).catch(() => {});
+      sidRef.current = '';
       show('');
       setConnected(false);
     };
-  }, [active, url]);
+  }, [active, url, post, pump]);
 
   return { text, connected, reset, finish };
 }

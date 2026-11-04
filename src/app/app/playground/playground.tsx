@@ -115,8 +115,13 @@ function pcmToAudioBuffer(ctx: AudioContext, pcm: Uint8Array): AudioBuffer | nul
   return buffer;
 }
 
-const STT_LABEL: Record<SttChoice, string> = { auto: 'Kotib', gapi: 'GAPI', local: 'Zipformer' };
-const STT_ENV: Record<SttChoice, string> = { auto: 'STT_TRANSCRIBE_URL', gapi: 'GAPIAPI', local: 'STT_STREAM_URL' };
+const STT_LABEL: Record<SttChoice, string> = { auto: 'Kotib', gapi: 'GAPI', local: 'Zipformer', gemini: 'gemini-3.5' };
+const STT_ENV: Record<SttChoice, string> = {
+  auto: 'STT_TRANSCRIBE_URL',
+  gapi: 'GAPIAPI',
+  local: 'models/uzbek-zipformer',
+  gemini: 'SPEKO_API_KEY',
+};
 
 interface Msg {
   id: string;
@@ -1333,13 +1338,13 @@ export function Playground({
                   })}
                   {speechLang === 'uz' ? (
                     // Which recogniser hears Uzbek: our own model, GAPI, or the
-                    // local streaming Zipformer — same switch as the model picker.
+                    // in-app streaming Zipformer, or gemini-3.5 — same switch as the model picker.
                     <div
                       role="group"
                       aria-label={t('play.sttEngine', 'Speech recognition')}
                       className="inline-flex rounded-lg bg-surface p-0.5 hairline"
                     >
-                      {(['auto', 'gapi', 'local'] as const).map((id) => (
+                      {(['auto', 'gapi', 'local', 'gemini'] as const).map((id) => (
                         <button
                           key={id}
                           type="button"

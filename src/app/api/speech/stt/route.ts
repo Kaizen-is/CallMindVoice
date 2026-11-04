@@ -7,7 +7,7 @@
  * telephony bridge so the console hears exactly what the phone line hears.
  */
 import { currentSession } from '@/lib/auth';
-import { transcribe, sttConfigured, SttError, type SttEngine } from '@/lib/speech/stt';
+import { isSttEngine, transcribe, sttConfigured, SttError, type SttEngine } from '@/lib/speech/stt';
 import type { Locale } from '@/lib/types';
 
 export async function POST(request: Request): Promise<Response> {
@@ -34,7 +34,7 @@ export async function POST(request: Request): Promise<Response> {
     if (typeof lang === 'string' && ['uz', 'ru', 'en'].includes(lang)) language = lang as Locale;
     clean = form.get('denoise') === '1';
     const pinned = form.get('engine');
-    if (pinned === 'gapi' || pinned === 'local') engine = pinned;
+    if (isSttEngine(pinned)) engine = pinned;
   } else {
     audio = await request.arrayBuffer();
   }

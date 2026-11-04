@@ -12,13 +12,14 @@ import { cn } from '@/lib/utils';
 import { IconSettings, IconX } from '@/components/icons';
 import type { Translate } from '@/lib/i18n';
 
-export type SttChoice = 'auto' | 'gapi' | 'local';
+export type SttChoice = 'auto' | 'gapi' | 'local' | 'gemini';
 export type TtsChoice = 'default' | 'eleven_v3_conversational' | 'eleven_v4_turbo';
 
 const STT_OPTIONS: Array<{ id: SttChoice; label: string; hint: string; env: string }> = [
   { id: 'auto', label: 'Own (Kotib)', hint: 'Internal Uzbek model, Whisper/Gemini for other languages', env: 'STT_TRANSCRIBE_URL' },
   { id: 'gapi', label: 'GAPI', hint: 'Hosted, one shot per utterance · WER ~8–10%', env: 'GAPIAPI' },
-  { id: 'local', label: 'Zipformer (streaming)', hint: 'Local sherpa-onnx, word by word · WER ~24%', env: 'STT_STREAM_URL' },
+  { id: 'local', label: 'Zipformer (streaming)', hint: 'Runs inside the app, word by word · ~0.2 s', env: 'models/uzbek-zipformer' },
+  { id: 'gemini', label: 'gemini-3.5', hint: 'Google Gemini Transcribe via Speko · accurate, ~5 s', env: 'SPEKO_API_KEY' },
 ];
 
 const TTS_OPTIONS: Array<{ id: TtsChoice; label: string; hint: string; env: string }> = [

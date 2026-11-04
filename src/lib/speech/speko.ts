@@ -115,3 +115,42 @@ export async function* spekoStreamPcm(
   const whole = held.length - (held.length % 2);
   if (whole) yield held.subarray(0, whole);
 }
+
+/* ── speech-to-text ──────────────────────────────────────────── */
+
+/**
+ * Google Gemini Transcribe through Speko (`gemini-3.5-transcribe`, pinned like
+ * the voices above). One finished utterance as 16 kHz mono 16-bit PCM. Measured
+ * on Uzbek: accurate, numbers written as digits, but ~5 s per phrase — a model
+ * to compare quality with, not the fastest for live calls.
+ */
+export const SPEKO_STT_MODEL = 'gemini-3.5-transcribe';
+
+export async function spekoTranscribe(pcm16k: Buffer, language: Locale | undefined): Promise<string> {
+  const key = spekoKey();
+  if (!key) throw new SpekoError('speko_not_configured', 503);
+
+  // Speko wants the parts in this order: the request, then the audio.
+  const form = new FormData();
+  const request = {
+    routing: { mode: 'explicit', provider: 'gemini', model: SPEKO_STT_MODEL },
+    language: language ?? 'uz',
+    audio: { encoding: 'pcm_s16le', sample_rate_hz: 16000, channels: 1 },
+  };
+  form.append('request', new Blob([JSON.stringify(request)], { type: 'application/json' }));
+  form.append('audio', new Blob([new Uint8Array(pcm16k)], { type: 'application/octet-stream' }), 'speech.pcm');
+
+  const res = await fetch(`${spekoBase()}/stt/transcriptions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Idempotency-Key': randomUUID() },
+    body: form,
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) {
+    const body = (await res.text().catch(() => '')).slice(0, 240);
+    console.warn(`[speko] ${SPEKO_STT_MODEL} ${res.status}: ${body}`);
+    throw new SpekoError(`speko_${res.status}`, res.status === 401 ? 503 : 502);
+  }
+  const data = (await res.json()) as { text?: string };
+  return (data.text ?? '').trim();
+}

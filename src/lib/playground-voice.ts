@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { classifyIntent } from '@/lib/llm/provider';
 import { detectLanguage } from '@/lib/rag/text';
 import { fillerLines } from '@/lib/speech/fillers';
-import { transcribe, type SttEngine, type Transcript } from '@/lib/speech/stt';
+import { isSttEngine, transcribe, type SttEngine, type Transcript } from '@/lib/speech/stt';
 import { ELEVEN_VOICES } from '@/lib/speech/speko';
 import {
   cachedPcm,
@@ -113,7 +113,7 @@ export function speakingAgent(agent: Agent, pick: VoicePick): Agent {
 }
 
 export function sttPick(value: unknown): SttEngine {
-  return value === 'gapi' || value === 'local' ? value : 'auto';
+  return isSttEngine(value) ? value : 'auto';
 }
 
 function synthOptions(agent: Agent, lang: Locale, pick: VoicePick): SynthOptions {

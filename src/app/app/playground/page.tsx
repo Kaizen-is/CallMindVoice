@@ -16,13 +16,6 @@ import { Playground } from './playground';
 export const metadata: Metadata = { title: 'Playground' };
 export const dynamic = 'force-dynamic';
 
-/** ws://… for the sidecar's /stream, from STT_STREAM_PUBLIC_URL or STT_STREAM_URL. */
-function streamSocketUrl(): string | null {
-  const base = process.env.STT_STREAM_PUBLIC_URL || process.env.STT_STREAM_URL;
-  if (!base) return null;
-  return `${base.replace(/\/+$/, '').replace(/^http/, 'ws')}/stream`;
-}
-
 export default async function PlaygroundPage() {
   const { tenant, user } = await requireSession();
   // Every account gets the /demo banking agent to try, once (see bank-agent.ts).
@@ -39,8 +32,8 @@ export default async function PlaygroundPage() {
       speech={{
         stt: sttEngines(),
         tts: ttsEngines(),
-        // The browser streams mic audio straight to the local STT sidecar.
-        streamUrl: streamSocketUrl(),
+        // Live Zipformer words come from the in-app model (/api/speech/live).
+        streamUrl: sttEngines().local ? '/api/speech/live' : null,
       }}
       agents={agents}
       elevenVoices={ELEVEN_VOICES.map((v) => ({ id: v.id, name: v.name }))}
