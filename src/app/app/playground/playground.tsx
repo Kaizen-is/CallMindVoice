@@ -12,10 +12,15 @@ import {
 } from '@/app/actions/agent';
 import { translator, type Translate } from '@/lib/i18n';
 import type { Locale, UiLocale } from '@/lib/types';
-import { cn, fmtLatency, relativeTime } from '@/lib/utils';
+import { cn, fmtLatency } from '@/lib/utils';
 import { voiceInputAvailable } from '@/lib/catalog';
 import { micSupported, type RecordingResult } from '@/lib/audio';
 import { useVoiceSession, type VoiceState } from '@/hooks/use-voice-session';
+import { useLiveTranscript } from '@/hooks/use-live-transcript';
+import { decodePcm, speakWithBrowser, VoiceOut } from '@/app/demo/voice-out';
+import { IconHandset, IconHangUp } from '@/app/demo/icons';
+import { readCallEvents, type TurnDetail } from '@/lib/playground-shared';
+import { ModelPicker, useModelChoice, type SttChoice, type TtsChoice } from './model-picker';
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from '@/components/ui/primitives';
 import { Input, Select } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
@@ -33,6 +38,7 @@ import {
   IconVolume,
   IconZap,
 } from '@/components/icons';
+import { TimeAgo } from '@/components/ui/time-ago';
 
 /* ── Web Speech typings (not in lib.dom for all targets) ─────── */
 
@@ -109,6 +115,9 @@ function pcmToAudioBuffer(ctx: AudioContext, pcm: Uint8Array): AudioBuffer | nul
   return buffer;
 }
 
+const STT_LABEL: Record<SttChoice, string> = { auto: 'Kotib', gapi: 'GAPI', local: 'Zipformer' };
+const STT_ENV: Record<SttChoice, string> = { auto: 'STT_TRANSCRIBE_URL', gapi: 'GAPIAPI', local: 'STT_STREAM_URL' };
+
 interface Msg {
   id: string;
   role: 'caller' | 'agent';
@@ -119,36 +128,14 @@ interface Msg {
   lang?: Locale;
 }
 
-const SUGGESTIONS: Record<string, string[]> = {
-  clinic: [
-    'Ish vaqtingiz qanday?',
-    'Kardiolog qabuli qancha turadi?',
-    'Вы принимаете страховой полис?',
-    'Какие документы нужны для ребёнка?',
-    'When will my blood test results be ready?',
-    'Menga operator kerak',
-  ],
-  insurance: [
-    'OSAGO narxi qancha?',
-    'Какие документы нужны для выплаты?',
-    'Что не покрывается полисом?',
-    'How long does a claim take?',
-  ],
-  retail: [
-    'Yetkazib berish qancha turadi?',
-    'Как вернуть товар?',
-    'Do you offer instalments?',
-    'Где мой заказ?',
-  ],
-};
 
 export function Playground({
   agent,
   agents,
   allVoices,
+  elevenVoices,
   locale,
   industry,
-  chunks,
   engine,
   speech,
 }: {
@@ -165,15 +152,24 @@ export function Playground({
   } | null;
   agents: Array<{ id: string; name: string; status: 'draft' | 'live' | 'paused' }>;
   allVoices: Array<{ id: string; name: string; group: 'builtin' | 'clone' | 'design' }>;
+  elevenVoices: Array<{ id: string; name: string }>;
   locale: UiLocale;
   industry: string;
-  chunks: number;
   engine: string;
-  speech: { stt: boolean; tts: boolean };
+  speech: { stt: Record<SttChoice, boolean>; tts: Record<TtsChoice, boolean>; streamUrl: string | null };
 }) {
   const router = useRouter();
   const toast = useToast();
   const t = translator(locale);
+  // Which STT/TTS engines the turns use — the small picker on the right edge.
+  const { sttEngine, setSttEngine, ttsEngine, setTtsEngine } = useModelChoice(speech.stt, speech.tts);
+  const sttOn = speech.stt[sttEngine];
+  const ttsOn = speech.tts[ttsEngine];
+  // Whose voices speak: our own TTS (Laylo, Isomiddin, clones) or ElevenLabs.
+  const voiceProvider: 'own' | 'eleven' = ttsEngine === 'default' ? 'own' : 'eleven';
+  const elevenAvailable = speech.tts.eleven_v4_turbo || speech.tts.eleven_v3_conversational;
+  const lastElevenModelRef = useRef<TtsChoice>(ttsEngine === 'default' ? 'eleven_v4_turbo' : ttsEngine);
+  if (ttsEngine !== 'default') lastElevenModelRef.current = ttsEngine;
   const langName = (l: Locale) => t(`play.lang.${l}`, LANG_NAME[l]);
 
   // Which agent the conversation is aimed at. The server resolves this exact
@@ -183,6 +179,17 @@ export function Playground({
   // '' = speak with the selected agent's own voice; anything else overrides it
   // (built-in speakers plus the tenant's cloned/designed voices).
   const [voiceOverride, setVoiceOverride] = useState<string>('');
+  // The voice list belongs to the provider: switching providers, here or in
+  // the model picker, lands on that provider's first voice.
+  useEffect(() => {
+    const isEleven = elevenVoices.some((v) => v.id === voiceOverride);
+    if (voiceProvider === 'eleven' && !isEleven) setVoiceOverride(elevenVoices[0]?.id ?? '');
+    if (voiceProvider === 'own' && isEleven) setVoiceOverride('');
+  }, [voiceProvider, voiceOverride, elevenVoices]);
+  const switchVoiceProvider = (next: 'own' | 'eleven') => {
+    if (next === voiceProvider) return;
+    setTtsEngine(next === 'own' ? 'default' : lastElevenModelRef.current);
+  };
   const [callId, setCallId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   // Saved conversations with the selected agent, most recent first.
@@ -211,6 +218,10 @@ export function Playground({
       : agent?.languages?.find(voiceInputAvailable) ?? 'uz',
   );
   const [speechSupported, setSpeechSupported] = useState(false);
+  // Read after mount, like `speechSupported`: the server cannot see the browser's
+  // microphone, and checking during render made the first paint disagree.
+  const [micAvailable, setMicAvailable] = useState(false);
+  useEffect(() => setMicAvailable(micSupported()), []);
   const [ttsEnabled, setTtsEnabled] = useState(true);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -239,11 +250,40 @@ export function Playground({
     streamAbortRef.current?.abort();
     streamAbortRef.current = null;
   }, []);
-  /** An STT request started at an early pause, and the recording it is for. */
-  const prefetchRef = useRef<{ wav: Blob; res: Promise<Response> } | null>(null);
-  const voiceUtteranceRef = useRef<(recording: RecordingResult, turnId: number) => Promise<void>>(
-    async () => {},
-  );
+  /* ── the voice call: the public /demo's architecture ───────────
+     One button answers the call (the agent speaks first when it is the one
+     calling), one mutes the mic, one hangs up. Each phrase is one streamed
+     request to /api/playground/turn — what was heard, the reply as the model
+     writes it, and its voice — played back to back on one Web Audio clock,
+     with the phrase transcribed during the pause and the caller free to talk
+     over the agent. */
+  const outRef = useRef<VoiceOut | null>(null);
+  /** Bumped whenever the turn in flight stops mattering (barge-in, hang-up). */
+  const callSeqRef = useRef(0);
+  const callAbortRef = useRef<AbortController | null>(null);
+  const callIdRef = useRef<string | null>(null);
+  const [callPhase, setCallPhaseState] = useState<'idle' | 'connecting' | 'live'>('idle');
+  const callPhaseRef = useRef<'idle' | 'connecting' | 'live'>('idle');
+  const setCallPhase = (next: 'idle' | 'connecting' | 'live') => {
+    callPhaseRef.current = next;
+    setCallPhaseState(next);
+  };
+  const [muted, setMuted] = useState(false);
+  const callUtteranceRef = useRef<(recording: RecordingResult) => Promise<void>>(async () => {});
+  const callPrefetchRef = useRef<(recording: RecordingResult) => void>(() => {});
+
+  /** Stop the agent mid-word and forget the turn that was speaking. */
+  const silenceAgent = () => {
+    callSeqRef.current += 1;
+    callAbortRef.current?.abort();
+    callAbortRef.current = null;
+    outRef.current?.stop();
+    ttsPlaybackRef.current += 1;
+    stopStream();
+    window.speechSynthesis?.cancel();
+    setThinking(false);
+  };
+
   const {
     voiceState,
     level: voiceLevel,
@@ -255,29 +295,24 @@ export function Playground({
     resumeListening,
     failAndResume,
     sessionIsActive,
+    setMuted: setMicMuted,
   } = useVoiceSession({
-    onUtterance: (recording, turnId) => voiceUtteranceRef.current(recording, turnId),
-    onSpeculate: (recording, turnId) => {
-      // A pause that is probably the end of the phrase: start the STT now. If
-      // the pause holds, the finalized utterance is this same recording and
-      // picks the request up; if speech goes on, it is left unused.
-      const { wav, durationSec, rms } = recording;
-      if (durationSec < 0.25 || rms < 0.0015 || wav.size <= 44) return;
-      prefetchRef.current = { wav, res: transcribeWav(wav, turnId) };
-    },
-    onBargeIn: () => {
-      ttsPlaybackRef.current += 1;
-      stopStream();
-      window.speechSynthesis?.cancel();
-      try {
-        audioElRef.current?.pause();
-      } catch {
-        /* playback already ended */
-      }
-    },
+    onUtterance: (recording) => callUtteranceRef.current(recording),
+    onSpeculate: (recording) => callPrefetchRef.current(recording),
+    onBargeIn: () => silenceAgent(),
     onError: (message) => toast.error(t('play.toast.micTitle', 'Microphone problem'), message),
   });
-  const suggestions = SUGGESTIONS[industry] ?? SUGGESTIONS.clinic;
+
+  // With the local streaming model picked, words appear while the caller is
+  // still speaking; the turn itself still uses the finished utterance.
+  const live = useLiveTranscript({
+    url: speech.streamUrl,
+    active: sttEngine === 'local' && speech.stt.local && isSessionActive,
+  });
+  // The agent's own voice is not the caller's words; drop it between turns.
+  useEffect(() => {
+    if (voiceState === 'ai_speaking') live.reset();
+  }, [voiceState, live.reset]);
 
   useEffect(() => {
     const w = window as unknown as {
@@ -348,7 +383,13 @@ export function Playground({
    * caller can fall back to the browser voice.
    */
   const speakStream = useCallback(
-    async (msgId: string, text: string, stale: () => boolean, onFirstAudio: () => void): Promise<boolean> => {
+    async (
+      msgId: string,
+      text: string,
+      lang: Locale,
+      stale: () => boolean,
+      onFirstAudio: () => void,
+    ): Promise<boolean> => {
       const ctx = (audioCtxRef.current ??= new AudioContext());
       // Autoplay policy keeps the context suspended until a user gesture; by the
       // time a reply exists the caller has clicked or spoken, so this succeeds.
@@ -363,7 +404,13 @@ export function Playground({
         res = await fetch('/api/speech/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, voice: voiceOverride || agent?.voiceId, stream: true }),
+          body: JSON.stringify({
+            text,
+            voice: voiceOverride || agent?.voiceId,
+            language: lang,
+            engine: ttsEngine,
+            stream: true,
+          }),
           signal: controller.signal,
         });
       } catch {
@@ -431,7 +478,7 @@ export function Playground({
       streamAbortRef.current = null;
       return true;
     },
-    [agent?.voiceId, voiceOverride, stopStream],
+    [agent?.voiceId, voiceOverride, ttsEngine, stopStream],
   );
 
   // Generate a reply's audio and play it. For Uzbek this is a single streamed
@@ -444,12 +491,13 @@ export function Playground({
         if (continueSession) resumeListening();
         return;
       }
-      if (speech.tts && lang === 'uz') {
+      // The internal voice is Uzbek-only; ElevenLabs speaks every language.
+      if (ttsOn && (lang === 'uz' || ttsEngine !== 'default')) {
         // Stale once this playback has been superseded (barge-in, new call) or
         // the session has ended under us.
         const stale = () =>
           continueSession && (ttsPlaybackRef.current !== playbackId || !sessionIsActive());
-        const spoke = await speakStream(msgId, text, stale, () => {
+        const spoke = await speakStream(msgId, text, lang, stale, () => {
           if (continueSession && !stale()) setAiSpeaking();
         });
         if (spoke) {
@@ -464,7 +512,7 @@ export function Playground({
       await speak(text, lang);
       if (continueSession && ttsPlaybackRef.current === playbackId) resumeListening();
     },
-    [ttsEnabled, speech.tts, speakStream, speak, resumeListening, sessionIsActive, setAiSpeaking],
+    [ttsEnabled, ttsOn, ttsEngine, speakStream, speak, resumeListening, sessionIsActive, setAiSpeaking],
   );
 
   /* ── the turn ───────────────────────────────────────────────── */
@@ -595,65 +643,270 @@ export function Playground({
     setListening(false);
   }, []);
 
-  /* ── internal STT: each VAD-finalized utterance uses the existing endpoint ── */
+  /* ── the voice call (see the note at `outRef`) ─────────────────── */
 
-  const transcribeWav = (wav: Blob, turnId: number) => {
-    const upload = new FormData();
-    upload.append('file', wav, `speech-${turnId}.wav`);
-    upload.append('language', speechLang);
-    upload.append('denoise', '1');
-    return fetch('/api/speech/stt', { method: 'POST', body: upload });
+  /** The fields every call request carries: who, which language, which engines and voice. */
+  const callForm = (wav: Blob, streamedText = '') => {
+    const form = new FormData();
+    // Streaming Zipformer already has the words: send them, not the audio.
+    if (streamedText) form.append('text', streamedText);
+    else form.append('audio', wav, 'speech.wav');
+    form.append('callId', callIdRef.current ?? '');
+    form.append('lang', speechLang);
+    form.append('sttEngine', sttEngine);
+    form.append('ttsEngine', ttsEngine);
+    form.append('voice', voiceOverride || agent?.voiceId || '');
+    return form;
   };
 
-  voiceUtteranceRef.current = async ({ wav, durationSec, rms }, turnId) => {
-    const voiceRun = voiceRunRef.current;
-    if (process.env.NODE_ENV !== 'production') {
-      console.debug('[VOICE] sending_to_stt', {
-        turnId,
-        durationMs: Math.round(durationSec * 1000),
-        rms: Number(rms.toFixed(4)),
-        bytes: wav.size,
-      });
-    }
+  /**
+   * Play one streamed response: register the call, show what was heard, add the
+   * reply and voice it as it arrives, fill the side panels, then hand the line
+   * back to the caller.
+   */
+  const exchange = async (res: Response, seq: number, userMsgId?: string) => {
+    const out = outRef.current!;
+    let agentMsgId = '';
+    let replyText = '';
+    let replyLang: Locale = speechLang;
+    let voiced = false;
+    let dropped = false;
+    let detail: TurnDetail | null = null;
+    let heardBack = false;
+    // Superseded (the caller spoke again, or hung up) before the STT answered:
+    // the phrase's "…" placeholder would never fill in, so it goes.
+    const dropPlaceholder = () => {
+      if (userMsgId && !heardBack) setMessages((m) => m.filter((x) => x.id !== userMsgId));
+    };
 
-    // VAD already filters noise; this final media-level guard protects the STT
-    // from a broken/muted input or a browser recorder that returned no audio.
-    if (durationSec < 0.25 || rms < 0.0015 || wav.size <= 44) {
-      failAndResume(t('play.toast.nothingRetry', 'No speech was detected — try again.'), false);
+    try {
+      for await (const event of readCallEvents(res)) {
+        if (seq !== callSeqRef.current) return dropPlaceholder();
+        if (event.t === 'call') {
+          callIdRef.current = event.callId;
+          setCallId(event.callId);
+          rememberChat(selectedAgentId, event.callId);
+        } else if (event.t === 'heard' && userMsgId) {
+          heardBack = true;
+          live.reset();
+          const heard = event.text.trim();
+          setMessages((m) =>
+            heard
+              ? m.map((x) => (x.id === userMsgId ? { ...x, text: heard, interim: false } : x))
+              : m.filter((x) => x.id !== userMsgId),
+          );
+        } else if (event.t === 'reply') {
+          replyText = event.text;
+          replyLang = event.lang;
+          agentMsgId = nextId();
+          const id = agentMsgId;
+          setMessages((m) => [...m, { id, role: 'agent', text: event.text, lang: event.lang }]);
+        } else if ((event.t === 'more' || event.t === 'final') && agentMsgId) {
+          // The reply grows a sentence at a time as the model writes it.
+          replyText = event.text;
+          const id = agentMsgId;
+          setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: event.text } : x)));
+        } else if ((event.t === 'filler' || event.t === 'audio') && ttsEnabled) {
+          const span = out.enqueue(decodePcm(event.pcm));
+          if (event.t === 'audio' && span && !voiced) {
+            voiced = true;
+            setThinking(false);
+            setAiSpeaking();
+          }
+        } else if (event.t === 'detail') {
+          detail = event.detail;
+        } else if (event.t === 'error') {
+          if (event.code === 'stt') {
+            toast.error(
+              t('play.toast.transcribeFailTitle', 'Transcription failed'),
+              t('play.toast.transcribeFailBody', 'The STT service returned an error.'),
+            );
+            dropPlaceholder();
+            heardBack = true; // handled: no second "line dropped" message
+            break;
+          }
+          throw new Error(event.code);
+        }
+      }
+    } catch {
+      if (seq !== callSeqRef.current) return dropPlaceholder(); // stopped on purpose
+      dropped = true; // the line dropped mid-reply: what arrived still plays out
+    }
+    if (seq !== callSeqRef.current) return dropPlaceholder();
+    callAbortRef.current = null;
+    setThinking(false);
+
+    if (detail && agentMsgId) {
+      const id = agentMsgId;
+      const reply: PlaygroundReply = { ok: true, callId: callIdRef.current ?? undefined, reply: replyText, ...detail };
+      setMessages((m) => m.map((x) => (x.id === id ? { ...x, reply } : x)));
+    }
+    if (dropped) toast.error(t('play.toast.answerFailTitle', 'Could not answer'), t('play.callDropped', 'The line dropped.'));
+
+    if (agentMsgId && ttsEnabled) {
+      if (!voiced) {
+        // No voice could be rendered: the browser reads the line rather than go silent.
+        setAiSpeaking();
+        await speakWithBrowser(replyText, replyLang, () => seq !== callSeqRef.current);
+      } else {
+        while (out.remaining > 0.02 && seq === callSeqRef.current) await new Promise((r) => setTimeout(r, 40));
+      }
+    }
+    if (seq !== callSeqRef.current) return;
+    if (callPhaseRef.current === 'live') resumeListening();
+  };
+
+  /** Zipformer is streaming the call: the words exist as they are spoken. */
+  const streamingStt = () => sttEngine === 'local' && live.connected;
+
+  /** The caller paused: send the phrase ahead so it is already being transcribed. */
+  callPrefetchRef.current = ({ wav, durationSec, rms }) => {
+    if (streamingStt()) return; // nothing to prefetch: the transcript is already live
+    if (callPhaseRef.current !== 'live' || !callIdRef.current || durationSec < 0.3 || rms < 0.0015 || wav.size <= 44) return;
+    void fetch('/api/playground/turn?prefetch=1', { method: 'POST', body: callForm(wav) }).catch(() => {});
+  };
+
+  callUtteranceRef.current = async ({ wav, durationSec, rms }) => {
+    // A cough, a click, or a phrase while the line is still connecting.
+    if (callPhaseRef.current !== 'live' || !callIdRef.current || durationSec < 0.3 || rms < 0.0015 || wav.size <= 44) {
+      if (callPhaseRef.current === 'live') resumeListening();
+      return;
+    }
+    const seq = ++callSeqRef.current;
+    const userMsgId = nextId();
+    // Streaming Zipformer: flush its last words (milliseconds) and the phrase is
+    // known before anything is uploaded. Empty — sidecar gone, nothing caught —
+    // falls back to sending the audio.
+    const streamedText = streamingStt() ? await live.finish() : '';
+    if (streamedText) live.reset();
+    if (seq !== callSeqRef.current) return;
+    setMessages((m) => [...m, { id: userMsgId, role: 'caller', text: streamedText || '…', interim: !streamedText }]);
+    setThinking(true);
+
+    const controller = new AbortController();
+    callAbortRef.current = controller;
+    let res: Response | null = null;
+    // A 409 means the previous turn is still being written down — a moment's wait.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        res = await fetch('/api/playground/turn', {
+          method: 'POST',
+          body: callForm(wav, streamedText),
+          signal: controller.signal,
+        });
+      } catch {
+        res = null;
+        break;
+      }
+      if (res.status !== 409) break;
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    if (seq !== callSeqRef.current) {
+      setMessages((m) => m.filter((x) => x.id !== userMsgId));
       return;
     }
 
-    setThinking(true);
-    const sttStarted = performance.now();
-    try {
-      const prefetched = prefetchRef.current?.wav === wav ? prefetchRef.current.res : null;
-      prefetchRef.current = null;
-      const res = (prefetched && (await prefetched.catch(() => null))) || (await transcribeWav(wav, turnId));
-      if (!res.ok) {
-        const message = t('play.toast.transcribeFailBody', 'The STT service returned an error.');
-        toast.error(t('play.toast.transcribeFailTitle', 'Transcription failed'), message);
-        failAndResume(message, false);
-        return;
-      }
-      const text = (((await res.json()) as { text?: string }).text ?? '').trim();
-      if (voiceRunRef.current !== voiceRun || !sessionIsActive()) return;
-      if (process.env.NODE_ENV !== 'production') console.debug('[VOICE] transcript_received', { turnId });
-      if (!text) {
-        const message = t('play.toast.nothingRetry', 'No speech was detected — try again.');
-        toast.toast({ tone: 'info', title: t('play.toast.nothingTitle', 'Nothing heard'), description: message });
-        failAndResume(message, false);
-        return;
-      }
-      setThinking(false);
-      await send(text, performance.now() - sttStarted, true, voiceRun);
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : t('play.toast.recordFail', 'Recording failed.');
-      toast.error(t('play.toast.transcribeFailTitle', 'Transcription failed'), message);
-      failAndResume(message, false);
-    } finally {
-      if (voiceRunRef.current === voiceRun) setThinking(false);
+    if (res?.status === 410) {
+      hangUpCall();
+      return;
     }
+    if (!res || !res.ok || !res.body) {
+      setMessages((m) => m.filter((x) => x.id !== userMsgId));
+      setThinking(false);
+      toast.error(t('play.toast.answerFailTitle', 'Could not answer'), t('play.callDropped', 'The line dropped.'));
+      resumeListening();
+      return;
+    }
+    await exchange(res, seq, userMsgId);
   };
+
+  /** Pick up: open the mic and the call together; the agent speaks first. */
+  const answerCall = async () => {
+    if (callPhaseRef.current !== 'idle') return;
+    // Created inside the click: the only moment every browser lets audio start.
+    const out = (outRef.current ??= new VoiceOut());
+    void out.resume();
+    stopVoiceConversation();
+    clearConversation();
+    rememberChat(selectedAgentId, null);
+    callIdRef.current = null;
+    setMuted(false);
+    setMicMuted(false);
+    setCallPhase('connecting');
+    setThinking(true);
+
+    const seq = ++callSeqRef.current;
+    const controller = new AbortController();
+    callAbortRef.current = controller;
+    const call = fetch('/api/playground/call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agentId: selectedAgentId || undefined,
+        lang: speechLang,
+        voice: voiceOverride || agent?.voiceId || '',
+        ttsEngine,
+      }),
+      signal: controller.signal,
+    }).catch(() => null);
+    const [micReady, res] = await Promise.all([startSession({ context: out.ctx }), call]);
+    if (seq !== callSeqRef.current) return; // hung up while connecting
+
+    if (!micReady || !res?.ok || !res.body) {
+      controller.abort();
+      callAbortRef.current = null;
+      stopSession();
+      setThinking(false);
+      setCallPhase('idle');
+      // A mic failure has already said why, through onError.
+      if (micReady) toast.error(t('play.toast.answerFailTitle', 'Could not answer'), t('play.callDropped', 'The line dropped.'));
+      return;
+    }
+    out.tone('connect');
+    setCallPhase('live');
+    await exchange(res, seq);
+    void refreshChats();
+  };
+
+  /** End the call: stop the voice and the mic, and bill the call once. */
+  const hangUpCall = () => {
+    if (callPhaseRef.current === 'idle') return;
+    silenceAgent();
+    stopSession();
+    setMicMuted(false);
+    setMuted(false);
+    const id = callIdRef.current;
+    callIdRef.current = null;
+    if (id) {
+      void fetch('/api/playground/end', { method: 'POST', body: JSON.stringify({ callId: id }), keepalive: true }).catch(
+        () => {},
+      );
+    }
+    outRef.current?.tone('hangup');
+    setCallPhase('idle');
+    // The transcript stays on screen; the next message or call starts a new chat.
+    setCallId(null);
+    rememberChat(selectedAgentId, null);
+    void refreshChats();
+  };
+
+  const toggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    setMicMuted(next);
+  };
+
+  // Closing the tab mid-call still ends (and bills) it.
+  useEffect(() => {
+    const onHide = () => {
+      const id = callIdRef.current;
+      if (id && callPhaseRef.current !== 'idle') {
+        navigator.sendBeacon?.('/api/playground/end', JSON.stringify({ callId: id }));
+      }
+    };
+    window.addEventListener('pagehide', onHide);
+    return () => window.removeEventListener('pagehide', onHide);
+  }, []);
 
   // Drop the current conversation.
   const clearConversation = useCallback(() => {
@@ -668,7 +921,11 @@ export function Playground({
     }
   }, [stopStream]);
 
+  // Switching agent, opening a saved chat or starting over also ends a live call.
+  const hangUpRef = useRef(hangUpCall);
+  hangUpRef.current = hangUpCall;
   const stopVoiceConversation = useCallback(() => {
+    hangUpRef.current();
     ttsPlaybackRef.current += 1;
     voiceRunRef.current += 1;
     processingRef.current = null;
@@ -756,8 +1013,8 @@ export function Playground({
 
   // Uzbek speech goes to your STT model; RU/EN use the browser recogniser
   // (the internal model is Uzbek-only).
-  const internalStt = speech.stt && speechLang === 'uz';
-  const micReady = internalStt ? micSupported() : speechSupported;
+  const internalStt = sttOn && speechLang === 'uz';
+  const micReady = internalStt ? micAvailable : speechSupported;
   const displayedVoiceState: VoiceState = internalStt
     ? voiceState
     : listening
@@ -775,22 +1032,13 @@ export function Playground({
     error: voiceError ?? t('play.voice.error', 'Mikrofon bilan xatolik yuz berdi'),
   };
 
-  // One click starts a persistent session; the active button is the explicit
-  // escape hatch that ends it and releases the browser microphone indicator.
+  // The browser's own recogniser (languages our STT does not cover yet): one
+  // click starts listening, the next stops it. Uzbek uses the call controls.
   const micToggle = async () => {
     if (micBusy || !voiceInputAvailable(speechLang)) return;
     setMicBusy(true);
     try {
-      if (internalStt) {
-        if (isSessionActive) stopVoiceConversation();
-        else {
-          voiceRunRef.current += 1;
-          stopStream();
-          window.speechSynthesis?.cancel();
-          audioElRef.current?.pause();
-          await startSession();
-        }
-      } else if (listening) {
+      if (listening) {
         stopListening();
       } else {
         startListening();
@@ -820,6 +1068,15 @@ export function Playground({
     // lay out as a column so the chat card's own header/footer stay pinned and only
     // the message list scrolls. On mobile the height is auto and the page flows.
     <div className="flex w-full flex-col lg:h-[calc(100vh_-_112px)]">
+      <ModelPicker
+        stt={speech.stt}
+        tts={speech.tts}
+        sttEngine={sttEngine}
+        ttsEngine={ttsEngine}
+        onStt={setSttEngine}
+        onTts={setTtsEngine}
+        t={t}
+      />
       <PageHeader
         title={t('play.title')}
         subtitle={t('play.subtitle')}
@@ -863,6 +1120,40 @@ export function Playground({
           ))}
         </Select>
         <span className="text-[12.5px] text-ink-3">{t('play.voiceLabel', 'Voice')}</span>
+        <div role="group" aria-label="Voice provider" className="inline-flex rounded-lg bg-surface-2 p-0.5 hairline">
+          {(
+            [
+              ['own', t('play.voiceOwn', 'Own'), true],
+              ['eleven', 'ElevenLabs', elevenAvailable],
+            ] as const
+          ).map(([id, label, enabled]) => (
+            <button
+              key={id}
+              type="button"
+              disabled={!enabled}
+              aria-pressed={voiceProvider === id}
+              title={enabled ? undefined : 'Set SPEKO_API_KEY to enable'}
+              onClick={() => switchVoiceProvider(id)}
+              className={cn(
+                'rounded-md px-2.5 py-1 text-[12.5px] transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                voiceProvider === id ? 'bg-surface text-ink shadow-sm' : 'text-ink-3 hover:text-ink',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {voiceProvider === 'eleven' ? (
+          <Select
+            value={voiceOverride}
+            onChange={(e) => setVoiceOverride(e.target.value)}
+            className="w-auto min-w-[180px]"
+          >
+            {elevenVoices.map((v) => (
+              <option key={v.id} value={v.id}>{v.name}</option>
+            ))}
+          </Select>
+        ) : (
         <Select
           value={voiceOverride}
           onChange={(e) => setVoiceOverride(e.target.value)}
@@ -889,21 +1180,9 @@ export function Playground({
             </optgroup>
           )}
         </Select>
+        )}
       </div>
 
-      {chunks === 0 && (
-        <Card className="mb-4 bg-warning-soft" padded>
-          <div className="flex items-start gap-3">
-            <IconAlert size={18} className="mt-px shrink-0 text-warning" />
-            <div>
-              <p className="text-[13.5px] font-medium text-warning">{t('play.kbEmptyTitle', 'Your knowledge base is empty')}</p>
-              <p className="mt-0.5 text-[12.5px] text-warning/80">
-                {t('play.kbEmptyBody', 'Every question will escalate until you add a document.')}
-              </p>
-            </div>
-          </div>
-        </Card>
-      )}
 
       <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_320px]">
         {/* ── The call surface. This page exists to rehearse a real phone call,
@@ -952,50 +1231,21 @@ export function Playground({
           </div>
 
           <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-            {/* Inner column keeps the conversation to a readable width and lets the
-                empty state center itself vertically instead of hugging the top. */}
+            {/* Inner column keeps the conversation to a readable width. Before the
+                first message it stays empty: the call controls below say what to do. */}
             <div className="mx-auto flex min-h-full max-w-3xl flex-col gap-3 p-5">
-              {messages.length === 0 && !thinking ? (
-                <div className="flex flex-1 flex-col items-center justify-center gap-5 py-8 text-center">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-soft text-brand">
-                    <IconSparkle size={22} />
-                  </span>
-                  <div className="max-w-sm">
-                    <p className="text-[15px] font-semibold text-ink">
-                      {t('play.emptyTitle', 'Talk to {name}').replace('{name}', agentName)}
-                    </p>
-                    <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">
-                      {t(
-                        'play.emptyBody',
-                        'Ask anything a caller might — it answers only from your knowledge base. Try one:',
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {suggestions.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => void send(s)}
-                        className="rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] text-ink-2 transition-colors hairline hover:bg-surface-3 hover:text-ink"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {messages.map((m) => (
-                    <Bubble key={m.id} msg={m} t={t} />
-                  ))}
+              {messages.map((m) => (
+                <Bubble key={m.id} msg={m} t={t} />
+              ))}
+              {live.text && voiceState !== 'ai_speaking' && (
+                <Bubble msg={{ id: 'live', role: 'caller', text: live.text, interim: true }} t={t} />
+              )}
 
-                  {thinking && (
-                    <div className="flex items-center gap-2 text-[12.5px] text-ink-3">
-                      <Spinner size={14} />
-                      {t('play.thinking')}
-                    </div>
-                  )}
-                </>
+              {thinking && (
+                <div className="flex items-center gap-2 text-[12.5px] text-ink-3">
+                  <Spinner size={14} />
+                  {t('play.thinking')}
+                </div>
               )}
             </div>
           </div>
@@ -1053,6 +1303,8 @@ export function Playground({
                         }}
                         disabled={!available}
                         aria-disabled={!available}
+                        // Inline: the global `button { font: inherit }` reset outranks text-size classes.
+                        style={{ fontSize: 11, lineHeight: '16px' }}
                         title={
                           available
                             ? undefined
@@ -1062,7 +1314,7 @@ export function Playground({
                               )
                         }
                         className={cn(
-                          'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-colors',
+                          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium transition-colors',
                           active
                             ? 'bg-brand text-white shadow-e1'
                             : available
@@ -1072,23 +1324,108 @@ export function Playground({
                       >
                         {l.toUpperCase()}
                         {!available && (
-                          <span className="rounded-full bg-surface px-1 py-[1px] text-[8.5px] font-semibold tracking-wide uppercase text-ink-3 hairline">
+                          <span className="rounded-full bg-surface px-1 text-[8px] leading-[12px] font-semibold text-ink-3 hairline">
                             {t('play.soon', 'soon')}
                           </span>
                         )}
                       </button>
                     );
                   })}
-                  {speech.stt && (
+                  {speechLang === 'uz' ? (
+                    // Which recogniser hears Uzbek: our own model, GAPI, or the
+                    // local streaming Zipformer — same switch as the model picker.
+                    <div
+                      role="group"
+                      aria-label={t('play.sttEngine', 'Speech recognition')}
+                      className="inline-flex rounded-lg bg-surface p-0.5 hairline"
+                    >
+                      {(['auto', 'gapi', 'local'] as const).map((id) => (
+                        <button
+                          key={id}
+                          type="button"
+                          disabled={!speech.stt[id]}
+                          aria-pressed={sttEngine === id}
+                          title={speech.stt[id] ? undefined : `${t('play.notConfigured', 'Not configured')}: ${STT_ENV[id]}`}
+                          onClick={() => setSttEngine(id)}
+                          style={{ fontSize: 11, lineHeight: '16px' }}
+                          className={cn(
+                            'rounded-md px-1.5 py-0.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                            sttEngine === id ? 'bg-surface-3 text-ink' : 'text-ink-3 hover:text-ink',
+                          )}
+                        >
+                          {id === 'auto' ? t('play.voiceOwn', 'Own') : STT_LABEL[id]}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
                     <span className="rounded-full bg-surface px-2.5 py-0.5 text-[11px] text-ink-3 hairline">
-                      {internalStt
-                        ? t('play.sttInternal', 'Uzbek → your STT model')
-                        : t('play.sttBrowser', '{lang} → browser voice').replace('{lang}', speechLang.toUpperCase())}
+                      {t('play.sttBrowser', '{lang} → browser voice').replace('{lang}', speechLang.toUpperCase())}
                     </span>
                   )}
                 </div>
 
-                {/* Centre: the reason this page exists. */}
+                {/* Centre: the reason this page exists. Uzbek runs as a real call,
+                    as on /demo: answer, then mute or hang up. */}
+                {internalStt ? (
+                  <div className="flex flex-col items-center gap-2 justify-self-center">
+                    {callPhase === 'idle' ? (
+                      <button
+                        type="button"
+                        onClick={() => void answerCall()}
+                        disabled={!micReady}
+                        aria-label={t('play.call.answer', 'Answer')}
+                        style={{ color: '#ffffff' }}
+                        className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-success shadow-e2 transition-all duration-200 hover:scale-105 hover:brightness-110 disabled:opacity-40"
+                      >
+                        <IconHandset width={30} height={30} fill="currentColor" stroke="none" />
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-4">
+                        <button
+                          type="button"
+                          onClick={toggleMute}
+                          disabled={callPhase !== 'live'}
+                          aria-pressed={muted}
+                          aria-label={muted ? t('play.call.unmute', 'Turn mic on') : t('play.call.mute', 'Turn mic off')}
+                          title={muted ? t('play.call.unmute', 'Turn mic on') : t('play.call.mute', 'Turn mic off')}
+                          className={cn(
+                            'relative flex h-[56px] w-[56px] items-center justify-center rounded-full shadow-e1 transition-colors disabled:opacity-40',
+                            muted ? 'bg-surface-3 text-ink-3' : 'bg-surface-2 text-ink hairline hover:bg-surface-3',
+                          )}
+                        >
+                          {muted ? <IconMicOff size={24} /> : <IconMic size={24} />}
+                          {!muted && voiceState === 'user_speaking' && (
+                            <span
+                              className="absolute inset-0 rounded-full ring-4 ring-brand/30 transition-transform"
+                              style={{ transform: `scale(${1 + voiceLevel * 0.35})` }}
+                            />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={hangUpCall}
+                          aria-label={t('play.call.hangUp', 'Hang up')}
+                          title={t('play.call.hangUp', 'Hang up')}
+                          style={{ color: '#ffffff' }}
+                          className="flex h-[64px] w-[64px] items-center justify-center rounded-full bg-danger shadow-e2 transition-all hover:brightness-110"
+                        >
+                          <IconHangUp width={28} height={28} fill="currentColor" stroke="none" />
+                        </button>
+                      </div>
+                    )}
+                    <p className="max-w-[16rem] text-center text-[12px] leading-snug text-ink-3">
+                      {!micReady
+                        ? t('play.micHttps', 'Microphone needs localhost or HTTPS — open http://localhost:3000')
+                        : callPhase === 'idle'
+                          ? t('play.call.answer', 'Answer')
+                          : callPhase === 'connecting'
+                            ? t('play.call.connecting', 'Connecting…')
+                            : muted
+                              ? t('play.call.muted', 'Your mic is off')
+                              : voiceStatusText[displayedVoiceState]}
+                    </p>
+                  </div>
+                ) : (
                 <div className="flex flex-col items-center gap-2 justify-self-center">
                   <button
                     onClick={() => void micToggle()}
@@ -1124,6 +1461,7 @@ export function Playground({
                       : voiceStatusText[displayedVoiceState]}
                   </p>
                 </div>
+                )}
 
                 {/* Right: the escape hatch to the keyboard. */}
                 <div className="flex justify-start sm:justify-end">
@@ -1173,7 +1511,7 @@ export function Playground({
                       {openingChat === c.callId ? (
                         <Spinner size={12} />
                       ) : (
-                        <span className="shrink-0 text-[11px] text-ink-3">{relativeTime(c.lastAt, locale)}</span>
+                        <span className="shrink-0 text-[11px] text-ink-3"><TimeAgo iso={c.lastAt} locale={locale} /></span>
                       )}
                     </button>
                   </li>

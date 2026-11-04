@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveSpeechTestAction } from '@/app/actions/ops';
 import { translator } from '@/lib/i18n';
 import type { SpeechTest, UiLocale } from '@/lib/types';
-import { cn, relativeTime } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { startRecording, micSupported, type Recording } from '@/lib/audio';
 import {
   Badge,
@@ -26,6 +26,7 @@ import {
   IconWave,
   IconX,
 } from '@/components/icons';
+import { TimeAgo } from '@/components/ui/time-ago';
 
 /* ── audio helpers: decode any uploaded file → 16 kHz mono WAV, the exact
    contract the internal STT expects (mirrors src/lib/audio.ts). ── */
@@ -338,7 +339,7 @@ export function SttLab({
                     <span className="truncate text-[12px] font-medium text-ink-2">
                       {h.input === 'recording' ? t('dev.stt.recordedNote') : h.input}
                     </span>
-                    <span className="shrink-0 text-[11px] text-ink-3">{relativeTime(h.created_at, locale)}</span>
+                    <span className="shrink-0 text-[11px] text-ink-3"><TimeAgo iso={h.created_at} locale={locale} /></span>
                   </div>
                   <p className="mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-ink">{h.output}</p>
                 </div>

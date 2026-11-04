@@ -1,36 +1,24 @@
 import Link from 'next/link';
-import { CallDemo } from '@/components/marketing/call-demo';
+import './landing.css';
+import { LandingCall } from '@/components/marketing/landing-call';
 import { RoiCalculator } from '@/components/marketing/roi-calculator';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LinkButton } from '@/components/ui/primitives';
 import { UZS_RATES } from '@/lib/catalog';
 import { fmtUzs } from '@/lib/utils';
-import {
-  FlagEN,
-  FlagRU,
-  FlagUZ,
-  IconArrowRight,
-  IconBook,
-  IconChart,
-  IconCheck,
-  IconCode,
-  IconDatabase,
-  IconGlobe,
-  IconHeadset,
-  IconLock,
-  IconPhone,
-  IconShield,
-  IconSparkle,
-  IconUpload,
-  IconZap,
-  Logo,
-  Wordmark,
-} from '@/components/icons';
+import { IconPhone, Wordmark } from '@/components/icons';
 import { currentSession } from '@/lib/auth';
 import { resolveUiLocale } from '@/lib/locale-server';
 import { translator, type Translate } from '@/lib/i18n';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import type { UiLocale } from '@/lib/types';
+
+/*
+ * The landing page. It shares the console's CallMind red; its own type lives in
+ * ./landing.css, scoped to `.lp`. One bold element — the call you can hear in
+ * the hero — and everything after it quiet: lists and tables rather than card
+ * grids, sentence-case headings without eyebrow labels.
+ */
 
 export default async function LandingPage() {
   const session = await currentSession();
@@ -40,18 +28,17 @@ export default async function LandingPage() {
   const t = translator(locale);
 
   return (
-    <div className="relative">
+    <div className="lp relative min-h-screen">
       <Nav signedIn={Boolean(session)} locale={locale} t={t} />
-      <Hero signedIn={Boolean(session)} t={t} />
-      <Problem t={t} />
+      <Hero signedIn={Boolean(session)} locale={locale} t={t} />
       <HowItWorks t={t} />
+      <CallFlow t={t} />
       <Languages t={t} />
       <Features t={t} />
-      <Latency t={t} />
       <Roi t={t} locale={locale} />
       <Pricing t={t} />
       <Security t={t} />
-      <FinalCta t={t} />
+      <FinalCta signedIn={Boolean(session)} t={t} />
       <Footer t={t} />
     </div>
   );
@@ -72,7 +59,10 @@ function Nav({ signedIn, locale, t }: { signedIn: boolean; locale: UiLocale; t: 
     // `zn_id`) onto the sticky header before React hydrates; this stops that
     // extension noise from tripping a hydration mismatch on this element.
     <header className="sticky top-0 z-50 w-full glass hairline-b" suppressHydrationWarning>
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-5" suppressHydrationWarning>
+      <div
+        className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:gap-6 sm:px-5"
+        suppressHydrationWarning
+      >
         <Link href="/" className="shrink-0">
           <Wordmark />
         </Link>
@@ -81,17 +71,17 @@ function Nav({ signedIn, locale, t }: { signedIn: boolean; locale: UiLocale; t: 
             <a
               key={href}
               href={href}
-              className="rounded-[8px] px-3 py-2 text-[13.5px] font-medium text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink"
+              className="rounded-[8px] px-3 py-2 text-[14px] text-ink-2 transition-colors hover:text-ink"
             >
               {label}
             </a>
           ))}
         </nav>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <LocaleSwitcher locale={locale} />
           <ThemeToggle />
           {signedIn ? (
-            <LinkButton href="/app" variant="primary" size="sm" iconRight={<IconArrowRight size={14} />}>
+            <LinkButton href="/app" variant="primary" size="sm">
               {t('lp.nav.openConsole')}
             </LinkButton>
           ) : (
@@ -110,131 +100,129 @@ function Nav({ signedIn, locale, t }: { signedIn: boolean; locale: UiLocale; t: 
   );
 }
 
-/* ═══ hero ══════════════════════════════════════════════════════ */
+/* ═══ hero: the call is the hero ════════════════════════════════ */
 
-function Hero({ signedIn, t }: { signedIn: boolean; t: Translate }) {
+function Hero({ signedIn, locale, t }: { signedIn: boolean; locale: UiLocale; t: Translate }) {
+  const callLang = locale === 'ru' ? 'ru' : locale === 'en' ? 'en' : 'uz';
   return (
-    <section className="relative overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 grid-bg" />
-      <div className="pointer-events-none absolute -top-40 left-1/2 h-[560px] w-[1100px] -translate-x-1/2 aurora opacity-70" />
-
-      <div className="relative mx-auto max-w-6xl px-5 pt-16 pb-20 sm:pt-24 sm:pb-28">
-        <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
-          <div>
-            <div className="animate-fade-up inline-flex items-center gap-2 rounded-full bg-surface px-3 py-1.5 text-[12.5px] font-medium text-ink-2 shadow-e1 hairline">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-70" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
-              </span>
-              {t('lp.hero.badge')}
-            </div>
-
-            <h1
-              className="animate-fade-up mt-6 text-[42px] leading-[1.04] font-semibold tracking-[-0.035em] text-balance-pretty sm:text-[56px]"
-              style={{ animationDelay: '60ms' }}
-            >
-              {t('lp.hero.title1')}
-              <br />
-              <span className="brand-gradient-text">{t('lp.hero.title2')}</span>
-            </h1>
-
-            <p
-              className="animate-fade-up mt-6 max-w-xl text-[17px] leading-relaxed text-ink-2 text-balance-pretty"
-              style={{ animationDelay: '120ms' }}
-            >
-              {t('lp.hero.sub')}
-            </p>
-
-            <div
-              className="animate-fade-up mt-8 flex flex-wrap items-center gap-3"
-              style={{ animationDelay: '180ms' }}
-            >
-              <LinkButton
-                href={signedIn ? '/app' : '/signup'}
-                variant="primary"
-                size="lg"
-                iconRight={<IconArrowRight size={16} />}
-              >
-                {signedIn ? t('lp.hero.ctaConsole') : t('lp.hero.ctaStart')}
-              </LinkButton>
-              <LinkButton href="/login" variant="secondary" size="lg" icon={<IconPhone size={16} />}>
-                {t('lp.hero.ctaDemo')}
-              </LinkButton>
-            </div>
-
-            <div
-              className="animate-fade-up mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-ink-3"
-              style={{ animationDelay: '240ms' }}
-            >
-              {[t('lp.hero.trust1'), t('lp.hero.trust2'), t('lp.hero.trust3')].map((label) => (
-                <span key={label} className="inline-flex items-center gap-1.5">
-                  <IconCheck size={14} className="text-success" />
-                  {label}
-                </span>
-              ))}
-            </div>
+    <section className="mx-auto max-w-6xl px-5 pt-14 pb-20 sm:pt-20 sm:pb-24">
+      <div className="grid items-start gap-12 lg:grid-cols-[1fr_1.05fr] lg:gap-14">
+        <div className="lg:pt-6">
+          <p className="text-[14px] text-ink-3">{t('lp.hero.badge')}</p>
+          <h1 className="lp-display mt-4 text-[36px] text-balance-pretty sm:text-[48px]">
+            {t('lp.hero.title1')} {t('lp.hero.title2')}
+          </h1>
+          <p className="mt-6 max-w-[34rem] text-[17px] leading-relaxed text-ink-2">{t('lp.hero.sub')}</p>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <LinkButton href={signedIn ? '/app' : '/signup'} variant="primary" size="lg">
+              {signedIn ? t('lp.hero.ctaConsole') : t('lp.hero.ctaStart')}
+            </LinkButton>
+            <LinkButton href="/login" variant="secondary" size="lg" icon={<IconPhone size={16} />}>
+              {t('lp.hero.ctaDemo')}
+            </LinkButton>
           </div>
-
-          <div className="animate-fade-up lg:pl-4" style={{ animationDelay: '300ms' }}>
-            <CallDemo />
-          </div>
+          <ul className="mt-8 space-y-1.5 text-[14px] text-ink-3">
+            {[t('lp.hero.trust1'), t('lp.hero.trust2'), t('lp.hero.trust3')].map((label) => (
+              <li key={label}>{label}</li>
+            ))}
+          </ul>
         </div>
+
+        <LandingCall
+          initialLang={callLang}
+          labels={{
+            title: t('lp.call.title'),
+            play: t('lp.call.play'),
+            pause: t('lp.call.pause'),
+            caller: t('lp.call.caller'),
+            agent: t('lp.call.agent'),
+            source: t('lp.call.source'),
+            note: t('lp.call.note'),
+          }}
+        />
       </div>
     </section>
   );
 }
 
-/* ═══ problem ═══════════════════════════════════════════════════ */
-
-function Problem({ t }: { t: Translate }) {
-  const stats = [
-    { value: '~5 mln so‘m', label: t('lp.problem.stat1') },
-    { value: '70–90%', label: t('lp.problem.stat2') },
-    { value: '<1 sec', label: t('lp.problem.stat3') },
-  ];
-  return (
-    <section className="hairline-y border-y bg-sunken">
-      <div className="mx-auto max-w-6xl px-5 py-14">
-        <div className="grid gap-8 sm:grid-cols-3">
-          {stats.map((s) => (
-            <div key={s.label}>
-              <div className="text-[34px] leading-none font-semibold tracking-[-0.03em] text-ink tabular">
-                {s.value}
-              </div>
-              <p className="mt-2 max-w-[280px] text-[13.5px] leading-relaxed text-ink-3">{s.label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ═══ how it works ══════════════════════════════════════════════ */
+/* ═══ how it works — a real sequence, so it is numbered ═════════ */
 
 function HowItWorks({ t }: { t: Translate }) {
   const steps = [
-    { icon: <IconUpload size={19} />, title: t('lp.how.s1t'), body: t('lp.how.s1b') },
-    { icon: <IconDatabase size={19} />, title: t('lp.how.s2t'), body: t('lp.how.s2b') },
-    { icon: <IconPhone size={19} />, title: t('lp.how.s3t'), body: t('lp.how.s3b') },
+    { title: t('lp.how.s1t'), body: t('lp.how.s1b') },
+    { title: t('lp.how.s2t'), body: t('lp.how.s2b') },
+    { title: t('lp.how.s3t'), body: t('lp.how.s3b') },
   ];
+  return (
+    <section id="how" className="scroll-mt-20 hairline-t border-t">
+      <div className="mx-auto max-w-6xl px-5 py-20">
+        <SectionHead title={t('lp.how.title')} subtitle={t('lp.how.sub')} />
+        <ol className="mt-12 grid gap-10 md:grid-cols-3">
+          {steps.map((s, i) => (
+            <li key={s.title}>
+              <span className="lp-display text-[28px] text-brand">{i + 1}</span>
+              <h3 className="mt-3 text-[17px] font-semibold text-ink">{s.title}</h3>
+              <p className="mt-2 max-w-[22rem] text-[15px] leading-relaxed text-ink-2">{s.body}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/* ═══ a call, step by step, with its time budget ════════════════ */
+
+function CallFlow({ t }: { t: Translate }) {
+  const budget = [
+    { label: t('lp.lat.b1'), ms: 180 },
+    { label: t('lp.lat.b2'), ms: 45 },
+    { label: t('lp.lat.b3'), ms: 240 },
+    { label: t('lp.lat.b4'), ms: 120 },
+  ];
+  const total = budget.reduce((a, b) => a + b.ms, 0);
+  const steps = [t('lp.lat.step1'), t('lp.lat.step2'), t('lp.lat.step3'), t('lp.lat.step4')];
 
   return (
-    <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-24">
-      <SectionHead eyebrow={t('lp.how.eyebrow')} title={t('lp.how.title')} subtitle={t('lp.how.sub')} />
-      <div className="mt-14 grid gap-6 md:grid-cols-3">
-        {steps.map((s, i) => (
-          <div key={s.title} className="reveal lift relative rounded-[16px] bg-surface p-6 shadow-e1 hairline">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-brand-soft text-brand-ink">
-                {s.icon}
-              </div>
-              <span className="text-[13px] font-semibold text-ink-3 tabular">0{i + 1}</span>
-            </div>
-            <h3 className="text-[16px] font-semibold text-ink">{s.title}</h3>
-            <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">{s.body}</p>
+    <section className="bg-sunken">
+      <div className="mx-auto grid max-w-6xl gap-12 px-5 py-20 lg:grid-cols-2 lg:gap-16">
+        <div>
+          <SectionHead title={t('lp.lat.title')} subtitle={t('lp.lat.sub')} />
+          <ol className="mt-8 space-y-4">
+            {steps.map((step, i) => (
+              <li key={i} className="flex gap-4">
+                <span className="w-5 shrink-0 text-[15px] font-semibold text-brand tabular">{i + 1}</span>
+                <p className="text-[15px] leading-relaxed text-ink-2">{step}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="self-center">
+          <div className="flex items-baseline justify-between hairline-b pb-3">
+            <span className="text-[14px] text-ink-2">{t('lp.lat.target')}</span>
+            <span className="lp-display text-[26px] text-ink tabular">{total} ms</span>
           </div>
-        ))}
+          <div className="mt-5 flex h-3 w-full overflow-hidden rounded-full bg-surface-3">
+            {budget.map((b, i) => (
+              <div
+                key={b.label}
+                className={'bg-brand'}
+                style={{ width: `${(b.ms / total) * 100}%`, opacity: 1 - i * 0.15 }}
+              />
+            ))}
+          </div>
+          <table className="mt-5 w-full text-[14px]">
+            <tbody>
+              {budget.map((b) => (
+                <tr key={b.label} className="hairline-b">
+                  <td className="py-2.5 text-ink-2">{b.label}</td>
+                  <td className="py-2.5 text-right text-ink tabular">{b.ms} ms</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   );
@@ -250,54 +238,35 @@ function Languages({ t }: { t: Translate }) {
   ];
   // Sample dialogue stays in its own language — it demonstrates the languages
   // themselves, so it is intentionally not driven by the UI locale.
-  const cards = [
-    { flag: <FlagUZ size={26} />, name: 'O‘zbekcha', sample: 'Kardiolog qabuli qancha turadi?', reply: 'Kardiolog qabuli 180 000 so‘m.' },
-    { flag: <FlagRU size={26} />, name: 'Русский', sample: 'Вы принимаете страховой полис?', reply: 'Да, мы работаем с четырьмя страховыми.' },
-    { flag: <FlagEN size={26} />, name: 'English', sample: 'What time do you close on Saturdays?', reply: 'Saturdays we are open 10 until 3.' },
+  const samples = [
+    { name: 'O‘zbekcha', q: 'Kardiolog qabuli qancha turadi?', a: 'Kardiolog qabuli 180 000 so‘m.' },
+    { name: 'Русский', q: 'Вы принимаете страховой полис?', a: 'Да, мы работаем с четырьмя страховыми.' },
+    { name: 'English', q: 'What time do you close on Saturdays?', a: 'Saturdays we are open 10 until 3.' },
   ];
 
   return (
-    <section id="languages" className="scroll-mt-20 hairline-y border-y bg-sunken">
-      <div className="mx-auto max-w-6xl px-5 py-24">
-        <div className="grid items-center gap-12 lg:grid-cols-2">
-          <div>
-            <SectionHead
-              align="left"
-              eyebrow={t('lp.lang.eyebrow')}
-              title={t('lp.lang.title')}
-              subtitle={t('lp.lang.sub')}
-            />
-            <ul className="mt-8 space-y-4">
-              {features.map((f) => (
-                <li key={f.title} className="flex gap-3">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success-soft text-success">
-                    <IconCheck size={12} strokeWidth={3} />
-                  </span>
-                  <div>
-                    <div className="text-[14px] font-medium text-ink">{f.title}</div>
-                    <p className="mt-0.5 text-[13px] leading-relaxed text-ink-3">{f.desc}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="grid gap-4">
-            {cards.map((l) => (
-              <div key={l.name} className="reveal lift rounded-[14px] bg-surface p-5 shadow-e1 hairline">
-                <div className="mb-3 flex items-center gap-2.5">
-                  {l.flag}
-                  <span className="text-[13.5px] font-semibold text-ink">{l.name}</span>
-                </div>
-                <p className="text-[13.5px] text-ink-2">“{l.sample}”</p>
-                <p className="mt-2 flex items-start gap-2 text-[13.5px] text-ink">
-                  <IconSparkle size={14} className="mt-0.5 shrink-0 text-brand" />
-                  {l.reply}
-                </p>
+    <section id="languages" className="scroll-mt-20">
+      <div className="mx-auto grid max-w-6xl gap-12 px-5 py-20 lg:grid-cols-2 lg:gap-16">
+        <div>
+          <SectionHead title={t('lp.lang.title')} subtitle={t('lp.lang.sub')} />
+          <dl className="mt-8 space-y-5">
+            {features.map((f) => (
+              <div key={f.title}>
+                <dt className="text-[15.5px] font-semibold text-ink">{f.title}</dt>
+                <dd className="mt-1 text-[15px] leading-relaxed text-ink-2">{f.desc}</dd>
               </div>
             ))}
-          </div>
+          </dl>
         </div>
+        <ul className="self-center">
+          {samples.map((s) => (
+            <li key={s.name} className="hairline-b py-5 first:pt-0">
+              <div className="text-[13px] font-medium text-ink-3">{s.name}</div>
+              <p className="mt-1.5 text-[16px] text-ink-2">{s.q}</p>
+              <p className="lp-agent mt-1 text-[16px]">{s.a}</p>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );
@@ -307,98 +276,25 @@ function Languages({ t }: { t: Translate }) {
 
 function Features({ t }: { t: Translate }) {
   const features = [
-    { icon: <IconShield size={18} />, title: t('lp.feat.f1t'), body: t('lp.feat.f1b') },
-    { icon: <IconHeadset size={18} />, title: t('lp.feat.f2t'), body: t('lp.feat.f2b') },
-    { icon: <IconBook size={18} />, title: t('lp.feat.f3t'), body: t('lp.feat.f3b') },
-    { icon: <IconChart size={18} />, title: t('lp.feat.f4t'), body: t('lp.feat.f4b') },
-    { icon: <IconGlobe size={18} />, title: t('lp.feat.f5t'), body: t('lp.feat.f5b') },
-    { icon: <IconCode size={18} />, title: t('lp.feat.f6t'), body: t('lp.feat.f6b') },
+    { title: t('lp.feat.f1t'), body: t('lp.feat.f1b') },
+    { title: t('lp.feat.f2t'), body: t('lp.feat.f2b') },
+    { title: t('lp.feat.f3t'), body: t('lp.feat.f3b') },
+    { title: t('lp.feat.f4t'), body: t('lp.feat.f4b') },
+    { title: t('lp.feat.f5t'), body: t('lp.feat.f5b') },
+    { title: t('lp.feat.f6t'), body: t('lp.feat.f6b') },
   ];
-
   return (
-    <section id="features" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-24">
-      <SectionHead eyebrow={t('lp.feat.eyebrow')} title={t('lp.feat.title')} subtitle={t('lp.feat.sub')} />
-      <div className="mt-14 grid gap-px overflow-hidden rounded-[18px] bg-[rgb(var(--line)/var(--line-alpha))] sm:grid-cols-2 lg:grid-cols-3">
-        {features.map((f) => (
-          <div key={f.title} className="bg-surface p-6 transition-colors hover:bg-surface-2">
-            <div className="mb-3.5 flex h-9 w-9 items-center justify-center rounded-[10px] bg-surface-3 text-ink-2">
-              {f.icon}
+    <section id="features" className="scroll-mt-20 bg-sunken">
+      <div className="mx-auto max-w-6xl px-5 py-20">
+        <SectionHead title={t('lp.feat.title')} subtitle={t('lp.feat.sub')} />
+        <dl className="mt-12 grid gap-x-14 sm:grid-cols-2">
+          {features.map((f) => (
+            <div key={f.title} className="hairline-t py-6">
+              <dt className="text-[16px] font-semibold text-ink">{f.title}</dt>
+              <dd className="mt-2 max-w-[32rem] text-[15px] leading-relaxed text-ink-2">{f.body}</dd>
             </div>
-            <h3 className="text-[15px] font-semibold text-ink">{f.title}</h3>
-            <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">{f.body}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ═══ latency ═══════════════════════════════════════════════════ */
-
-function Latency({ t }: { t: Translate }) {
-  const budget = [
-    { label: t('lp.lat.b1'), ms: 180, tone: 'bg-brand' },
-    { label: t('lp.lat.b2'), ms: 45, tone: 'bg-violet' },
-    { label: t('lp.lat.b3'), ms: 240, tone: 'bg-teal' },
-    { label: t('lp.lat.b4'), ms: 120, tone: 'bg-success' },
-  ];
-  const total = budget.reduce((a, b) => a + b.ms, 0);
-  const steps = [t('lp.lat.step1'), t('lp.lat.step2'), t('lp.lat.step3'), t('lp.lat.step4')];
-
-  return (
-    <section className="hairline-y border-y bg-sunken">
-      <div className="mx-auto max-w-6xl px-5 py-24">
-        <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
-          <div>
-            <SectionHead
-              align="left"
-              eyebrow={t('lp.lat.eyebrow')}
-              title={t('lp.lat.title')}
-              subtitle={t('lp.lat.sub')}
-            />
-            <div className="reveal mt-8 rounded-[14px] bg-surface p-5 shadow-e1 hairline">
-              <div className="flex items-baseline justify-between">
-                <span className="text-[12.5px] font-medium text-ink-2">{t('lp.lat.target')}</span>
-                <span className="text-[22px] font-semibold text-ink tabular">{total} ms</span>
-              </div>
-              <div className="mt-4 flex h-2.5 w-full overflow-hidden rounded-full">
-                {budget.map((b) => (
-                  <div key={b.label} className={b.tone} style={{ width: `${(b.ms / total) * 100}%` }} />
-                ))}
-              </div>
-              <div className="mt-4 space-y-2.5">
-                {budget.map((b) => (
-                  <div key={b.label} className="flex items-center justify-between text-[13px]">
-                    <span className="flex items-center gap-2 text-ink-2">
-                      <span className={`h-2 w-2 rounded-full ${b.tone}`} />
-                      {b.label}
-                    </span>
-                    <span className="text-ink tabular">{b.ms} ms</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="reveal rounded-[18px] bg-surface p-7 shadow-e2 hairline">
-            <div className="mb-5 flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-brand-soft text-brand-ink">
-                <IconZap size={18} />
-              </div>
-              <h3 className="text-[15.5px] font-semibold text-ink">{t('lp.lat.arranged')}</h3>
-            </div>
-            <ol className="space-y-4">
-              {steps.map((step, i) => (
-                <li key={i} className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11.5px] font-semibold text-ink-2 tabular">
-                    {i + 1}
-                  </span>
-                  <p className="pt-0.5 text-[13.5px] leading-relaxed text-ink-2">{step}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </div>
+          ))}
+        </dl>
       </div>
     </section>
   );
@@ -408,49 +304,46 @@ function Latency({ t }: { t: Translate }) {
 
 function Roi({ t, locale }: { t: Translate; locale: UiLocale }) {
   return (
-    <section id="roi" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-24">
-      <SectionHead eyebrow={t('lp.roi.eyebrow')} title={t('lp.roi.title')} subtitle={t('lp.roi.sub')} />
-      <div className="reveal mt-12 rounded-[20px] bg-surface p-7 shadow-e2 hairline sm:p-9">
-        <RoiCalculator locale={locale} />
+    <section id="roi" className="scroll-mt-20">
+      <div className="mx-auto max-w-6xl px-5 py-20">
+        <SectionHead title={t('lp.roi.title')} subtitle={t('lp.roi.sub')} />
+        <div className="mt-10 rounded-[20px] bg-surface p-7 shadow-e1 hairline sm:p-9">
+          <RoiCalculator locale={locale} />
+        </div>
       </div>
     </section>
   );
 }
 
-/* ═══ pricing ═══════════════════════════════════════════════════ */
+/* ═══ pricing — three rates, so a table ═════════════════════════ */
 
 function Pricing({ t }: { t: Translate }) {
   // Prepaid balance model: three per-minute rates come straight from the catalog
   // (single source of truth); only the words around them are localised.
   const perMin = `/${t('lp.roicalc.min')}`;
-  const cards = [
+  const rows = [
     { title: t('lp.price.c1title'), rate: UZS_RATES.realTalkPerMin, desc: t('lp.price.c1desc') },
     { title: t('lp.price.c2title'), rate: UZS_RATES.ttsPerMin, desc: t('lp.price.c2desc') },
     { title: t('lp.price.c3title'), rate: UZS_RATES.sttPerMin, desc: t('lp.price.c3desc') },
   ];
-
   return (
-    <section id="pricing" className="scroll-mt-20 hairline-y border-y bg-sunken">
-      <div className="mx-auto max-w-6xl px-5 py-24">
-        <SectionHead
-          eyebrow={t('lp.price.eyebrow')}
-          title={t('lp.price.title')}
-          subtitle={t('lp.price.sub')}
-        />
-        <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {cards.map((c) => (
+    <section id="pricing" className="scroll-mt-20 bg-sunken">
+      <div className="mx-auto max-w-6xl px-5 py-20">
+        <SectionHead title={t('lp.price.title')} subtitle={t('lp.price.sub')} />
+        <div className="mt-10">
+          {rows.map((r) => (
             <div
-              key={c.title}
-              className="reveal lift relative flex flex-col rounded-[18px] bg-surface p-6 shadow-e1 hairline"
+              key={r.title}
+              className="grid gap-2 hairline-t py-6 sm:grid-cols-[1fr_auto] sm:items-baseline sm:gap-10"
             >
-              <h3 className="text-[15px] font-semibold text-ink">{c.title}</h3>
-              <div className="mt-3 flex items-baseline gap-1.5">
-                <span className="text-[32px] leading-none font-semibold tracking-[-0.03em] text-ink">
-                  {fmtUzs(c.rate)}
-                </span>
-                <span className="text-[13px] text-ink-3">{perMin}</span>
+              <div>
+                <h3 className="text-[17px] font-semibold text-ink">{r.title}</h3>
+                <p className="mt-1.5 max-w-[40rem] text-[15px] leading-relaxed text-ink-2">{r.desc}</p>
               </div>
-              <p className="mt-3 text-[13px] leading-relaxed text-ink-2">{c.desc}</p>
+              <div className="whitespace-nowrap sm:text-right">
+                <span className="lp-display text-[26px] text-ink tabular">{fmtUzs(r.rate)}</span>
+                <span className="ml-1 text-[14px] text-ink-3">{perMin}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -463,26 +356,23 @@ function Pricing({ t }: { t: Translate }) {
 
 function Security({ t }: { t: Translate }) {
   const items = [
-    { icon: <IconLock size={17} />, title: t('lp.sec.i1t'), desc: t('lp.sec.i1d') },
-    { icon: <IconShield size={17} />, title: t('lp.sec.i2t'), desc: t('lp.sec.i2d') },
-    { icon: <IconDatabase size={17} />, title: t('lp.sec.i3t'), desc: t('lp.sec.i3d') },
-    { icon: <IconBook size={17} />, title: t('lp.sec.i4t'), desc: t('lp.sec.i4d') },
+    { title: t('lp.sec.i1t'), desc: t('lp.sec.i1d') },
+    { title: t('lp.sec.i2t'), desc: t('lp.sec.i2d') },
+    { title: t('lp.sec.i3t'), desc: t('lp.sec.i3d') },
+    { title: t('lp.sec.i4t'), desc: t('lp.sec.i4d') },
   ];
   return (
-    <section className="mx-auto max-w-6xl px-5 py-24">
-      <SectionHead eyebrow={t('lp.sec.eyebrow')} title={t('lp.sec.title')} subtitle={t('lp.sec.sub')} />
-      <div className="mt-12 grid gap-6 sm:grid-cols-2">
-        {items.map((i) => (
-          <div key={i.title} className="reveal lift flex gap-4 rounded-[14px] bg-surface p-5 shadow-e1 hairline">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-surface-3 text-ink-2">
-              {i.icon}
+    <section>
+      <div className="mx-auto max-w-6xl px-5 py-20">
+        <SectionHead title={t('lp.sec.title')} subtitle={t('lp.sec.sub')} />
+        <dl className="mt-10 grid gap-x-14 sm:grid-cols-2">
+          {items.map((i) => (
+            <div key={i.title} className="hairline-t py-6">
+              <dt className="text-[16px] font-semibold text-ink">{i.title}</dt>
+              <dd className="mt-2 text-[15px] leading-relaxed text-ink-2">{i.desc}</dd>
             </div>
-            <div>
-              <h3 className="text-[14.5px] font-semibold text-ink">{i.title}</h3>
-              <p className="mt-1 text-[13px] leading-relaxed text-ink-2">{i.desc}</p>
-            </div>
-          </div>
-        ))}
+          ))}
+        </dl>
       </div>
     </section>
   );
@@ -490,25 +380,23 @@ function Security({ t }: { t: Translate }) {
 
 /* ═══ cta + footer ══════════════════════════════════════════════ */
 
-function FinalCta({ t }: { t: Translate }) {
+function FinalCta({ signedIn, t }: { signedIn: boolean; t: Translate }) {
   return (
-    <section className="relative overflow-hidden hairline-t border-t">
-      <div className="pointer-events-none absolute inset-0 aurora opacity-80" />
-      <div className="relative mx-auto max-w-3xl px-5 py-24 text-center">
-        <Logo size={44} className="mx-auto" />
-        <h2 className="mt-7 text-[36px] leading-[1.1] font-semibold tracking-[-0.032em] text-ink text-balance-pretty sm:text-[42px]">
-          {t('lp.cta.title1')}
-          <br />
-          {t('lp.cta.title2')}
+    <section className="bg-[rgb(23_23_27)] text-white dark:bg-[rgb(var(--bg-sunken))]">
+      <div className="mx-auto max-w-6xl px-5 py-20">
+        <h2 className="lp-display max-w-[40rem] text-[30px] text-balance-pretty sm:text-[38px]">
+          {t('lp.cta.title1')} {t('lp.cta.title2')}
         </h2>
-        <p className="mx-auto mt-5 max-w-xl text-[16px] leading-relaxed text-ink-2">{t('lp.cta.sub')}</p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <LinkButton href="/signup" variant="primary" size="lg" iconRight={<IconArrowRight size={16} />}>
-            {t('lp.cta.create')}
+        <p className="mt-5 max-w-[36rem] text-[16px] leading-relaxed text-white/75">{t('lp.cta.sub')}</p>
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <LinkButton href={signedIn ? '/app' : '/signup'} variant="primary" size="lg">
+            {signedIn ? t('lp.hero.ctaConsole') : t('lp.cta.create')}
           </LinkButton>
-          <LinkButton href="/login" variant="secondary" size="lg">
-            {t('lp.nav.signin')}
-          </LinkButton>
+          {!signedIn && (
+            <Link href="/login" className="px-2 text-[15px] text-white/80 underline-offset-4 hover:text-white hover:underline">
+              {t('lp.nav.signin')}
+            </Link>
+          )}
         </div>
       </div>
     </section>
@@ -517,13 +405,13 @@ function FinalCta({ t }: { t: Translate }) {
 
 function Footer({ t }: { t: Translate }) {
   return (
-    <footer className="hairline-t border-t bg-sunken">
+    <footer className="hairline-t border-t">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-5 py-10 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Wordmark />
-          <span className="text-[12.5px] text-ink-3">{t('lp.footer.tagline')}</span>
+          <span className="text-[13px] text-ink-3">{t('lp.footer.tagline')}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[12.5px] text-ink-3">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-ink-3">
           <a href="#how" className="transition-colors hover:text-ink">{t('lp.nav.how')}</a>
           <a href="#pricing" className="transition-colors hover:text-ink">{t('lp.nav.pricing')}</a>
           <Link href="/login" className="transition-colors hover:text-ink">{t('lp.nav.signin')}</Link>
@@ -536,26 +424,11 @@ function Footer({ t }: { t: Translate }) {
 
 /* ═══ shared ════════════════════════════════════════════════════ */
 
-function SectionHead({
-  eyebrow,
-  title,
-  subtitle,
-  align = 'center',
-}: {
-  eyebrow: string;
-  title: string;
-  subtitle?: string;
-  align?: 'center' | 'left';
-}) {
+function SectionHead({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className={`reveal ${align === 'center' ? 'mx-auto max-w-2xl text-center' : 'max-w-xl'}`}>
-      <div className="text-[12.5px] font-semibold tracking-wide text-brand uppercase">{eyebrow}</div>
-      <h2 className="mt-3 text-[30px] leading-[1.15] font-semibold tracking-[-0.03em] text-ink text-balance-pretty sm:text-[36px]">
-        {title}
-      </h2>
-      {subtitle && (
-        <p className="mt-4 text-[15.5px] leading-relaxed text-ink-2 text-balance-pretty">{subtitle}</p>
-      )}
+    <div className="max-w-[40rem]">
+      <h2 className="lp-display text-[26px] text-ink text-balance-pretty sm:text-[32px]">{title}</h2>
+      {subtitle && <p className="mt-4 text-[16px] leading-relaxed text-ink-2">{subtitle}</p>}
     </div>
   );
 }

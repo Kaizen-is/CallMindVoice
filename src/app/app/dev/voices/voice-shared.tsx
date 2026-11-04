@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation';
 import { deleteCustomVoiceAction } from '@/app/actions/voices';
 import { translator } from '@/lib/i18n';
 import type { UiLocale } from '@/lib/types';
-import { relativeTime } from '@/lib/utils';
 import { Badge, Button, Card, EmptyState } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/overlays';
 import { IconMic, IconTrash, IconVolume } from '@/components/icons';
+import { TimeAgo } from '@/components/ui/time-ago';
 
 /* ── format guard: the speech services accept only flac/mp3/ogg/opus/wav.
    Anything else (m4a, aac, webm…) is decoded in the browser and re-encoded
@@ -221,7 +221,7 @@ export function SavedVoiceList({
                       : t('dev.voices.badgeDesign', 'Design')}
                   </Badge>
                 </div>
-                <span className="shrink-0 text-[11px] text-ink-3">{relativeTime(v.created_at, locale)}</span>
+                <span className="shrink-0 text-[11px] text-ink-3"><TimeAgo iso={v.created_at} locale={locale} /></span>
               </div>
               {v.detail && (
                 <p className="mt-1 line-clamp-1 text-[12px] text-ink-3">{v.detail}</p>

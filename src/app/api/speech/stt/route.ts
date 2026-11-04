@@ -7,7 +7,7 @@
  * telephony bridge so the console hears exactly what the phone line hears.
  */
 import { currentSession } from '@/lib/auth';
-import { transcribe, sttConfigured, SttError } from '@/lib/speech/stt';
+import { transcribe, sttConfigured, SttError, type SttEngine } from '@/lib/speech/stt';
 import type { Locale } from '@/lib/types';
 
 export async function POST(request: Request): Promise<Response> {
@@ -21,6 +21,8 @@ export async function POST(request: Request): Promise<Response> {
   let language: Locale | undefined;
   // Opt-in: the Playground asks for noise cleaning; the STT lab hears raw audio.
   let clean = false;
+  // The Playground's model picker can pin an engine; anything else is `auto`.
+  let engine: SttEngine = 'auto';
   if (request.headers.get('content-type')?.includes('multipart/form-data')) {
     const form = await request.formData();
     const upload = form.get('file');
@@ -31,13 +33,15 @@ export async function POST(request: Request): Promise<Response> {
     const lang = form.get('language');
     if (typeof lang === 'string' && ['uz', 'ru', 'en'].includes(lang)) language = lang as Locale;
     clean = form.get('denoise') === '1';
+    const pinned = form.get('engine');
+    if (pinned === 'gapi' || pinned === 'local') engine = pinned;
   } else {
     audio = await request.arrayBuffer();
   }
   if (!audio.byteLength) return Response.json({ error: 'empty_audio' }, { status: 400 });
 
   try {
-    const heard = await transcribe(audio, { language, denoise: clean });
+    const heard = await transcribe(audio, { language, denoise: clean, engine });
     return Response.json({ text: heard.text, language: heard.language, engine: heard.engine });
   } catch (err) {
     const status = err instanceof SttError ? err.status : 502;

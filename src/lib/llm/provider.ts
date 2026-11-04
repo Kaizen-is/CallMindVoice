@@ -17,6 +17,7 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { hasGemini, geminiJson, geminiText, geminiModel } from './gemini';
+import { hasOpenAI, openaiJsonStream, openaiModel, openaiText } from './openai';
 import { hasOllama, ollamaJson, ollamaJsonStream, ollamaText, ollamaModel } from './ollama';
 import { calendarBlock, identityCheck, type IdentityStatus } from './loan-call';
 import type { RetrievalHit } from '@/lib/rag/retrieve';
@@ -322,22 +323,25 @@ function anthropic(): Anthropic | null {
 
 const MODEL = () => process.env.ANTHROPIC_MODEL || 'claude-opus-5';
 
-type Provider = 'ollama' | 'gemini' | 'anthropic' | 'local';
+type Provider = 'ollama' | 'gemini' | 'anthropic' | 'openai' | 'local';
 
 /**
  * Which answer engine is active. Set LLM_PROVIDER to force one explicitly;
  * otherwise the first configured provider wins (Ollama, then Gemini, then
- * Claude), and the local synthesiser is the floor when none is configured.
+ * Claude, then OpenAI — last, so adding an OpenAI key never changes a deployment
+ * that already uses another), and the local synthesiser is the floor.
  */
 function provider(): Provider {
   const pref = process.env.LLM_PROVIDER?.toLowerCase();
   if (pref === 'ollama') return hasOllama() ? 'ollama' : 'local';
   if (pref === 'gemini') return hasGemini() ? 'gemini' : 'local';
   if (pref === 'anthropic' || pref === 'claude') return anthropic() ? 'anthropic' : 'local';
+  if (pref === 'openai') return hasOpenAI() ? 'openai' : 'local';
   if (pref === 'local') return 'local';
   if (hasOllama()) return 'ollama';
   if (hasGemini()) return 'gemini';
   if (anthropic()) return 'anthropic';
+  if (hasOpenAI()) return 'openai';
   return 'local';
 }
 
@@ -346,6 +350,7 @@ export function engineName(): string {
   if (p === 'ollama') return `ollama:${ollamaModel()}`;
   if (p === 'gemini') return `gemini:${geminiModel()}`;
   if (p === 'anthropic') return `claude:${MODEL()}`;
+  if (p === 'openai') return `openai:${openaiModel()}`;
   return 'ovoz-local-synthesis';
 }
 
@@ -359,6 +364,7 @@ export function engineLabel(): string {
   if (name.startsWith('ollama:')) return name.replace('ollama:', 'Ollama ');
   if (name.startsWith('gemini:')) return name.replace('gemini:', 'Gemini ');
   if (name.startsWith('claude:')) return name.replace('claude:', 'Claude ');
+  if (name.startsWith('openai:')) return name.replace('openai:', 'OpenAI ');
   return 'Local synthesiser';
 }
 
@@ -434,11 +440,12 @@ export async function generateAnswer(
   };
 
   // Any failure below falls through to the local engine rather than dead air.
-  if (active === 'ollama' && onDelta) {
+  if ((active === 'ollama' && onDelta) || active === 'openai') {
     let streamed = '';
-    const raw = await ollamaJsonStream(system, user, (delta) => {
+    const stream = active === 'openai' ? openaiJsonStream : ollamaJsonStream;
+    const raw = await stream(system, user, (delta) => {
       streamed += delta;
-      onDelta(delta);
+      onDelta?.(delta);
     });
     try {
       const parsed = raw
@@ -542,8 +549,13 @@ export async function summarizeCall(
     .map((t) => `${t.role === 'caller' ? 'CALLER' : 'AI'}: ${t.text}`)
     .join('\n')}`;
 
-  if (active === 'gemini' || active === 'ollama') {
-    const text = active === 'ollama' ? await ollamaText(system, user, 300) : await geminiText(system, user, 300);
+  if (active === 'gemini' || active === 'ollama' || active === 'openai') {
+    const text =
+      active === 'ollama'
+        ? await ollamaText(system, user, 300)
+        : active === 'openai'
+          ? await openaiText(system, user, 300)
+          : await geminiText(system, user, 300);
     return text?.trim() ? text.trim() : fallback;
   }
 

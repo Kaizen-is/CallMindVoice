@@ -1,0 +1,86 @@
+{
+  "uz": [
+    {
+      "who": "caller",
+      "text": "Assalomu alaykum. Kardiolog qabuli qancha turadi?",
+      "audio": "/landing/call/uz-1.wav",
+      "ms": 3680
+    },
+    {
+      "who": "agent",
+      "text": "Va alaykum assalom! Kardiolog qabuli 180 ming so‘m. Ertaga soat o‘nda bo‘sh vaqt bor, yozib qo‘yaymi?",
+      "source": "Narxlar 2026.pdf",
+      "audio": "/landing/call/uz-2.wav",
+      "ms": 8240
+    },
+    {
+      "who": "caller",
+      "text": "Ha, yozib qo‘ying. Ismim Sardor.",
+      "audio": "/landing/call/uz-3.wav",
+      "ms": 2960
+    },
+    {
+      "who": "agent",
+      "text": "Yozib qo‘ydim, Sardor. Ertaga soat o‘nda kutamiz. Pasportingizni olib keling.",
+      "source": "Qabul tartibi.docx",
+      "audio": "/landing/call/uz-4.wav",
+      "ms": 5440
+    }
+  ],
+  "ru": [
+    {
+      "who": "caller",
+      "text": "Здравствуйте. Сколько стоит приём кардиолога?",
+      "audio": "/landing/call/ru-1.wav",
+      "ms": 3360
+    },
+    {
+      "who": "agent",
+      "text": "Здравствуйте! Приём кардиолога стоит 180 тысяч сумов. Завтра в десять есть свободное время — записать вас?",
+      "source": "Narxlar 2026.pdf",
+      "audio": "/landing/call/ru-2.wav",
+      "ms": 8720
+    },
+    {
+      "who": "caller",
+      "text": "Да, запишите. Меня зовут Сардор.",
+      "audio": "/landing/call/ru-3.wav",
+      "ms": 3120
+    },
+    {
+      "who": "agent",
+      "text": "Записала, Сардор. Ждём вас завтра в десять. Возьмите с собой паспорт.",
+      "source": "Qabul tartibi.docx",
+      "audio": "/landing/call/ru-4.wav",
+      "ms": 5280
+    }
+  ],
+  "en": [
+    {
+      "who": "caller",
+      "text": "Hello. How much is a cardiologist appointment?",
+      "audio": "/landing/call/en-1.wav",
+      "ms": 3200
+    },
+    {
+      "who": "agent",
+      "text": "Hello! A cardiologist appointment is 180,000 som. There is a free slot tomorrow at ten — shall I book it?",
+      "source": "Narxlar 2026.pdf",
+      "audio": "/landing/call/en-2.wav",
+      "ms": 8480
+    },
+    {
+      "who": "caller",
+      "text": "Yes, please. My name is Sardor.",
+      "audio": "/landing/call/en-3.wav",
+      "ms": 2480
+    },
+    {
+      "who": "agent",
+      "text": "Booked, Sardor. We will see you tomorrow at ten. Please bring your passport.",
+      "source": "Qabul tartibi.docx",
+      "audio": "/landing/call/en-4.wav",
+      "ms": 5440
+    }
+  ]
+}

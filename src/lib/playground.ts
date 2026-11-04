@@ -92,6 +92,28 @@ export function openPlaygroundCall(tenantId: string, userName: string, agent: Ag
   });
 }
 
+/** A Playground call nobody has spoken on for this long was left open in a closed tab. */
+const PLAYGROUND_IDLE_MS = 10 * 60_000;
+
+/**
+ * Close the tenant's Playground calls that went quiet without a hang-up — a
+ * closed tab, a dropped connection, a test that never ended. Left open, they
+ * count as live calls in the header and on the Live calls board. Each is closed
+ * (and billed to its last message) exactly as a hang-up would, like the public
+ * demo's abandoned calls. Cheap enough to run on every console page.
+ */
+export function closeIdlePlaygroundCalls(tenantId: string) {
+  const cutoff = new Date(Date.now() - PLAYGROUND_IDLE_MS).toISOString();
+  const idle = all<{ id: string }>(
+    `SELECT c.id FROM calls c
+     WHERE c.tenant_id=? AND c.from_e164='playground' AND c.ended_at IS NULL
+       AND COALESCE((SELECT MAX(t.created_at) FROM turns t WHERE t.call_id=c.id), c.started_at) < ?`,
+    tenantId,
+    cutoff,
+  );
+  for (const call of idle) closePlaygroundCall(tenantId, call.id);
+}
+
 /**
  * End and bill a Playground chat — the only place that does. Whoever sets
  * `ended_at` first bills; a racing hang-up, beacon or "New chat" finds nothing
@@ -139,7 +161,9 @@ export async function playgroundOpening(agent: Agent, lang: Locale): Promise<str
   const greeting = agent.greeting.trim() || null;
   if (!target.fullName) return greeting;
 
-  const key = `${agent.id}:${agent.updated_at}:${lang}:${new Date().toISOString().slice(0, 10)}`;
+  // The name is part of the key: a call voiced by Nadya must not reuse the
+  // opening in which the agent introduced itself as Isomiddin.
+  const key = `${agent.id}:${agent.updated_at}:${agent.name}:${lang}:${new Date().toISOString().slice(0, 10)}`;
   let line = openings.get(key);
   if (!line) {
     if (openings.size > 200) openings.clear();

@@ -9,3 +9,6 @@ __pycache__/
 *.db-*
 *.sqlite*
 *.log
+
+# TypeScript incremental build cache
+*.tsbuildinfo

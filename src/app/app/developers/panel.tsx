@@ -10,12 +10,13 @@ import {
 } from '@/app/actions/ops';
 import type { ApiKey, UiLocale, Webhook } from '@/lib/types';
 import { translator } from '@/lib/i18n';
-import { fmtDateTime, relativeTime } from '@/lib/utils';
+import { fmtDateTime } from '@/lib/utils';
 import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Segmented } from '@/components/ui/primitives';
 import { Field, Input, Select } from '@/components/ui/forms';
 import { ConfirmDialog, Modal, useToast } from '@/components/ui/overlays';
 import { CopyField } from '@/components/console/copy-field';
 import { IconCode, IconKey, IconLink, IconPlus, IconTrash } from '@/components/icons';
+import { TimeAgo } from '@/components/ui/time-ago';
 
 const ENDPOINTS = [
   {
@@ -164,8 +165,13 @@ export function DevelopersPanel({
                       </Badge>
                     </div>
                     <p className="mt-0.5 font-mono text-[11.5px] text-ink-3">
-                      {k.prefix}••••••••  · {t('developers.keys.created', 'created')} {relativeTime(k.created_at, locale)}
-                      {k.last_used && ` · ${t('developers.keys.used', 'used')} ${relativeTime(k.last_used, locale)}`}
+                      {k.prefix}••••••••  · {t('developers.keys.created', 'created')} <TimeAgo iso={k.created_at} locale={locale} />
+                      {k.last_used && (
+                        <>
+                          {` · ${t('developers.keys.used', 'used')} `}
+                          <TimeAgo iso={k.last_used} locale={locale} />
+                        </>
+                      )}
                     </p>
                   </div>
                   {canEdit && !k.revoked_at && (

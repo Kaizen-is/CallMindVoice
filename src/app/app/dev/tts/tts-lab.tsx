@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { saveSpeechTestAction } from '@/app/actions/ops';
 import { translator } from '@/lib/i18n';
 import type { SpeechTest, UiLocale } from '@/lib/types';
-import { relativeTime } from '@/lib/utils';
 import {
   Badge,
   Button,
@@ -17,6 +16,7 @@ import {
 import { Field, Select, Textarea } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
 import { IconAlert, IconCode, IconDownload, IconSparkle, IconVolume } from '@/components/icons';
+import { TimeAgo } from '@/components/ui/time-ago';
 
 const CLONE = '__clone__';
 
@@ -35,6 +35,7 @@ export function TtsLab({
   agents,
   voices,
   customVoices,
+  elevenVoices,
   history: initialHistory,
   speech,
 }: {
@@ -42,8 +43,9 @@ export function TtsLab({
   agents: AgentOpt[];
   voices: VoiceOpt[];
   customVoices: VoiceOpt[];
+  elevenVoices: VoiceOpt[];
   history: SpeechTest[];
-  speech: { tts: boolean };
+  speech: { tts: boolean; eleven: boolean };
 }) {
   const t = translator(locale);
   const toast = useToast();
@@ -52,6 +54,13 @@ export function TtsLab({
   const [history, setHistory] = useState<SpeechTest[]>(initialHistory);
   const [text, setText] = useState('');
   const [voice, setVoice] = useState<string>(agents[0]?.voiceId ?? voices[0]?.id ?? 'laylo');
+  // Whose voices speak: our own TTS server or ElevenLabs (via Speko), each
+  // with its own voice list — the same switch as the Playground.
+  const [provider, setProvider] = useState<'own' | 'eleven'>(
+    speech.tts || !speech.eleven ? 'own' : 'eleven',
+  );
+  const [elevenVoice, setElevenVoice] = useState<string>(elevenVoices[0]?.id ?? '');
+  const providerReady = provider === 'own' ? speech.tts : speech.eleven;
   const [busy, setBusy] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
@@ -69,9 +78,10 @@ export function TtsLab({
       id
         ? (voices.find((v) => v.id === id)?.name ??
            customVoices.find((v) => v.id === id)?.name ??
+           elevenVoices.find((v) => v.id === id)?.name ??
            id)
         : '—',
-    [voices, customVoices],
+    [voices, customVoices, elevenVoices],
   );
 
   const onVoiceChange = (v: string) => {
@@ -89,7 +99,7 @@ export function TtsLab({
   };
 
   const generate = async () => {
-    if (!speech.tts || busy) return;
+    if (!providerReady || busy) return;
     const value = text.trim();
     if (!value) {
       toast.toast({ tone: 'info', title: t('dev.tts.emptyText') });
@@ -100,7 +110,11 @@ export function TtsLab({
       const res = await fetch('/api/speech/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: value, voice }),
+        body: JSON.stringify(
+          provider === 'eleven'
+            ? { text: value, voice: elevenVoice, engine: 'eleven_v4_turbo' }
+            : { text: value, voice },
+        ),
       });
       if (!res.ok) {
         const detail = (await res.text().catch(() => '')).slice(0, 120);
@@ -111,7 +125,11 @@ export function TtsLab({
       // History is nice-to-have — never let a failed save (e.g. a stale tab
       // after a redeploy) report the already-successful synthesis as an error.
       try {
-        const saved = await saveSpeechTestAction({ kind: 'tts', input: value, voice });
+        const saved = await saveSpeechTestAction({
+          kind: 'tts',
+          input: value,
+          voice: provider === 'eleven' ? elevenVoice : voice,
+        });
         if (saved.ok) setHistory((h) => [saved.test, ...h].slice(0, 20));
       } catch {
         /* audio already delivered */
@@ -136,7 +154,7 @@ export function TtsLab({
               <h3 className="text-[14px] font-semibold text-ink">{t('dev.tts.title')}</h3>
             </div>
 
-            {!speech.tts ? (
+            {!speech.tts && !speech.eleven ? (
               <EmptyState
                 icon={<IconAlert size={20} />}
                 title={t('dev.tts.notConfiguredTitle')}
@@ -155,6 +173,32 @@ export function TtsLab({
                 </Field>
 
                 <Field label={t('dev.tts.voiceLabel')}>
+                  <Segmented
+                    size="sm"
+                    className="mb-2"
+                    value={provider}
+                    onChange={setProvider}
+                    options={[
+                      { value: 'own', label: t('play.voiceOwn', 'Own') },
+                      { value: 'eleven', label: 'ElevenLabs' },
+                    ]}
+                  />
+                  {!providerReady && (
+                    <p className="mb-2 text-[12px] text-warning">
+                      {provider === 'own'
+                        ? t('dev.tts.notConfiguredBody')
+                        : t('dev.tts.elevenNotConfigured', 'Set SPEKO_API_KEY in .env to use ElevenLabs.')}
+                    </p>
+                  )}
+                  {provider === 'eleven' ? (
+                    <Select value={elevenVoice} onChange={(e) => setElevenVoice(e.target.value)}>
+                      {elevenVoices.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : (
                   <Select value={voice} onChange={(e) => onVoiceChange(e.target.value)}>
                     {agents.length > 0 && (
                       <optgroup label={t('dev.tts.voiceAgentsGroup')}>
@@ -183,13 +227,14 @@ export function TtsLab({
                     )}
                     <option value={CLONE}>{t('dev.tts.voiceClone')} →</option>
                   </Select>
+                  )}
                 </Field>
 
                 <Button
                   variant="primary"
                   full
                   loading={busy}
-                  disabled={!text.trim()}
+                  disabled={!text.trim() || !providerReady}
                   icon={!busy ? <IconVolume size={15} /> : undefined}
                   onClick={() => void generate()}
                 >
@@ -235,7 +280,7 @@ export function TtsLab({
                   <p className="line-clamp-2 text-[12.5px] leading-relaxed text-ink">{h.input}</p>
                   <div className="mt-1.5 flex items-center justify-between gap-2">
                     <Badge tone="brand">{voiceName(h.voice)}</Badge>
-                    <span className="shrink-0 text-[11px] text-ink-3">{relativeTime(h.created_at, locale)}</span>
+                    <span className="shrink-0 text-[11px] text-ink-3"><TimeAgo iso={h.created_at} locale={locale} /></span>
                   </div>
                 </div>
               ))}

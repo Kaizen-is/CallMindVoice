@@ -14,7 +14,7 @@ import {
 } from '@/app/actions/knowledge';
 import type { Document, UiLocale } from '@/lib/types';
 import { translator, type Translate } from '@/lib/i18n';
-import { cn, fmtBytes, fmtInt, relativeTime } from '@/lib/utils';
+import { cn, fmtBytes, fmtInt } from '@/lib/utils';
 import {
   Badge,
   Button,
@@ -43,6 +43,7 @@ import {
   IconTrash,
   IconX,
 } from '@/components/icons';
+import { TimeAgo } from '@/components/ui/time-ago';
 
 interface Props {
   documents: Document[];
@@ -336,7 +337,7 @@ function DocumentRow({
           <p className="mt-0.5 truncate text-[12px] text-ink-3">
             {fmtInt(doc.chunk_count)} {t('kb.row.passages', 'passages')} · {fmtInt(doc.token_count)}{' '}
             {t('kb.row.tokens', 'tokens')} · {doc.source_ref ?? t('kb.row.pasted', 'pasted')} ·{' '}
-            {relativeTime(doc.created_at, locale)}
+            <TimeAgo iso={doc.created_at} locale={locale} />
           </p>
         )}
       </div>

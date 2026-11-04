@@ -9,7 +9,12 @@
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
-    "reset": "node scripts/reset.mjs"
+    "reset": "node scripts/reset.mjs",
+    "seed": "node --env-file-if-exists=.env --experimental-sqlite --no-warnings scripts/seed.mjs",
+    "test:speko": "node --env-file=.env scripts/test-speko-tts.mjs",
+    "voices:speko": "node --env-file=.env scripts/speko-voices.mjs",
+    "bench:uz-tts": "node --env-file=.env scripts/uz-tts-bench.mjs",
+    "render:landing-call": "node --env-file=.env scripts/render-landing-call.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
