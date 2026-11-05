@@ -1,19 +1,35 @@
-image: node:22-bookworm
-
 stages:
   - test
   - build
-
-default:
-  before_script:
-    - npm ci
+  - staging
 
 typecheck:
   stage: test
+  image: node:22-bookworm
   script:
+    - npm ci
     - npm test
+
+dependency-audit:
+  stage: test
+  image: node:22-bookworm
+  script:
+    - npm audit --audit-level=high
+  allow_failure: true
 
 build:
   stage: build
+  image: node:22-bookworm
   script:
+    - npm ci
     - npm run build
+
+isolated-staging:
+  stage: staging
+  image: docker:27-cli
+  tags: [kiber-runner]
+  timeout: 20m
+  needs: [typecheck, build]
+  script:
+    - sed -i 's/\r$//' scripts/ci-isolated-smoke.sh
+    - sh scripts/ci-isolated-smoke.sh
