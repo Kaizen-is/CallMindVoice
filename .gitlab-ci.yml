@@ -15,7 +15,6 @@ dependency-audit:
   image: node:22-bookworm
   script:
     - npm audit --audit-level=high
-  allow_failure: true
 
 build:
   stage: build
@@ -29,7 +28,7 @@ isolated-staging:
   image: docker:27-cli
   tags: [kiber-runner]
   timeout: 20m
-  needs: [typecheck, build]
+  needs: [typecheck, dependency-audit, build]
   script:
     - sed -i 's/\r$//' scripts/ci-isolated-smoke.sh
     - sh scripts/ci-isolated-smoke.sh
