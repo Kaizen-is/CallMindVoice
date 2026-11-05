@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit",
     "reset": "node scripts/reset.mjs",
     "seed": "node --env-file-if-exists=.env --experimental-sqlite --no-warnings scripts/seed.mjs",
     "test:speko": "node --env-file=.env scripts/test-speko-tts.mjs",
