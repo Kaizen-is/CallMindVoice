@@ -31,4 +31,5 @@ isolated-staging:
   timeout: 20m
   needs: [typecheck, build]
   script:
+    - sed -i 's/\r$//' scripts/ci-isolated-smoke.sh
     - sh scripts/ci-isolated-smoke.sh
