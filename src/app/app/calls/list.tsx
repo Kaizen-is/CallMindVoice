@@ -7,7 +7,7 @@ import { translator } from '@/lib/i18n';
 import { CALL_STATUS_LABEL, OUTCOME_LABEL } from '@/lib/catalog';
 import type { Call, UiLocale } from '@/lib/types';
 import { cn, fmtDateTime, fmtLatency, maskPhone } from '@/lib/utils';
-import { Badge, Card, EmptyState, PageHeader, Segmented } from '@/components/ui/primitives';
+import { Badge, Button, Card, EmptyState, PageHeader, Segmented } from '@/components/ui/primitives';
 import { Input, Select } from '@/components/ui/forms';
 import { IconCheckCircle, IconHeadset, IconPhone, IconSearch, IconX } from '@/components/icons';
 
@@ -15,10 +15,12 @@ export function CallList({
   calls,
   locale,
   filters,
+  paging,
 }: {
   calls: Call[];
   locale: UiLocale;
   filters: { outcome: string; lang: string; q: string };
+  paging: { page: number; pages: number; total: number; pageSize: number };
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -27,12 +29,16 @@ export function CallList({
 
   const apply = (patch: Record<string, string>) => {
     const next = new URLSearchParams(params.toString());
+    // A new filter changes what "page 3" means — start again from the first page.
+    if (!('page' in patch)) next.delete('page');
     for (const [k, v] of Object.entries(patch)) {
-      if (!v || v === 'all') next.delete(k);
+      if (!v || v === 'all' || (k === 'page' && v === '1')) next.delete(k);
       else next.set(k, v);
     }
     router.push(`/app/calls?${next.toString()}`);
   };
+  const first = (paging.page - 1) * paging.pageSize + 1;
+  const last = Math.min(paging.total, paging.page * paging.pageSize);
 
   return (
     <div className="w-full">
@@ -191,13 +197,40 @@ export function CallList({
         )}
       </Card>
 
-      {calls.length >= 200 && (
-        <p className="mt-3 text-center text-[12px] text-ink-3">
-          {t(
-            'calls.limitNote',
-            'Showing the 200 most recent calls. Narrow the filters to see older ones.',
+      {paging.total > 0 && (
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-[12.5px] text-ink-3">
+            {t('calls.pageRange', '{from}–{to} of {total}')
+              .replace('{from}', first.toLocaleString())
+              .replace('{to}', last.toLocaleString())
+              .replace('{total}', paging.total.toLocaleString())}
+          </p>
+          {paging.pages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={paging.page <= 1}
+                onClick={() => apply({ page: String(paging.page - 1) })}
+              >
+                {t('calls.prevPage', 'Previous')}
+              </Button>
+              <span className="text-[12.5px] text-ink-3">
+                {t('calls.pageOf', 'Page {page} of {pages}')
+                  .replace('{page}', String(paging.page))
+                  .replace('{pages}', String(paging.pages))}
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={paging.page >= paging.pages}
+                onClick={() => apply({ page: String(paging.page + 1) })}
+              >
+                {t('calls.nextPage', 'Next')}
+              </Button>
+            </div>
           )}
-        </p>
+        </div>
       )}
     </div>
   );

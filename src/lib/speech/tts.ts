@@ -26,6 +26,14 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { buildTtsForm, resolveVoice, type ResolvedVoice } from '@/lib/voices';
 import { normalizeForSpeech, splitForSpeech } from './normalize';
+import {
+  elevenVoice,
+  SPEKO_TTS_MODELS,
+  spekoConfigured,
+  spekoStreamPcm,
+  SpekoError,
+  type SpekoTtsModel,
+} from './speko';
 import type { Locale } from '@/lib/types';
 
 /** Telephony is narrowband. Everything in the voice path is this format. */
@@ -44,10 +52,33 @@ export class TtsError extends Error {
 
 /* ── configuration ───────────────────────────────────────────── */
 
-export function ttsConfigured(): boolean {
+/**
+ * `default` is the internal TTS server below; the others are ElevenLabs models
+ * through Speko (`./speko`), selectable from the Playground's model picker.
+ */
+export type TtsEngine = 'default' | SpekoTtsModel;
+
+function internalTtsConfigured(): boolean {
   return Boolean(
     process.env.TTS_BASE_URL && (process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN),
   );
+}
+
+/** Which engines this deployment can run, for the Playground's model picker. */
+export function ttsEngines(): Record<TtsEngine, boolean> {
+  const speko = spekoConfigured();
+  return {
+    default: internalTtsConfigured(),
+    ...(Object.fromEntries(SPEKO_TTS_MODELS.map((m) => [m, speko])) as Record<SpekoTtsModel, boolean>),
+  };
+}
+
+export function isTtsEngine(value: unknown): value is TtsEngine {
+  return value === 'default' || SPEKO_TTS_MODELS.includes(value as SpekoTtsModel);
+}
+
+export function ttsConfigured(engine: TtsEngine = 'default'): boolean {
+  return ttsEngines()[engine];
 }
 
 function baseUrl(): string {
@@ -91,11 +122,30 @@ async function ttsToken(): Promise<string> {
  * Render one piece of text whole, as 8 kHz mono PCM — the stream below,
  * collected. `text` must already be normalised (see `normalizeForSpeech`).
  */
-async function renderPcm(text: string, voice: ResolvedVoice): Promise<Buffer> {
+async function renderPcm(text: string, voice: ResolvedVoice, opts: SynthOptions): Promise<Buffer> {
   const parts: Buffer[] = [];
-  for await (const piece of streamPcm(text, voice)) parts.push(piece);
+  for await (const piece of enginePcm(text, voice, opts)) parts.push(piece);
   if (!parts.length) throw new TtsError('tts_empty_audio', 502);
   return Buffer.concat(parts);
+}
+
+/** The PCM stream from whichever engine `opts.engine` names. */
+async function* enginePcm(
+  text: string,
+  voice: ResolvedVoice,
+  opts: SynthOptions,
+): AsyncGenerator<Buffer, void, unknown> {
+  const engine = opts.engine ?? 'default';
+  if (engine === 'default') {
+    yield* streamPcm(text, voice);
+    return;
+  }
+  try {
+    yield* spekoStreamPcm(text, engine, opts.language ?? 'uz', elevenVoice(opts.voiceId));
+  } catch (err) {
+    if (err instanceof SpekoError) throw new TtsError(err.message, err.status);
+    throw err;
+  }
 }
 
 /* ── streaming render: generate_v2/stream ────────────────────── */
@@ -158,10 +208,20 @@ async function* streamPcm(text: string, voice: ResolvedVoice): AsyncGenerator<Bu
  * reference sample path *and* that file's mtime, so replacing the sample
  * invalidates every line rendered from the old one.
  */
-function cacheKey(text: string, voice: ResolvedVoice): string {
+function cacheKey(
+  text: string,
+  voice: ResolvedVoice,
+  engine: TtsEngine = 'default',
+  voiceId?: string | null,
+): string {
   const h = createHash('sha1');
   h.update(text);
   h.update(' ');
+  // Speko renders ignore the internal voice; the model and ElevenLabs voice key them.
+  if (engine !== 'default') {
+    h.update(`speko:${engine}:${elevenVoice(voiceId)}`);
+    return h.digest('hex');
+  }
   if (voice.kind === 'speaker') h.update(`speaker:${voice.speaker}`);
   else if (voice.kind === 'design') h.update(`design:${voice.design}`);
   else {
@@ -210,6 +270,8 @@ export interface SynthOptions {
    * pointless for one-off text.
    */
   cache?: boolean;
+  /** Which TTS engine renders; `default` is the internal server. */
+  engine?: TtsEngine;
 }
 
 /** Render `text` to 8 kHz mono PCM, consulting the disk cache when asked. */
@@ -219,21 +281,21 @@ export async function synthesizePcm(text: string, opts: SynthOptions): Promise<B
   const voice = resolveVoice(opts.tenantId, opts.voiceId);
 
   if (opts.cache) {
-    const key = cacheKey(spoken, voice);
+    const key = cacheKey(spoken, voice, opts.engine, opts.voiceId);
     const hit = cacheRead(key);
     if (hit) return hit;
-    const pcm = await renderPcm(spoken, voice);
+    const pcm = await renderPcm(spoken, voice, opts);
     cacheWrite(key, pcm);
     return pcm;
   }
-  return renderPcm(spoken, voice);
+  return renderPcm(spoken, voice, opts);
 }
 
 /** The disk-cached rendering of `text`, or null. Never renders. */
 export function cachedPcm(text: string, opts: SynthOptions): Buffer | null {
   const spoken = normalizeForSpeech(text, opts.language ?? 'uz');
   if (!spoken) return null;
-  return cacheRead(cacheKey(spoken, resolveVoice(opts.tenantId, opts.voiceId)));
+  return cacheRead(cacheKey(spoken, resolveVoice(opts.tenantId, opts.voiceId), opts.engine, opts.voiceId));
 }
 
 /** Render `text` and return a complete WAV — for the browser playground. */
@@ -258,14 +320,14 @@ export async function* synthesizeStream(
   const voice = resolveVoice(opts.tenantId, opts.voiceId);
 
   for (const chunk of splitForSpeech(spoken)) {
-    const key = opts.cache ? cacheKey(chunk, voice) : null;
+    const key = opts.cache ? cacheKey(chunk, voice, opts.engine, opts.voiceId) : null;
     const hit = key ? cacheRead(key) : null;
     if (hit) {
       yield hit;
       continue;
     }
     const parts: Buffer[] = [];
-    for await (const piece of streamPcm(chunk, voice)) {
+    for await (const piece of enginePcm(chunk, voice, opts)) {
       parts.push(piece);
       yield piece;
     }

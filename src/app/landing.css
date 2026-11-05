@@ -1,0 +1,43 @@
+/* ═══════════════════════════════════════════════════════════════
+   Landing page — its own type, scoped to `.lp`.
+
+   Colours are the app's own CallMind red tokens (globals.css), so the
+   landing page and the console read as one product with the red logo.
+   What is landing-specific is the type — Unbounded for headings, Golos
+   Text for body — and the word-by-word reveal of the hero call.
+   ═══════════════════════════════════════════════════════════════ */
+
+@import './fonts.css';
+
+.lp {
+  /* The agent's side of the hero call, and the one "live" signal. */
+  --lp-agent: var(--brand-ink);
+  --lp-live: var(--brand);
+
+  background: rgb(var(--bg));
+  color: rgb(var(--text));
+  font-family: 'Golos Text', var(--font-sans);
+}
+
+/* Display type: Unbounded carries the personality; used for headings only. */
+.lp-display {
+  font-family: 'Unbounded', 'Golos Text', var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+}
+
+.lp-agent { color: rgb(var(--lp-agent)); }
+.lp-live-dot { background: rgb(var(--lp-live)); }
+
+/* The transcript's words appear as they are spoken. */
+.lp-word {
+  transition: opacity 0.18s ease;
+}
+.lp-word[data-hidden='true'] {
+  opacity: 0.18;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-word { transition: none; }
+}

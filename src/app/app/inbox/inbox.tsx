@@ -12,7 +12,7 @@ import { useLive } from '@/components/console/use-live';
 import { translator } from '@/lib/i18n';
 import { ESCALATION_REASON_LABEL } from '@/lib/catalog';
 import type { UiLocale } from '@/lib/types';
-import { cn, fmtDuration, maskPhone, relativeTime, safeJson } from '@/lib/utils';
+import { cn, fmtDuration, maskPhone, safeJson } from '@/lib/utils';
 import { Avatar, Badge, Button, Card, EmptyState, PageHeader, StatusDot } from '@/components/ui/primitives';
 import { Input, Select, Textarea } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
@@ -25,6 +25,7 @@ import {
   IconSend,
   IconSparkle,
 } from '@/components/icons';
+import { TimeAgo } from '@/components/ui/time-ago';
 
 interface TurnRow {
   ordinal: number;
@@ -149,7 +150,10 @@ export function OperatorInbox({
                 <p className="mt-1 truncate text-[12px] text-ink-3">
                   {t(`reason.${item.reason}`, ESCALATION_REASON_LABEL[item.reason] ?? item.reason)}
                 </p>
-                <p className="mt-0.5 text-[11.5px] text-ink-3">
+                {/* The waiting time is a moment older in the browser than on the
+                    server; accept that one-second difference rather than let it
+                    fail hydration for the whole page. */}
+                <p className="mt-0.5 text-[11.5px] text-ink-3" suppressHydrationWarning>
                   {item.language.toUpperCase()} · {t('inbox.waiting')}{' '}
                   {fmtDuration(Date.now() - new Date(item.created_at).getTime())}
                   {item.operator_name ? ` · ${item.operator_name}` : ''}
@@ -226,7 +230,7 @@ function CallWorkspace({
               <p className="text-[12.5px] text-ink-3">
                 {item.from_e164} · {item.language.toUpperCase()} ·{' '}
                 {t('inbox.turnsCount', '{n} turns').replace('{n}', String(item.turns))} ·{' '}
-                {relativeTime(item.started_at, locale)}
+                <TimeAgo iso={item.started_at} locale={locale} />
               </p>
             </div>
           </div>

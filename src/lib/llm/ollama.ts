@@ -196,7 +196,7 @@ export async function ollamaJsonStream(
  * Follows a growing JSON text and reports the `answer` string's value as it
  * appears, decoded. Escapes split across pieces wait for their next piece.
  */
-function answerExtractor(onAnswer: (delta: string) => void): (raw: string) => void {
+export function answerExtractor(onAnswer: (delta: string) => void): (raw: string) => void {
   let at = -1; // index of the first character of the value, once found
   let closed = false;
   return (raw) => {

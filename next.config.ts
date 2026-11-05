@@ -38,7 +38,8 @@ const serverActionOrigins = (process.env.SERVER_ACTIONS_ALLOWED_ORIGINS ?? '')
   .filter(Boolean);
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['mammoth', 'unpdf'],
+  // sherpa-onnx-node is a native addon (Zipformer STT): loaded at runtime, never bundled.
+  serverExternalPackages: ['mammoth', 'unpdf', 'sherpa-onnx-node'],
   allowedDevOrigins,
   experimental: {
     // Server Actions handle multi-megabyte knowledge-base uploads.

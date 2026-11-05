@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { currentSession } from '@/lib/auth';
 import { get } from '@/lib/db';
 import { ConsoleShell } from '@/components/console/shell';
+import { closeIdlePlaygroundCalls } from '@/lib/playground';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,8 @@ export default async function ConsoleLayout({
   if (!session.tenant.onboarded) redirect('/onboarding');
 
   const tenantId = session.tenant.id;
+  // Playground tests left open (closed tab, dropped line) must not count as live calls.
+  closeIdlePlaygroundCalls(tenantId);
   const counts = {
     waitingEscalations:
       get<{ c: number }>(

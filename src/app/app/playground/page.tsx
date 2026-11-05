@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { requireSession } from '@/lib/auth';
-import { knowledgeStats } from '@/lib/analytics';
+import { ensureBankAgent } from '@/lib/bank-agent';
 import { liveAgent, listAgents } from '@/lib/engine/calls';
 import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
 import { translator } from '@/lib/i18n';
@@ -8,6 +8,9 @@ import type { Locale } from '@/lib/types';
 import { safeJson } from '@/lib/utils';
 import { listCustomVoices } from '@/lib/voices';
 import { VOICES } from '@/lib/catalog';
+import { sttEngines } from '@/lib/speech/stt';
+import { ttsEngines } from '@/lib/speech/tts';
+import { ELEVEN_VOICES } from '@/lib/speech/speko';
 import { Playground } from './playground';
 
 export const metadata: Metadata = { title: 'Playground' };
@@ -15,22 +18,25 @@ export const dynamic = 'force-dynamic';
 
 export default async function PlaygroundPage() {
   const { tenant, user } = await requireSession();
+  // Every account gets the /demo banking agent to try, once (see bank-agent.ts).
+  ensureBankAgent(tenant.id);
   const agent = liveAgent(tenant.id);
   const agents = listAgents(tenant.id);
-  const kb = knowledgeStats(tenant.id);
   const t = translator(user.locale);
 
   return (
     <Playground
       locale={user.locale}
       industry={tenant.industry}
-      chunks={kb.chunks}
       engine={engineIsHosted() ? engineLabel() : t('play.localSynth', 'Local synthesiser')}
       speech={{
-        stt: Boolean(process.env.STT_TRANSCRIBE_URL),
-        tts: Boolean(process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN),
+        stt: sttEngines(),
+        tts: ttsEngines(),
+        // Live Zipformer words come from the in-app model (/api/speech/live).
+        streamUrl: sttEngines().local ? '/api/speech/live' : null,
       }}
       agents={agents}
+      elevenVoices={ELEVEN_VOICES.map((v) => ({ id: v.id, name: v.name }))}
       allVoices={[
         ...VOICES.map((v) => ({ id: v.id, name: v.name, group: 'builtin' as const })),
         ...listCustomVoices(tenant.id).map((v) => ({

@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import { ToastProvider } from '@/components/ui/overlays';
+import { ThemeKeeper } from '@/components/theme-keeper';
 
 export const metadata: Metadata = {
   title: {
@@ -60,10 +62,14 @@ const THEME_BOOTSTRAP = `
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="uz" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
-      </head>
       <body className="min-h-screen antialiased">
+        {/* Injected into the server HTML and run before hydration, so a
+            dark-mode user never sees a white flash — without a raw <script>
+            in the React tree, which React refuses to run on a client render. */}
+        <Script id="theme-bootstrap" strategy="beforeInteractive">
+          {THEME_BOOTSTRAP}
+        </Script>
+        <ThemeKeeper />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

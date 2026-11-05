@@ -18,7 +18,7 @@
  * falls back to the browser's own speech synthesiser.
  */
 import { currentSession } from '@/lib/auth';
-import { synthesizeStream, synthesizeWav, ttsConfigured, TtsError } from '@/lib/speech/tts';
+import { isTtsEngine, synthesizeStream, synthesizeWav, ttsConfigured, TtsError } from '@/lib/speech/tts';
 import type { Locale } from '@/lib/types';
 
 /**
@@ -31,14 +31,17 @@ const CACHEABLE_CHARS = 120;
 export async function POST(request: Request): Promise<Response> {
   const session = await currentSession();
   if (!session) return Response.json({ error: 'unauthorized' }, { status: 401 });
-  if (!ttsConfigured()) return Response.json({ error: 'tts_not_configured' }, { status: 503 });
 
-  const { text, voice, language, stream } = (await request.json()) as {
+  const { text, voice, language, stream, engine: asked } = (await request.json()) as {
     text?: string;
     voice?: string;
     language?: Locale;
     stream?: boolean;
+    /** The Playground's model picker; omitted ⇒ the internal TTS server. */
+    engine?: string;
   };
+  const engine = isTtsEngine(asked) ? asked : 'default';
+  if (!ttsConfigured(engine)) return Response.json({ error: 'tts_not_configured' }, { status: 503 });
   if (!text?.trim()) return Response.json({ error: 'empty_text' }, { status: 400 });
 
   const opts = {
@@ -47,6 +50,7 @@ export async function POST(request: Request): Promise<Response> {
     language: language ?? ('uz' as Locale),
     tag: `pg_${session.user.id.slice(0, 8)}`,
     cache: text.trim().length <= CACHEABLE_CHARS,
+    engine,
   };
 
   try {

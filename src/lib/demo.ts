@@ -53,7 +53,7 @@ export const DEMO_PERSONA = {
   loanAmount: "7 800 000 so'm",
 } as const;
 
-const DEFAULT_CALL_PROMPT =
+export const DEFAULT_CALL_PROMPT =
   'Siz Biznesni rivojlantirish banki nomidan qoʻngʻiroq qilyapsiz. Mijozga kredit boʻyicha ' +
   'muddati oʻtgan toʻlovni eslating. Agar u toʻliq toʻlay olmasa, summani uch oyga boʻlib ' +
   'toʻlashni taklif qiling. Toʻlovni bank ilovasi orqali yoki istalgan filialda qilish mumkin.';

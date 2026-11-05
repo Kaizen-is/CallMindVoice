@@ -1,0 +1,19 @@
+image: node:22-bookworm
+
+stages:
+  - test
+  - build
+
+default:
+  before_script:
+    - npm ci
+
+typecheck:
+  stage: test
+  script:
+    - npm test
+
+build:
+  stage: build
+  script:
+    - npm run build

@@ -8,9 +8,9 @@ import { Badge, Button, EmptyState } from '@/components/ui/primitives';
 import { Textarea } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
 import { IconCheckCircle, IconPlus, IconX } from '@/components/icons';
-import { relativeTime } from '@/lib/utils';
 import { translator } from '@/lib/i18n';
 import type { UiLocale } from '@/lib/types';
+import { TimeAgo } from '@/components/ui/time-ago';
 
 interface Gap {
   id: string;
@@ -76,7 +76,7 @@ export function GapList({ gaps, locale }: { gaps: Gap[]; locale?: UiLocale }) {
                   {t('gap.asked', 'asked {n}×').replace('{n}', String(g.hits))}
                 </Badge>
                 <span>{t('gap.bestMatch', 'best match {n}%').replace('{n}', (g.best_score * 100).toFixed(0))}</span>
-                <span>· {relativeTime(g.last_seen, locale)}</span>
+                <span>· <TimeAgo iso={g.last_seen} locale={locale} /></span>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">

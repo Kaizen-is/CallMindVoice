@@ -11,6 +11,7 @@ import { Avatar, Badge, Button, Card, PageHeader } from '@/components/ui/primiti
 import { Field, Input, Select } from '@/components/ui/forms';
 import { Menu, Modal, useToast } from '@/components/ui/overlays';
 import { IconMore, IconPlus, IconShield, IconUsers } from '@/components/icons';
+import { TimeAgo } from '@/components/ui/time-ago';
 
 type Member = SafeUser & { handled: number };
 
@@ -77,7 +78,7 @@ export function TeamManager({
                   {m.id === currentUserId && <Badge tone="brand">{t('team.you', 'You')}</Badge>}
                   {m.status === 'disabled' && <Badge tone="danger">{t('team.disabled', 'Disabled')}</Badge>}
                 </div>
-                <p className="mt-0.5 truncate text-[12.5px] text-ink-3">
+                <p className="mt-0.5 truncate text-[12.5px] text-ink-3" suppressHydrationWarning>
                   {m.email}
                   {m.handled > 0 && ` · ${t('team.callsHandled', '{n} calls handled').replace('{n}', String(m.handled))}`}
                   {m.last_seen_at &&
@@ -161,7 +162,7 @@ export function TeamManager({
                 <span className="font-medium text-ink">{a.actor_name ?? t('team.system', 'system')}</span>
                 <span className="text-ink-2">{t(`audit.${a.action}`, a.action.replace(/[._]/g, ' '))}</span>
                 <span className="ml-auto shrink-0 text-[11.5px] text-ink-3">
-                  {relativeTime(a.created_at, locale)}
+                  <TimeAgo iso={a.created_at} locale={locale} />
                 </span>
               </div>
             ))}
