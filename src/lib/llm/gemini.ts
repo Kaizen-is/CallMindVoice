@@ -8,6 +8,7 @@
  * a call is never dropped because of us.
  */
 import 'server-only';
+import type { LlmCall } from './call';
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const TIMEOUT_MS = 8000;
@@ -25,16 +26,18 @@ export function geminiModel(): string {
 interface GeminiResponse {
   candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   promptFeedback?: { blockReason?: string };
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
 }
 
 async function call(
   system: string,
   user: string,
   generationConfig: Record<string, unknown>,
+  meta?: LlmCall,
 ): Promise<string | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
-  const model = geminiModel();
+  const model = meta?.model || geminiModel();
 
   try {
     const res = await fetch(`${ENDPOINT}/${model}:generateContent`, {
@@ -56,6 +59,11 @@ async function call(
     }
 
     const data = (await res.json()) as GeminiResponse;
+    if (meta && data.usageMetadata) {
+      // Thinking tokens are billed as output.
+      meta.tokensIn = data.usageMetadata.promptTokenCount;
+      meta.tokensOut = (data.usageMetadata.candidatesTokenCount ?? 0) + (data.usageMetadata.thoughtsTokenCount ?? 0);
+    }
     if (data.promptFeedback?.blockReason) {
       console.warn(`[gemini] blocked: ${data.promptFeedback.blockReason}`);
       return null;
@@ -82,18 +90,23 @@ const ANSWER_SCHEMA = {
 } as const;
 
 /** Structured answer generation — returns the raw JSON string, or null. */
-export function geminiJson(system: string, user: string): Promise<string | null> {
-  return call(system, user, {
-    responseMimeType: 'application/json',
-    responseSchema: ANSWER_SCHEMA,
-    temperature: 0.2,
-    maxOutputTokens: 500,
-  });
+export function geminiJson(system: string, user: string, meta?: LlmCall): Promise<string | null> {
+  return call(
+    system,
+    user,
+    {
+      responseMimeType: 'application/json',
+      responseSchema: ANSWER_SCHEMA,
+      temperature: 0.2,
+      maxOutputTokens: 500,
+    },
+    meta,
+  );
 }
 
 /** Plain-text generation, used for the operator hand-off summary. */
-export function geminiText(system: string, user: string, maxOutputTokens = 300): Promise<string | null> {
-  return call(system, user, { temperature: 0.3, maxOutputTokens });
+export function geminiText(system: string, user: string, maxOutputTokens = 300, meta?: LlmCall): Promise<string | null> {
+  return call(system, user, { temperature: 0.3, maxOutputTokens }, meta);
 }
 
 /* ── speech-to-text ──────────────────────────────────────────── */

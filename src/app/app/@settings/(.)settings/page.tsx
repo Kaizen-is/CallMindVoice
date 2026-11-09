@@ -2,6 +2,7 @@ import { requireSession } from '@/lib/auth';
 import { translator } from '@/lib/i18n';
 import { knowledgeStats } from '@/lib/analytics';
 import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
+import { tenantDefaultLlm } from '@/lib/llm/choice';
 import { embeddingEngine } from '@/lib/rag/embed';
 import { telephonyStatus } from '@/lib/telephony/status';
 import { SettingsPanel } from '@/app/app/settings/panel';
@@ -33,7 +34,7 @@ export default async function SettingsModal() {
       user={{ name: user.name, email: user.email, role: user.role, locale: user.locale }}
       canEdit={user.role === 'owner' || user.role === 'admin'}
       engines={{
-        generation: engineIsHosted() ? engineLabel() : t('settings.engine.localGeneration', 'Local extractive synthesiser'),
+        generation: engineIsHosted(tenantDefaultLlm(tenant.id)) ? engineLabel(tenantDefaultLlm(tenant.id)) : t('settings.engine.localGeneration', 'Local extractive synthesiser'),
         generationHosted: engineIsHosted(),
         embedding: embedding.id,
         embeddingHosted: embedding.hosted,

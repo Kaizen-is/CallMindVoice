@@ -76,6 +76,12 @@ export interface Agent {
   hours_json: string;
   tools_json: string;
   target_json: string;
+  /** `provider:model` this agent answers with; '' = the account default. */
+  llm_model: string;
+  /** The voice model: '' = own TTS (`voice_id`), else an ElevenLabs model via Speko. */
+  tts_engine: string;
+  /** The ElevenLabs voice when `tts_engine` is set. Phone calls still use `voice_id`. */
+  tts_voice_id: string;
   version: number;
   created_at: string;
   updated_at: string;

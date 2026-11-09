@@ -20,6 +20,8 @@ import { startCall } from '@/lib/engine/calls';
 import { GREETINGS, FALLBACKS } from '@/lib/provision';
 import { closePlaygroundCall } from '@/lib/playground';
 import { safeJson } from '@/lib/utils';
+import { llmModelInfo } from '@/lib/speech/registry';
+import { ELEVEN_VOICES, SPEKO_TTS_MODELS, type SpekoTtsModel } from '@/lib/speech/speko';
 
 export interface AgentDraft {
   name: string;
@@ -37,6 +39,20 @@ export interface AgentDraft {
   escalation: EscalationPolicy;
   hours: BusinessHours;
   target: CallTarget;
+  /** `provider:model`, or '' for the account default. */
+  llmModel: string;
+  /** '' = own TTS (`voiceId`), else an ElevenLabs model through Speko. */
+  ttsEngine: string;
+  /** The ElevenLabs voice for `ttsEngine`. */
+  ttsVoiceId: string;
+}
+
+/** The voice model and ElevenLabs voice to store: both valid, or both ''. */
+function agentTts(draft: AgentDraft): [string, string] {
+  const engine = SPEKO_TTS_MODELS.includes(draft.ttsEngine as SpekoTtsModel) ? draft.ttsEngine : '';
+  if (!engine) return ['', ''];
+  const voice = ELEVEN_VOICES.find((v) => v.id === draft.ttsVoiceId)?.id ?? ELEVEN_VOICES[0].id;
+  return [engine, voice];
 }
 
 export async function saveAgentAction(agentId: string, draft: AgentDraft) {
@@ -53,8 +69,8 @@ export async function saveAgentAction(agentId: string, draft: AgentDraft) {
   run(
     `UPDATE agents SET name=?, persona=?, greeting=?, fallback_line=?, instructions=?,
        languages_json=?, primary_lang=?, voice_id=?, speaking_rate=?, max_turns=?,
-       confidence_threshold=?, status=?, escalation_json=?, hours_json=?, target_json=?,
-       version = version + 1, updated_at=? WHERE id=?`,
+       confidence_threshold=?, status=?, escalation_json=?, hours_json=?, target_json=?, llm_model=?,
+       tts_engine=?, tts_voice_id=?, version = version + 1, updated_at=? WHERE id=?`,
     draft.name.trim() || existing.name,
     draft.persona,
     draft.greeting,
@@ -75,6 +91,8 @@ export async function saveAgentAction(agentId: string, draft: AgentDraft) {
       loanAmount: draft.target.loanAmount.trim().slice(0, 80),
       prompt: draft.target.prompt.slice(0, 4000),
     } satisfies CallTarget),
+    llmModelInfo(draft.llmModel) ? draft.llmModel : '',
+    ...agentTts(draft),
     now(),
     agentId,
   );

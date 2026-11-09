@@ -12,6 +12,7 @@
  * to the local engine and a call is never dropped because of us.
  */
 import 'server-only';
+import type { LlmCall } from './call';
 import { answerExtractor } from './ollama';
 
 export function hasOpenAI(): boolean {
@@ -39,6 +40,8 @@ function timeoutMs(): number {
  */
 function samplingFor(model: string): Record<string, unknown> {
   if (/chat-latest/.test(model)) return {};
+  // The larger GPT-6 tiers (Sol, Astra) start at "low"; "none" is a 400 there.
+  if (/^gpt-\d+(\.\d+)?-(sol|astra)\b/.test(model)) return { reasoning_effort: 'low' };
   if (/^gpt-5(-|$)/.test(model)) return { reasoning_effort: 'minimal' };
   if (/^gpt-(5\.\d|[6-9])/.test(model)) return { reasoning_effort: 'none' };
   if (/^o\d/.test(model)) return { reasoning_effort: 'low' };
@@ -82,9 +85,10 @@ export async function openaiJsonStream(
   system: string,
   user: string,
   onAnswer?: (delta: string) => void,
+  call?: LlmCall,
 ): Promise<string | null> {
   if (!hasOpenAI()) return null;
-  const model = openaiModel();
+  const model = call?.model || openaiModel();
   const extract = onAnswer ? answerExtractor(onAnswer) : null;
   let raw = '';
   try {
@@ -95,6 +99,9 @@ export async function openaiJsonStream(
         { role: 'user', content: user },
       ],
       stream: true,
+      // Token counts for the usage log arrive in one last chunk. Only asked of
+      // OpenAI itself: a compatible server behind OPENAI_BASE_URL may not know it.
+      ...(process.env.OPENAI_BASE_URL ? {} : { stream_options: { include_usage: true } }),
       max_completion_tokens: 500,
       response_format: ANSWER_FORMAT,
       ...samplingFor(model),
@@ -119,7 +126,14 @@ export async function openaiJsonStream(
         if (!line.startsWith('data:')) continue;
         const data = line.slice(5).trim();
         if (data === '[DONE]') continue;
-        const chunk = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string; refusal?: string } }> };
+        const chunk = JSON.parse(data) as {
+          choices?: Array<{ delta?: { content?: string; refusal?: string } }>;
+          usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
+        };
+        if (chunk.usage && call) {
+          call.tokensIn = chunk.usage.prompt_tokens;
+          call.tokensOut = chunk.usage.completion_tokens;
+        }
         const piece = chunk.choices?.[0]?.delta?.content ?? '';
         if (piece) {
           raw += piece;
@@ -139,9 +153,14 @@ export async function openaiJsonStream(
 }
 
 /** Plain-text generation, used for the operator hand-off summary. */
-export async function openaiText(system: string, user: string, maxOutputTokens = 300): Promise<string | null> {
+export async function openaiText(
+  system: string,
+  user: string,
+  maxOutputTokens = 300,
+  call?: LlmCall,
+): Promise<string | null> {
   if (!hasOpenAI()) return null;
-  const model = openaiModel();
+  const model = call?.model || openaiModel();
   try {
     const res = await request({
       model,
@@ -156,7 +175,14 @@ export async function openaiText(system: string, user: string, maxOutputTokens =
       console.warn(`[openai] ${res.status}: ${(await res.text()).slice(0, 300)}`);
       return null;
     }
-    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    if (call && data.usage) {
+      call.tokensIn = data.usage.prompt_tokens;
+      call.tokensOut = data.usage.completion_tokens;
+    }
     return data.choices?.[0]?.message?.content?.trim() || null;
   } catch (err) {
     console.warn('[openai] request failed:', err instanceof Error ? err.message : err);

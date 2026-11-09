@@ -14,6 +14,7 @@ import { VOICES } from '@/lib/catalog';
 import { publish } from '@/lib/engine/bus';
 import { endCall, liveAgent, startCall } from '@/lib/engine/calls';
 import { agentHours, agentTarget, type TurnResult } from '@/lib/engine/conversation';
+import { agentLlm } from '@/lib/llm/choice';
 import { generateAnswer } from '@/lib/llm/provider';
 import { detectLanguage } from '@/lib/rag/text';
 import { fillerLines } from '@/lib/speech/fillers';
@@ -163,7 +164,7 @@ export async function playgroundOpening(agent: Agent, lang: Locale): Promise<str
 
   // The name is part of the key: a call voiced by Nadya must not reuse the
   // opening in which the agent introduced itself as Isomiddin.
-  const key = `${agent.id}:${agent.updated_at}:${agent.name}:${lang}:${new Date().toISOString().slice(0, 10)}`;
+  const key = `${agent.id}:${agent.updated_at}:${agent.name}:${agentLlm(agent) ?? ''}:${lang}:${new Date().toISOString().slice(0, 10)}`;
   let line = openings.get(key);
   if (!line) {
     if (openings.size > 200) openings.clear();
@@ -180,6 +181,7 @@ export async function playgroundOpening(agent: Agent, lang: Locale): Promise<str
       target,
       greeting: agent.greeting,
       timeZone: agentHours(agent).timezone,
+      llm: agentLlm(agent),
     }).then((out) => {
       // The local engine knows nothing of the person: greet, and ask the model next time.
       if (out.engine === 'local') {

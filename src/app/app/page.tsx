@@ -5,6 +5,7 @@ import { all } from '@/lib/db';
 import { daily, intents, knowledgeGaps, knowledgeStats, overview } from '@/lib/analytics';
 import { liveAgent } from '@/lib/engine/calls';
 import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
+import { tenantDefaultLlm } from '@/lib/llm/choice';
 import { telephonyStatus } from '@/lib/telephony/status';
 import type { Call } from '@/lib/types';
 import { fmtInt, fmtLatency, fmtMoney, fmtPct, relativeTime } from '@/lib/utils';
@@ -186,7 +187,7 @@ export default async function DashboardPage() {
             <div className="mt-3.5 space-y-2.5 text-[12.5px]">
               <EngineRow
                 label={t('dash.engine.answer', 'Answer generation')}
-                value={engineIsHosted() ? engineLabel() : t('dash.engine.localSynth', 'Local synthesiser')}
+                value={engineIsHosted(tenantDefaultLlm(tenant.id)) ? engineLabel(tenantDefaultLlm(tenant.id)) : t('dash.engine.localSynth', 'Local synthesiser')}
                 hosted={engineIsHosted()}
               />
               <EngineRow

@@ -16,6 +16,7 @@ import {
   Spinner,
 } from '@/components/ui/primitives';
 import { FileDrop } from '@/components/ui/forms';
+import { ModelMenu, type ModelOption } from '@/components/ui/model-menu';
 import { useToast } from '@/components/ui/overlays';
 import {
   IconAlert,
@@ -98,14 +99,21 @@ type Source = { kind: 'file'; file: File } | { kind: 'rec'; wav: Blob };
 export function SttLab({
   locale,
   history: initialHistory,
-  speech,
+  models,
+  initialModel,
 }: {
   locale: UiLocale;
   history: SpeechTest[];
-  speech: { stt: boolean };
+  /** Every STT model in the list, with whether this server can run it. */
+  models: ModelOption[];
+  initialModel: string;
 }) {
   const t = translator(locale);
   const toast = useToast();
+  const [model, setModel] = useState(initialModel);
+  const modelName = models.find((m) => m.id === model)?.name ?? model;
+  const speech = { stt: models.some((m) => m.ready) };
+  const [heardBy, setHeardBy] = useState<string | null>(null);
 
   const [history, setHistory] = useState<SpeechTest[]>(initialHistory);
   const [source, setSource] = useState<Source | null>(null);
@@ -174,7 +182,9 @@ export function SttLab({
       const marker = source.kind === 'file' ? source.file.name : 'recording';
       const upload = new FormData();
       upload.append('file', wav, 'speech.wav');
-      const res = await fetch('/api/speech/stt', { method: 'POST', body: upload });
+      upload.append('engine', model);
+      upload.append('language', 'uz');
+      const res = await fetch('/api/models/stt', { method: 'POST', body: upload });
       if (!res.ok) {
         // Surface the real status — a 413 here means a proxy body-size limit,
         // not the STT service itself.
@@ -182,7 +192,9 @@ export function SttLab({
         toast.error(t('dev.stt.failTitle'), `${t('dev.stt.failBody')} (HTTP ${res.status}${detail ? ` — ${detail}` : ''})`);
         return;
       }
-      const text = (((await res.json()) as { text?: string }).text ?? '').trim();
+      const body = (await res.json()) as { text?: string; ms?: number };
+      const text = (body.text ?? '').trim();
+      setHeardBy(`${modelName}${body.ms != null ? ` · ${(body.ms / 1000).toFixed(2)} s` : ''}`);
       if (!text) {
         toast.toast({ tone: 'info', title: t('dev.stt.nothingTitle'), description: t('dev.stt.nothingBody') });
         return;
@@ -191,7 +203,7 @@ export function SttLab({
       // History is nice-to-have — never let a failed save (e.g. a stale tab
       // after a redeploy) report the already-successful transcription as an error.
       try {
-        const saved = await saveSpeechTestAction({ kind: 'stt', input: marker, output: text });
+        const saved = await saveSpeechTestAction({ kind: 'stt', input: `${marker} · ${modelName}`, output: text });
         if (saved.ok) setHistory((h) => [saved.test, ...h].slice(0, 20));
       } catch {
         /* transcription already delivered */
@@ -221,9 +233,22 @@ export function SttLab({
         {/* ── MAIN: input + result ── */}
         <div className="space-y-4">
           <Card padded={false}>
-            <div className="flex items-center gap-2 px-5 py-4 hairline-b">
-              <IconWave size={16} className="text-ink-3" />
-              <h3 className="text-[14px] font-semibold text-ink">{t('dev.stt.inputTitle')}</h3>
+            <div className="flex items-center justify-between gap-2 px-5 py-4 hairline-b">
+              <div className="flex items-center gap-2">
+                <IconWave size={16} className="text-ink-3" />
+                <h3 className="text-[14px] font-semibold text-ink">{t('dev.stt.inputTitle')}</h3>
+              </div>
+              <ModelMenu
+                options={models}
+                value={model}
+                onChange={(id) => {
+                  setModel(id);
+                  setResult(null);
+                  setHeardBy(null);
+                }}
+                needsLabel={t('lab.missing')}
+                align="right"
+              />
             </div>
 
             {!speech.stt ? (
@@ -304,7 +329,10 @@ export function SttLab({
 
           <Card>
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[14px] font-semibold text-ink">{t('dev.stt.resultTitle')}</h3>
+              <h3 className="text-[14px] font-semibold text-ink">
+                {t('dev.stt.resultTitle')}
+                {result && heardBy && <span className="ml-2 text-[12px] font-normal text-ink-3">{heardBy}</span>}
+              </h3>
               {result && (
                 <Button size="xs" variant="ghost" icon={<IconCopy size={13} />} onClick={() => void copyResult()}>
                   {t('dev.copy')}

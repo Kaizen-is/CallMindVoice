@@ -7,7 +7,7 @@ This release adds optional speech and AI engines to the Playground. **Every key 
 | Variable | Turns on | Notes |
 |---|---|---|
 | `GAPIAPI` | **GAPI** speech-to-text (console.gapi.uz) | Optional: `GAPI_BASE_URL` (default `https://console.gapi.uz`) |
-| `SPEKO_API_KEY` | **ElevenLabs** voices (Nadya, Miron) and **gemini-3.5** STT via Speko | Optional: `SPEKO_BASE_URL` (default `https://router.speko.dev/v1`), `SPEKO_TTS_VOICE` |
+| `SPEKO_API_KEY` | **ElevenLabs** voices (Nadya, Miron and the Uzbek Mirjalol, Firdavs Urinov, Davronbek, Mirzaev, Asilbek), **ElevenLabs Scribe** and **gemini-3.5** STT, all via Speko | Optional: `SPEKO_BASE_URL` (default `https://router.speko.dev/v1`), `SPEKO_TTS_VOICE` |
 | `OPENAI_API_KEY` | **OpenAI** as an answer engine | See the warnings below |
 | `OPENAI_MODEL` | Which OpenAI model answers | Recommended `gpt-5.5` (best Uzbek); `gpt-4.1` is faster |
 
@@ -32,6 +32,14 @@ Zipformer is an Uzbek speech model that now runs **inside the app itself**. Ther
 ## 2b. gemini-3.5 STT
 
 Google Gemini Transcribe through Speko. It uses the same `SPEKO_API_KEY` as the ElevenLabs voices; no new key. Accurate on Uzbek, but ~5 s per phrase.
+
+## 2c. Model benchmark after each deploy — nothing to configure
+
+About 90 seconds after a new build starts, the app measures every engine that has a key: the Uzbek test clips in `benchmarks/stt-uz/` through each STT engine, three sentences through each TTS engine, and one short question to each LLM. The results fill Models ▸ Model lab (latency, WER, CER, clarity). It runs **once per build** — the build id is recorded first, so restarts and extra pods of the same build skip it.
+
+- Cost per deploy is a few cents (a minute of STT audio per engine, ~200 characters per TTS engine, one short answer per LLM).
+- It needs the same outbound HTTPS as the engines themselves; a failing engine is simply left blank.
+- To turn it off: `BENCHMARK_ON_START=0`.
 
 ## 3. Not for production
 

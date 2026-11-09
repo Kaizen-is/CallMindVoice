@@ -10,6 +10,7 @@
 import { requireApiKey } from '@/lib/api-auth';
 import { liveAgent } from '@/lib/engine/calls';
 import { generateAnswer } from '@/lib/llm/provider';
+import { agentLlm, tenantDefaultLlm } from '@/lib/llm/choice';
 import { retrieve } from '@/lib/rag/retrieve';
 import { detectLanguage } from '@/lib/rag/text';
 import type { Locale } from '@/lib/types';
@@ -64,6 +65,7 @@ export async function POST(req: Request) {
     history: [],
     persona: agent?.persona,
     instructions: agent?.instructions,
+    llm: agent ? agentLlm(agent) : tenantDefaultLlm(auth.tenantId),
   });
   const llmMs = Math.round(performance.now() - tGen);
   const totalMs = Math.round(performance.now() - t0);
