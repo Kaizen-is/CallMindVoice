@@ -1,0 +1,84 @@
+{
+  "about": "Uzbek STT benchmark, run once per deploy (src/lib/benchmark.ts). 10 real people reading Uzbek sentences, 67 s in total, 16 kHz mono 16-bit WAV. The text is each dataset's checked transcript. Read speech: scores here are better than on free conversation with Russian/English words mixed in.",
+  "sources": {
+    "UzbekVoice": "DavronSherbaev/uzbekvoice-filtered on Hugging Face (crowd-recorded, validated by listeners), Apache-2.0",
+    "ISSAI USC": "ISSAI Uzbek Speech Corpus, via murodbek/uzbek-speech-corpus on Hugging Face, CC-BY-4.0 (Musaev et al., USC: An Open-Source Uzbek Speech Corpus, 2021)"
+  },
+  "clips": [
+    {
+      "file": "01.wav",
+      "language": "uz",
+      "text": "Koronavirusning ijobiy ta’siri: texnologiya qanday yechimlar taklif qilmoqda?.",
+      "source": "UzbekVoice",
+      "sourceId": "357448",
+      "speaker": "male, Surxondaryo"
+    },
+    {
+      "file": "02.wav",
+      "language": "uz",
+      "text": "Bemorga sog‘ayishi uchun ijtimoiy aloqalar zarurligi ilmiy isbotlangan .",
+      "source": "UzbekVoice",
+      "sourceId": "407545",
+      "speaker": "male, Samarqand"
+    },
+    {
+      "file": "03.wav",
+      "language": "uz",
+      "text": "Haydovchi mashinani hujjatsiz boshqarib kelayotgani aniqlanib, ma’muriy bayonnoma rasmiylashtirgan.",
+      "source": "UzbekVoice",
+      "sourceId": "471016",
+      "speaker": "female, Andijon"
+    },
+    {
+      "file": "04.wav",
+      "language": "uz",
+      "text": "Erkak hayvonni kichik kenguruning jasadi bilan chalg‘itgan.",
+      "source": "UzbekVoice",
+      "sourceId": "161221",
+      "speaker": "female, Toshkent shahri"
+    },
+    {
+      "file": "05.wav",
+      "language": "uz",
+      "text": "dastlab bog'chada keyinchalik salom xususiy musulmon maktabida ingliz tilidan bolalarga dars berdim",
+      "source": "ISSAI USC",
+      "sourceId": "1187023182_2_35300_1"
+    },
+    {
+      "file": "06.wav",
+      "language": "uz",
+      "text": "foydasi yo'q ishga unnadik chamasi da dedi juvozkash yigit umidsizlanib",
+      "source": "ISSAI USC",
+      "sourceId": "1229529100_2_19825_1"
+    },
+    {
+      "file": "07.wav",
+      "language": "uz",
+      "text": "navkar undan katta bir inom olganday astoydil minnatdor bo'lib tazim qildi",
+      "source": "ISSAI USC",
+      "sourceId": "1571110404_2_19324_1"
+    },
+    {
+      "file": "08.wav",
+      "language": "uz",
+      "text": "Kuzatuvchilarning fikricha, bu O‘zbekistonning juda muvaffaqiyatli qadami bo‘ldi.",
+      "source": "UzbekVoice",
+      "sourceId": "352650",
+      "speaker": "female, Xorazm"
+    },
+    {
+      "file": "09.wav",
+      "language": "uz",
+      "text": "davlatimiz rahbari sport bugun yurtimiz ta'lim tarbiya tizimining uzviy qismiga aylanganini alohida qayd etdi",
+      "source": "ISSAI USC",
+      "sourceId": "1289864764_2_32697_2"
+    },
+    {
+      "file": "10.wav",
+      "language": "uz",
+      "text": "shu bois fuqarolarimizdan xitoyga zarurat bo'lmaganda boshqa xorijiy davlatlarga ham vaqtinchalik bormaslikni tavsiya qilaman",
+      "source": "ISSAI USC",
+      "sourceId": "265773029_2_33370_2"
+    }
+  ]
+}

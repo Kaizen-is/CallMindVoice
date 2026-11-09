@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Ovoz — seed the local datastore with the accounts the login page advertises.
+ * Ovoz — seed an empty local datastore with one company and its login.
  *
- * Creates the demo bank account (demo@medline.uz / ovozdemo2026 — the login the
- * page shows) and a local admin login inside it: tenant, owner user, the
+ * Creates the bank company with the only login, admintest@callmind.uz (owner;
+ * password from SEED_ADMIN_PASSWORD in your local .env, never committed), the
  * banking agent from /demo (live, with its "Who to call" borrower and script),
- * and a simulator phone number. Safe to re-run — accounts that already exist
- * are left untouched.
+ * and a simulator phone number. Safe to re-run — what already exists is left
+ * untouched.
  *
  *   npm run seed
  *
@@ -77,7 +77,6 @@ const DEMO = {
   company: 'Biznesni rivojlantirish banki',
   slug: 'brb-demo',
   industry: 'finance',
-  owner: { email: 'demo@medline.uz', name: 'Bank Demo', password: 'ovozdemo2026' },
 };
 
 /* The /demo banking agent — mirrors the BANK_AGENT_* constants and the target in src/lib/bank-agent.ts. */
@@ -99,12 +98,12 @@ const BANK_AGENT = {
 };
 
 /*
- * Local admin — owner is the highest role (owner > admin > operator > analyst).
+ * The one login — owner is the highest role (owner > admin > operator > analyst).
  * Its password comes from SEED_ADMIN_PASSWORD in your local .env, so it is
- * never committed; without it the admin login is simply not created.
+ * never committed; without it nothing is seeded.
  */
 const ADMIN_PASSWORD = (process.env.SEED_ADMIN_PASSWORD || '').trim();
-const ADMIN = { email: 'admin@callmind.uz', name: 'Admin', password: ADMIN_PASSWORD, role: 'owner' };
+const ADMIN = { email: 'admintest@callmind.uz', name: 'Admin', password: ADMIN_PASSWORD, role: 'owner' };
 
 const userExists = (email) => db.prepare('SELECT id FROM users WHERE email=?').get(email);
 
@@ -137,7 +136,7 @@ function ensureDemoTenant() {
     ).run(tenantId, DEMO.company, DEMO.slug, DEMO.industry, stamp,
       new Date(Date.now() + 365 * 864e5).toISOString(), JSON.stringify({ bankAgentSeeded: stamp }), stamp, stamp);
 
-    const userId = insertUser(tenantId, { ...DEMO.owner, role: 'owner' }, stamp);
+    const userId = insertUser(tenantId, ADMIN, stamp);
 
     db.prepare(
       `INSERT INTO agents (id, tenant_id, name, status, persona, greeting, fallback_line, instructions,
@@ -158,7 +157,7 @@ function ensureDemoTenant() {
     db.prepare(
       `INSERT INTO audit_log (id, tenant_id, actor_id, actor_name, action, target, meta_json, created_at)
        VALUES (?,?,?,?, 'tenant.created', ?, ?, ?)`,
-    ).run(id('aud'), tenantId, userId, DEMO.owner.name, tenantId,
+    ).run(id('aud'), tenantId, userId, ADMIN.name, tenantId,
       JSON.stringify({ industry: DEMO.industry, source: 'seed' }), stamp);
 
     db.exec('COMMIT');
@@ -166,21 +165,16 @@ function ensureDemoTenant() {
     db.exec('ROLLBACK');
     throw err;
   }
-  console.log(`created tenant  ${DEMO.company}  (${DEMO.owner.email})`);
+  console.log(`created tenant  ${DEMO.company}  (${ADMIN.email})`);
   return tenantId;
 }
 
-const tenantId = ensureDemoTenant();
-
 if (userExists(ADMIN.email)) {
-  console.log(`exists          ${ADMIN.email}`);
+  console.log(`exists          ${ADMIN.email} — nothing to seed`);
 } else if (!ADMIN_PASSWORD) {
-  console.log(`skipped         ${ADMIN.email} — set SEED_ADMIN_PASSWORD in .env to create it`);
+  console.log(`skipped         set SEED_ADMIN_PASSWORD in .env to create ${ADMIN.email} and the bank company`);
 } else {
-  insertUser(tenantId, ADMIN, now());
-  console.log(`created user    ${ADMIN.email}  role=${ADMIN.role}  tenant=${DEMO.company}`);
+  ensureDemoTenant();
+  console.log(`
+Log in at http://localhost:3000/login with ${ADMIN.email} / (SEED_ADMIN_PASSWORD from .env)`);
 }
-
-console.log('\nLog in at http://localhost:3000/login with:');
-console.log(`  ${DEMO.owner.email} / ${DEMO.owner.password}`);
-if (ADMIN_PASSWORD) console.log(`  ${ADMIN.email} / (SEED_ADMIN_PASSWORD from .env)`);

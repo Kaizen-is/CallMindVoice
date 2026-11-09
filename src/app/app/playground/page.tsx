@@ -3,6 +3,9 @@ import { requireSession } from '@/lib/auth';
 import { ensureBankAgent } from '@/lib/bank-agent';
 import { liveAgent, listAgents } from '@/lib/engine/calls';
 import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
+import { agentEngineLabel, tenantDefaultLlm } from '@/lib/llm/choice';
+import { get } from '@/lib/db';
+import type { Agent } from '@/lib/types';
 import { translator } from '@/lib/i18n';
 import type { Locale } from '@/lib/types';
 import { safeJson } from '@/lib/utils';
@@ -28,7 +31,23 @@ export default async function PlaygroundPage() {
     <Playground
       locale={user.locale}
       industry={tenant.industry}
-      engine={engineIsHosted() ? engineLabel() : t('play.localSynth', 'Local synthesiser')}
+      engine={
+        engineIsHosted(tenantDefaultLlm(tenant.id))
+          ? engineLabel(tenantDefaultLlm(tenant.id))
+          : t('play.localSynth', 'Local synthesiser')
+      }
+      agentVoices={Object.fromEntries(
+        agents.flatMap((a) => {
+          const row = get<Agent>('SELECT * FROM agents WHERE id=? AND tenant_id=?', a.id, tenant.id);
+          return row?.tts_engine && row.tts_voice_id ? [[a.id, { engine: row.tts_engine, voice: row.tts_voice_id }]] : [];
+        }),
+      )}
+      agentEngines={Object.fromEntries(
+        agents.map((a) => {
+          const row = get<Agent>('SELECT * FROM agents WHERE id=? AND tenant_id=?', a.id, tenant.id);
+          return [a.id, row ? agentEngineLabel(row) : engineLabel(tenantDefaultLlm(tenant.id))];
+        }),
+      )}
       speech={{
         stt: sttEngines(),
         tts: ttsEngines(),

@@ -14,6 +14,7 @@ import { retrieve, type RetrievalHit } from '@/lib/rag/retrieve';
 import { detectLanguage } from '@/lib/rag/text';
 import { generateAnswer, sentimentOf, engineName } from '@/lib/llm/provider';
 import { summarizeCall } from '@/lib/llm/provider';
+import { agentLlm } from '@/lib/llm/choice';
 import type {
   Agent,
   BusinessHours,
@@ -249,6 +250,7 @@ export async function runTurn(params: {
     target,
     greeting: agent.greeting,
     timeZone: agentHours(agent).timezone,
+    llm: agentLlm(agent),
     ...lookupFor(params.context, [
       ...modelHistory.filter((turn) => turn.role === 'caller').map((turn) => turn.text),
       utterance,
@@ -366,7 +368,7 @@ export async function runTurn(params: {
   let summary: string | undefined;
   if (escalate && persist) {
     const transcript = [...history, { role: 'caller', text: utterance }];
-    summary = await summarizeCall(transcript, language, escalate);
+    summary = await summarizeCall(transcript, language, escalate, agentLlm(agent));
     escalateCall(tenantId, callId, escalate, summary, sentiment);
     // Fire-and-forget so a webhook consumer can never stall the turn.
     void dispatchWebhook(tenantId, 'call.escalated', {
@@ -398,7 +400,7 @@ export async function runTurn(params: {
     escalate,
     summary,
     turnOrdinal: ordinal,
-    engine: generated.engine || engineName(),
+    engine: generated.engine || engineName(agentLlm(agent)),
     retrievalDebug: {
       strategy: retrieval.strategy,
       totalChunks: retrieval.totalChunks,

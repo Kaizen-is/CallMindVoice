@@ -27,13 +27,23 @@
  *     also streams words live to the Playground.
  *   • **gemini-3.5** (`gemini`, `SPEKO_API_KEY`) — Google Gemini Transcribe
  *     through Speko (see `./speko`).
+ *   • **ElevenLabs Scribe** (`scribe`, `SPEKO_API_KEY`) — ElevenLabs Scribe v2
+ *     through Speko, one shot per utterance.
  */
 import 'server-only';
 import { geminiTranscribe, hasGemini } from '@/lib/llm/gemini';
 import type { Locale } from '@/lib/types';
+import { recordUsage } from '@/lib/usage-log';
 import { denoise } from './denoise';
 import { gapiConfigured, gapiTranscribe } from './gapi';
-import { spekoConfigured, spekoTranscribe } from './speko';
+import {
+  SPEKO_GEMINI_ROUTE,
+  SPEKO_SCRIBE_MODEL,
+  SPEKO_SCRIBE_ROUTE,
+  SPEKO_STT_MODEL,
+  spekoConfigured,
+  spekoTranscribe,
+} from './speko';
 import { decodeWav, transcribeWav, zipformerAvailable } from './zipformer';
 import { uzbekNumbersToDigits } from './numbers';
 
@@ -48,14 +58,14 @@ export class SttError extends Error {
 export interface Transcript {
   text: string;
   /** Which engine produced this text — surfaced in logs to debug bad turns. */
-  engine: 'kotib' | 'whisper' | 'gemini' | 'gapi' | 'local' | 'speko' | 'none';
+  engine: 'kotib' | 'whisper' | 'gemini' | 'gapi' | 'local' | 'speko' | 'scribe' | 'none';
   language: string | null;
 }
 
 /** What a caller can ask for: `auto` is the Kotib/Whisper/Gemini logic below. */
-export type SttEngine = 'auto' | 'gapi' | 'local' | 'gemini';
+export type SttEngine = 'auto' | 'gapi' | 'local' | 'gemini' | 'scribe';
 
-export const STT_ENGINES: readonly SttEngine[] = ['auto', 'gapi', 'local', 'gemini'];
+export const STT_ENGINES: readonly SttEngine[] = ['auto', 'gapi', 'local', 'gemini', 'scribe'];
 
 export function isSttEngine(value: unknown): value is SttEngine {
   return typeof value === 'string' && (STT_ENGINES as readonly string[]).includes(value);
@@ -72,6 +82,7 @@ export function sttEngines(): Record<SttEngine, boolean> {
     gapi: gapiConfigured(),
     local: zipformerAvailable(),
     gemini: spekoConfigured(),
+    scribe: spekoConfigured(),
   };
 }
 
@@ -79,9 +90,129 @@ export function sttConfigured(): boolean {
   return Object.values(sttEngines()).some(Boolean);
 }
 
+/* ── single engines, by name (the model lab) ─────────────────── */
+
+/** Every engine on its own, as the usage log and the model lab name them. */
+export type SttEngineId = 'kotib' | 'whisper' | 'gapi' | 'local' | 'speko' | 'gemini' | 'scribe';
+
+/** Which single engines this deployment can run. */
+export function sttEngineIds(): Record<SttEngineId, boolean> {
+  return {
+    kotib: Boolean(process.env.STT_TRANSCRIBE_URL),
+    whisper: Boolean(process.env.WHISPER_TRANSCRIBE_URL),
+    gapi: gapiConfigured(),
+    local: zipformerAvailable(),
+    speko: spekoConfigured(),
+    gemini: hasGemini(),
+    scribe: spekoConfigured(),
+  };
+}
+
+/**
+ * One engine, nothing else: no race, no fallback, no noise cleaning. Throws
+ * when the engine fails, so a comparison can show the error. Numbers come back
+ * as digits from every engine that spells them out, as on a live call.
+ */
+export async function transcribeOne(
+  engine: SttEngineId,
+  audio: ArrayBuffer,
+  language?: Locale,
+): Promise<Transcript> {
+  if (!audio.byteLength) throw new SttError('empty_audio', 400);
+  if (!sttEngineIds()[engine]) throw new SttError(`${engine}_not_configured`, 503);
+  if (isSilent(audio)) return EMPTY;
+  switch (engine) {
+    case 'kotib': {
+      const heard = await kotib(audio);
+      return heard.text ? { ...heard, text: uzbekNumbersToDigits(heard.text) } : heard;
+    }
+    case 'whisper':
+      return whisper(audio, language);
+    case 'gapi':
+      return gapiOne(audio, language);
+    case 'local':
+      return localZipformer(audio);
+    case 'speko':
+      return spekoGemini(audio, language);
+    case 'scribe':
+      return spekoScribe(audio, language);
+    case 'gemini': {
+      const heard = await gemini(audio, language ?? 'uz');
+      if (!heard) throw new SttError('gemini_failed');
+      return heard;
+    }
+  }
+}
+
+/* ── usage logging ───────────────────────────────────────────── */
+
+/** Length of a 16-bit PCM WAV in ms, or null for anything else. */
+function wavDurationMs(audio: ArrayBuffer): number | null {
+  const view = new DataView(audio);
+  const tag = (at: number) =>
+    at + 4 <= view.byteLength ? String.fromCharCode(...new Uint8Array(audio, at, 4)) : '';
+  if (tag(0) !== 'RIFF' || tag(8) !== 'WAVE') return null;
+  let offset = 12;
+  let bytesPerSecond = 0;
+  while (offset + 8 <= view.byteLength) {
+    const id = tag(offset);
+    const size = view.getUint32(offset + 4, true);
+    if (id === 'fmt ' && size >= 16) bytesPerSecond = view.getUint32(offset + 16, true);
+    if (id === 'data') {
+      const bytes = Math.min(size, view.byteLength - offset - 8);
+      return bytesPerSecond ? (bytes / bytesPerSecond) * 1000 : null;
+    }
+    offset += 8 + size + (size % 2);
+  }
+  return null;
+}
+
+/** Run one engine and write its usage row (see `@/lib/usage-log`). */
+async function logged(
+  engine: SttEngineId,
+  model: string | null,
+  audio: ArrayBuffer,
+  work: () => Promise<Transcript> | Transcript,
+): Promise<Transcript> {
+  const started = performance.now();
+  const audioMs = wavDurationMs(audio);
+  try {
+    const heard = await work();
+    recordUsage({ kind: 'stt', engine, model, ms: performance.now() - started, audioMs, ok: true });
+    return heard;
+  } catch (err) {
+    recordUsage({
+      kind: 'stt',
+      engine,
+      model,
+      ms: performance.now() - started,
+      audioMs,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
+}
+
+/** GAPI, numbers as digits; failures become SttError. */
+function gapiOne(audio: ArrayBuffer, language?: Locale, clean = false): Promise<Transcript> {
+  return logged('gapi', null, audio, async () => {
+    try {
+      const heard = await gapiTranscribe(audio, { language, denoise: clean });
+      return heard.text ? { ...heard, text: uzbekNumbersToDigits(heard.text) } : EMPTY;
+    } catch (err) {
+      throw new SttError(err instanceof Error ? err.message : 'gapi_failed');
+    }
+  });
+}
+
 /* ── the two engines ─────────────────────────────────────────── */
 
-async function kotib(audio: ArrayBuffer): Promise<Transcript> {
+function kotib(audio: ArrayBuffer): Promise<Transcript> {
+  return logged('kotib', null, audio, () => kotibRequest(audio));
+}
+
+async function kotibRequest(audio: ArrayBuffer): Promise<Transcript> {
   const url = process.env.STT_TRANSCRIBE_URL;
   if (!url) return EMPTY;
 
@@ -105,14 +236,16 @@ async function kotib(audio: ArrayBuffer): Promise<Transcript> {
 }
 
 /** Zipformer, in this process; same contract as Kotib. */
-function localZipformer(audio: ArrayBuffer): Transcript {
-  let text: string;
-  try {
-    text = transcribeWav(audio);
-  } catch (err) {
-    throw new SttError(`local: ${err instanceof Error ? err.message : 'failed'}`);
-  }
-  return text ? { text: uzbekNumbersToDigits(text), engine: 'local', language: 'uz' } : EMPTY;
+function localZipformer(audio: ArrayBuffer): Promise<Transcript> {
+  return logged('local', 'uzbek-zipformer', audio, () => {
+    let text: string;
+    try {
+      text = transcribeWav(audio);
+    } catch (err) {
+      throw new SttError(`local: ${err instanceof Error ? err.message : 'failed'}`);
+    }
+    return text ? { text: uzbekNumbersToDigits(text), engine: 'local', language: 'uz' } : EMPTY;
+  });
 }
 
 /** A WAV as 16 kHz mono 16-bit PCM — what Speko's Gemini model takes. */
@@ -129,17 +262,40 @@ function wavToPcm16k(audio: ArrayBuffer): Buffer {
 }
 
 /** gemini-3.5 through Speko. */
-async function spekoGemini(audio: ArrayBuffer, language?: Locale): Promise<Transcript> {
-  let text: string;
-  try {
-    text = await spekoTranscribe(wavToPcm16k(audio), language);
-  } catch (err) {
-    throw new SttError(`gemini-3.5: ${err instanceof Error ? err.message : 'failed'}`);
-  }
-  return text && !isHallucination(text) ? { text, engine: 'speko', language: language ?? 'uz' } : EMPTY;
+function spekoGemini(audio: ArrayBuffer, language?: Locale): Promise<Transcript> {
+  return logged('speko', SPEKO_STT_MODEL, audio, async () => {
+    let text: string;
+    try {
+      text = await spekoTranscribe(wavToPcm16k(audio), language, SPEKO_GEMINI_ROUTE);
+    } catch (err) {
+      throw new SttError(`gemini-3.5: ${err instanceof Error ? err.message : 'failed'}`);
+    }
+    return text && !isHallucination(text) ? { text, engine: 'speko', language: language ?? 'uz' } : EMPTY;
+  });
 }
 
-async function whisper(audio: ArrayBuffer, language?: Locale): Promise<Transcript> {
+/** ElevenLabs Scribe through Speko; numbers as digits, like the other engines. */
+function spekoScribe(audio: ArrayBuffer, language?: Locale): Promise<Transcript> {
+  return logged('scribe', SPEKO_SCRIBE_MODEL, audio, async () => {
+    let text: string;
+    try {
+      text = await spekoTranscribe(wavToPcm16k(audio), language, SPEKO_SCRIBE_ROUTE);
+    } catch (err) {
+      throw new SttError(`scribe: ${err instanceof Error ? err.message : 'failed'}`);
+    }
+    if (!text || isHallucination(text)) return EMPTY;
+    return { text: uzbekNumbersToDigits(text), engine: 'scribe', language: language ?? 'uz' };
+  });
+}
+
+/** Whisper; throws when the server answers with an error (callers in the race catch it). */
+function whisper(audio: ArrayBuffer, language?: Locale): Promise<Transcript> {
+  return logged('whisper', process.env.WHISPER_MODEL || 'whisper-large-v3-turbo', audio, () =>
+    whisperRequest(audio, language),
+  );
+}
+
+async function whisperRequest(audio: ArrayBuffer, language?: Locale): Promise<Transcript> {
   const url = process.env.WHISPER_TRANSCRIBE_URL;
   if (!url) return EMPTY;
 
@@ -159,8 +315,7 @@ async function whisper(audio: ArrayBuffer, language?: Locale): Promise<Transcrip
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
-    console.warn(`[stt] whisper ${res.status}: ${(await res.text().catch(() => '')).slice(0, 160)}`);
-    return EMPTY;
+    throw new SttError(`whisper ${res.status}: ${(await res.text().catch(() => '')).slice(0, 160)}`);
   }
   const data = (await res.json()) as { text?: string; language?: string };
   const text = (data.text ?? '').trim();
@@ -175,7 +330,17 @@ const LANGUAGE_NAME: Record<Locale, string> = {
 
 /** Gemini's transcript; EMPTY when it heard no speech, null when it failed. */
 async function gemini(audio: ArrayBuffer, language: Locale): Promise<Transcript | null> {
+  const started = performance.now();
   const text = await geminiTranscribe(audio, LANGUAGE_NAME[language] ?? 'Russian');
+  recordUsage({
+    kind: 'stt',
+    engine: 'gemini',
+    model: process.env.GEMINI_STT_MODEL || null,
+    ms: performance.now() - started,
+    audioMs: wavDurationMs(audio),
+    ok: text !== null,
+    error: text === null ? 'gemini_failed' : null,
+  });
   if (text === null) return null;
   return text && !isHallucination(text) ? { text, engine: 'gemini', language } : EMPTY;
 }
@@ -288,12 +453,8 @@ export async function transcribe(
     if (isSilent(audio)) return EMPTY;
     if (opts.engine === 'local') return localZipformer(opts.denoise ? await denoise(audio) : audio);
     if (opts.engine === 'gemini') return spekoGemini(opts.denoise ? await denoise(audio) : audio, opts.language);
-    try {
-      const heard = await gapiTranscribe(audio, { language: opts.language, denoise: opts.denoise });
-      return heard.text ? { ...heard, text: uzbekNumbersToDigits(heard.text) } : EMPTY;
-    } catch (err) {
-      throw new SttError(err instanceof Error ? err.message : 'gapi_failed');
-    }
+    if (opts.engine === 'scribe') return spekoScribe(opts.denoise ? await denoise(audio) : audio, opts.language);
+    return gapiOne(audio, opts.language, opts.denoise);
   }
 
   const hasKotib = Boolean(process.env.STT_TRANSCRIBE_URL);

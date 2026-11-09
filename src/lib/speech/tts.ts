@@ -25,6 +25,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { buildTtsForm, resolveVoice, type ResolvedVoice } from '@/lib/voices';
+import { recordUsage } from '@/lib/usage-log';
 import { normalizeForSpeech, splitForSpeech } from './normalize';
 import {
   elevenVoice,
@@ -38,6 +39,13 @@ import type { Locale } from '@/lib/types';
 
 /** Telephony is narrowband. Everything in the voice path is this format. */
 export const SAMPLE_RATE = 8000;
+
+/**
+ * Rates a web page may ask ElevenLabs (through Speko) for. 8 kHz cuts
+ * everything above 4 kHz — s, sh, f and t go dull — so the browser asks for
+ * 24 kHz; phone calls stay at SAMPLE_RATE.
+ */
+export const WEB_SAMPLE_RATES = [8000, 16000, 24000] as const;
 const BYTES_PER_SAMPLE = 2;
 
 const CACHE_DIR = path.join(process.cwd(), 'data', 'tts-cache');
@@ -53,8 +61,8 @@ export class TtsError extends Error {
 /* ── configuration ───────────────────────────────────────────── */
 
 /**
- * `default` is the internal TTS server below; the others are ElevenLabs models
- * through Speko (`./speko`), selectable from the Playground's model picker.
+ * `default` is the internal TTS server below; the others are ElevenLabs
+ * models through Speko (`./speko`).
  */
 export type TtsEngine = 'default' | SpekoTtsModel;
 
@@ -119,8 +127,8 @@ async function ttsToken(): Promise<string> {
 /* ── the one real network call ───────────────────────────────── */
 
 /**
- * Render one piece of text whole, as 8 kHz mono PCM — the stream below,
- * collected. `text` must already be normalised (see `normalizeForSpeech`).
+ * Render one piece of text whole, as mono PCM at `outputRate(opts)` — the
+ * stream below, collected. `text` must already be normalised (see `normalizeForSpeech`).
  */
 async function renderPcm(text: string, voice: ResolvedVoice, opts: SynthOptions): Promise<Buffer> {
   const parts: Buffer[] = [];
@@ -129,8 +137,47 @@ async function renderPcm(text: string, voice: ResolvedVoice, opts: SynthOptions)
   return Buffer.concat(parts);
 }
 
-/** The PCM stream from whichever engine `opts.engine` names. */
+/**
+ * The PCM stream from whichever engine `opts.engine` names, with one usage row
+ * per render (see `@/lib/usage-log`): time to first audio, total time, audio
+ * length. A render the caller stopped early (barge-in) still counts as done.
+ */
 async function* enginePcm(
+  text: string,
+  voice: ResolvedVoice,
+  opts: SynthOptions,
+): AsyncGenerator<Buffer, void, unknown> {
+  const engine = opts.engine ?? 'default';
+  const started = performance.now();
+  let firstMs: number | null = null;
+  let bytes = 0;
+  let error: string | null = null;
+  try {
+    for await (const piece of rawEnginePcm(text, voice, opts)) {
+      if (firstMs === null) firstMs = performance.now() - started;
+      bytes += piece.length;
+      yield piece;
+    }
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+    throw err;
+  } finally {
+    recordUsage({
+      kind: 'tts',
+      engine,
+      model: engine === 'default' ? null : engine,
+      ms: performance.now() - started,
+      firstMs,
+      audioMs: (bytes / (outputRate(opts) * BYTES_PER_SAMPLE)) * 1000,
+      chars: text.length,
+      ok: error === null,
+      error,
+      tenantId: opts.tenantId,
+    });
+  }
+}
+
+async function* rawEnginePcm(
   text: string,
   voice: ResolvedVoice,
   opts: SynthOptions,
@@ -141,7 +188,7 @@ async function* enginePcm(
     return;
   }
   try {
-    yield* spekoStreamPcm(text, engine, opts.language ?? 'uz', elevenVoice(opts.voiceId));
+    yield* spekoStreamPcm(text, engine, opts.language ?? 'uz', elevenVoice(opts.voiceId), outputRate(opts));
   } catch (err) {
     if (err instanceof SpekoError) throw new TtsError(err.message, err.status);
     throw err;
@@ -213,13 +260,15 @@ function cacheKey(
   voice: ResolvedVoice,
   engine: TtsEngine = 'default',
   voiceId?: string | null,
+  rate: number = SAMPLE_RATE,
 ): string {
   const h = createHash('sha1');
   h.update(text);
   h.update(' ');
-  // Speko renders ignore the internal voice; the model and ElevenLabs voice key them.
+  // ElevenLabs renders ignore the internal voice; the model, ElevenLabs voice
+  // and (when not the phone's 8 kHz) the sample rate key them.
   if (engine !== 'default') {
-    h.update(`speko:${engine}:${elevenVoice(voiceId)}`);
+    h.update(`speko:${engine}:${elevenVoice(voiceId)}${rate === SAMPLE_RATE ? '' : `:${rate}`}`);
     return h.digest('hex');
   }
   if (voice.kind === 'speaker') h.update(`speaker:${voice.speaker}`);
@@ -272,16 +321,28 @@ export interface SynthOptions {
   cache?: boolean;
   /** Which TTS engine renders; `default` is the internal server. */
   engine?: TtsEngine;
+  /**
+   * Sample rate for ElevenLabs (Speko) renders: the web asks for 24 kHz, which
+   * keeps the voice clear; phone calls leave it unset (8 kHz). Our own TTS
+   * server always streams 8 kHz, so it ignores this.
+   */
+  sampleRate?: number;
 }
 
-/** Render `text` to 8 kHz mono PCM, consulting the disk cache when asked. */
+/** The sample rate this render comes out at: 8 kHz unless an ElevenLabs model was asked for more. */
+export function outputRate(opts: { engine?: TtsEngine; sampleRate?: number }): number {
+  if ((opts.engine ?? 'default') === 'default' || !opts.sampleRate) return SAMPLE_RATE;
+  return (WEB_SAMPLE_RATES as readonly number[]).includes(opts.sampleRate) ? opts.sampleRate : SAMPLE_RATE;
+}
+
+/** Render `text` to mono PCM at `outputRate(opts)`, consulting the disk cache when asked. */
 export async function synthesizePcm(text: string, opts: SynthOptions): Promise<Buffer> {
   const spoken = normalizeForSpeech(text, opts.language ?? 'uz');
   if (!spoken) throw new TtsError('empty_text', 400);
   const voice = resolveVoice(opts.tenantId, opts.voiceId);
 
   if (opts.cache) {
-    const key = cacheKey(spoken, voice, opts.engine, opts.voiceId);
+    const key = cacheKey(spoken, voice, opts.engine, opts.voiceId, outputRate(opts));
     const hit = cacheRead(key);
     if (hit) return hit;
     const pcm = await renderPcm(spoken, voice, opts);
@@ -295,12 +356,37 @@ export async function synthesizePcm(text: string, opts: SynthOptions): Promise<B
 export function cachedPcm(text: string, opts: SynthOptions): Buffer | null {
   const spoken = normalizeForSpeech(text, opts.language ?? 'uz');
   if (!spoken) return null;
-  return cacheRead(cacheKey(spoken, resolveVoice(opts.tenantId, opts.voiceId), opts.engine, opts.voiceId));
+  return cacheRead(
+    cacheKey(spoken, resolveVoice(opts.tenantId, opts.voiceId), opts.engine, opts.voiceId, outputRate(opts)),
+  );
+}
+
+/**
+ * Render `text` in one request, never from the cache, and time it — for the
+ * model lab, which compares engines on the same sentence.
+ */
+export async function renderTimed(
+  text: string,
+  opts: SynthOptions,
+): Promise<{ pcm: Buffer; firstMs: number; totalMs: number; spoken: string }> {
+  const spoken = normalizeForSpeech(text, opts.language ?? 'uz');
+  if (!spoken) throw new TtsError('empty_text', 400);
+  const voice = resolveVoice(opts.tenantId, opts.voiceId);
+  const started = performance.now();
+  let firstMs = 0;
+  const parts: Buffer[] = [];
+  for await (const piece of enginePcm(spoken, voice, opts)) {
+    if (!parts.length) firstMs = performance.now() - started;
+    parts.push(piece);
+  }
+  if (!parts.length) throw new TtsError('tts_empty_audio', 502);
+  // `spoken` is the text as the voice was given it (numbers as words), for scoring.
+  return { pcm: Buffer.concat(parts), firstMs, totalMs: performance.now() - started, spoken };
 }
 
 /** Render `text` and return a complete WAV — for the browser playground. */
 export async function synthesizeWav(text: string, opts: SynthOptions): Promise<Buffer> {
-  return pcmToWav(await synthesizePcm(text, opts));
+  return pcmToWav(await synthesizePcm(text, opts), outputRate(opts));
 }
 
 /**
@@ -320,7 +406,7 @@ export async function* synthesizeStream(
   const voice = resolveVoice(opts.tenantId, opts.voiceId);
 
   for (const chunk of splitForSpeech(spoken)) {
-    const key = opts.cache ? cacheKey(chunk, voice, opts.engine, opts.voiceId) : null;
+    const key = opts.cache ? cacheKey(chunk, voice, opts.engine, opts.voiceId, outputRate(opts)) : null;
     const hit = key ? cacheRead(key) : null;
     if (hit) {
       yield hit;

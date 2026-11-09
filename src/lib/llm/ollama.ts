@@ -13,6 +13,7 @@
  * local engine and a call is never dropped because of us.
  */
 import 'server-only';
+import type { LlmCall } from './call';
 
 export function hasOllama(): boolean {
   return Boolean(process.env.OLLAMA_BASE_URL);
@@ -34,6 +35,15 @@ function timeoutMs(): number {
 interface OllamaResponse {
   message?: { content?: string };
   error?: string;
+  /** On the final message: tokens read and written. */
+  prompt_eval_count?: number;
+  eval_count?: number;
+}
+
+function noteTokens(meta: LlmCall | undefined, data: OllamaResponse) {
+  if (!meta) return;
+  if (data.prompt_eval_count != null) meta.tokensIn = data.prompt_eval_count;
+  if (data.eval_count != null) meta.tokensOut = data.eval_count;
 }
 
 async function call(
@@ -41,6 +51,7 @@ async function call(
   user: string,
   options: { temperature: number; num_predict: number },
   format?: unknown,
+  meta?: LlmCall,
 ): Promise<string | null> {
   if (!hasOllama()) return null;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -51,7 +62,7 @@ async function call(
       method: 'POST',
       headers,
       body: JSON.stringify({
-        model: ollamaModel(),
+        model: meta?.model || ollamaModel(),
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user },
@@ -78,6 +89,7 @@ async function call(
       console.warn(`[ollama] error: ${data.error}`);
       return null;
     }
+    noteTokens(meta, data);
     return data.message?.content?.trim() || null;
   } catch (err) {
     console.warn('[ollama] request failed:', err instanceof Error ? err.message : err);
@@ -103,8 +115,8 @@ const JSON_INSTRUCTION =
   '{"answer": string (what you say out loud), "answered": boolean, "usedExcerpts": number[]}';
 
 /** Structured answer generation — returns the raw JSON string, or null. */
-export async function ollamaJson(system: string, user: string): Promise<string | null> {
-  const raw = await call(system + JSON_INSTRUCTION, user, { temperature: 0.2, num_predict: 500 }, ANSWER_SCHEMA);
+export async function ollamaJson(system: string, user: string, meta?: LlmCall): Promise<string | null> {
+  const raw = await call(system + JSON_INSTRUCTION, user, { temperature: 0.2, num_predict: 500 }, ANSWER_SCHEMA, meta);
   if (!raw) return null;
   // Defensive: some models still wrap the object in a ```json fence.
   const start = raw.indexOf('{');
@@ -124,20 +136,21 @@ export async function ollamaJson(system: string, user: string): Promise<string |
 export async function ollamaJsonStream(
   system: string,
   user: string,
-  onAnswer: (delta: string) => void,
+  onAnswer?: (delta: string) => void,
+  meta?: LlmCall,
 ): Promise<string | null> {
   if (!hasOllama()) return null;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (process.env.OLLAMA_API_KEY) headers.Authorization = `Bearer ${process.env.OLLAMA_API_KEY}`;
 
-  const extract = answerExtractor(onAnswer);
+  const extract = onAnswer ? answerExtractor(onAnswer) : null;
   let raw = '';
   try {
     const res = await fetch(`${baseUrl()}/api/chat`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        model: ollamaModel(),
+        model: meta?.model || ollamaModel(),
         messages: [
           { role: 'system', content: system + JSON_INSTRUCTION },
           { role: 'user', content: user },
@@ -173,10 +186,11 @@ export async function ollamaJsonStream(
           console.warn(`[ollama] error: ${data.error}`);
           return null;
         }
+        noteTokens(meta, data);
         const piece = data.message?.content ?? '';
         if (piece) {
           raw += piece;
-          extract(raw);
+          extract?.(raw);
         }
       }
     }
@@ -236,6 +250,6 @@ export function answerExtractor(onAnswer: (delta: string) => void): (raw: string
 }
 
 /** Plain-text generation, used for the operator hand-off summary. */
-export function ollamaText(system: string, user: string, maxOutputTokens = 300): Promise<string | null> {
-  return call(system, user, { temperature: 0.3, num_predict: maxOutputTokens });
+export function ollamaText(system: string, user: string, maxOutputTokens = 300, meta?: LlmCall): Promise<string | null> {
+  return call(system, user, { temperature: 0.3, num_predict: maxOutputTokens }, undefined, meta);
 }

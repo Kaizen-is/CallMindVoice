@@ -356,6 +356,144 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
     ALTER TABLE agents ADD COLUMN target_json TEXT NOT NULL DEFAULT '{}';
     `,
   },
+  {
+    // The model lab (/app/models/lab): saved test phrases, every comparison run,
+    // and the usage log every STT/TTS/LLM call writes (src/lib/usage-log.ts).
+    id: '006_model_lab',
+    sql: `
+    CREATE TABLE lab_clips (
+      id          TEXT PRIMARY KEY,
+      tenant_id   TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      user_id     TEXT,
+      audio_path  TEXT NOT NULL,            -- relative to the uploads dir
+      duration_ms INTEGER NOT NULL,
+      reference   TEXT NOT NULL,            -- the correct text
+      language    TEXT NOT NULL DEFAULT 'uz',
+      created_at  TEXT NOT NULL
+    );
+    CREATE INDEX idx_lab_clips_tenant ON lab_clips(tenant_id, created_at DESC);
+
+    CREATE TABLE lab_runs (
+      id         TEXT PRIMARY KEY,
+      tenant_id  TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      batch_id   TEXT NOT NULL,             -- one Run click
+      kind       TEXT NOT NULL,             -- stt | tts
+      engine     TEXT NOT NULL,
+      voice      TEXT,                      -- tts: the voice id
+      clip_id    TEXT,                      -- stt: a saved test phrase, if any
+      input      TEXT,                      -- tts: the sentence
+      output     TEXT,                      -- stt: transcript; tts: what Zipformer heard back
+      reference  TEXT,
+      wer        REAL,
+      cer        REAL,
+      ms         INTEGER,
+      first_ms   INTEGER,
+      audio_ms   INTEGER,
+      cost_usd   REAL,
+      ok         INTEGER NOT NULL DEFAULT 1,
+      error      TEXT,
+      rating     INTEGER,                   -- tts: 1–5 from a listener
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_lab_runs_tenant ON lab_runs(tenant_id, kind, created_at DESC);
+    CREATE INDEX idx_lab_runs_clip ON lab_runs(clip_id, engine, created_at DESC);
+
+    CREATE TABLE model_usage (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id  TEXT,
+      source     TEXT NOT NULL DEFAULT 'live',  -- live | lab
+      kind       TEXT NOT NULL,                 -- stt | tts | llm
+      engine     TEXT NOT NULL,
+      model      TEXT,
+      ms         INTEGER NOT NULL,
+      first_ms   INTEGER,
+      audio_ms   INTEGER,
+      chars      INTEGER,
+      cost_usd   REAL,
+      ok         INTEGER NOT NULL,
+      error      TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_model_usage_time ON model_usage(source, created_at);
+    `,
+  },
+  {
+    // Which language model an agent answers with ('provider:model'; '' = the
+    // account default, see src/lib/llm/choice.ts), and the tokens each answer
+    // used, for its cost.
+    id: '007_llm_choice',
+    sql: `
+    ALTER TABLE agents ADD COLUMN llm_model TEXT NOT NULL DEFAULT '';
+    ALTER TABLE model_usage ADD COLUMN tokens_in INTEGER;
+    ALTER TABLE model_usage ADD COLUMN tokens_out INTEGER;
+    `,
+  },
+  {
+    // The deploy benchmark (src/lib/benchmark.ts): one row per build that ran
+    // it — written first, so it runs once per build — and one result row per
+    // engine or model it measured. Deployment-wide, not per tenant.
+    id: '008_benchmark',
+    sql: `
+    CREATE TABLE benchmark_runs (
+      build       TEXT PRIMARY KEY,
+      started_at  TEXT NOT NULL,
+      finished_at TEXT,
+      status      TEXT NOT NULL DEFAULT 'running'   -- running | done | partial
+    );
+    CREATE TABLE benchmark_results (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      build      TEXT NOT NULL,
+      kind       TEXT NOT NULL,                     -- stt | tts | llm
+      engine     TEXT NOT NULL,                     -- engine id, or provider:model for llm
+      passed     INTEGER NOT NULL,
+      samples    INTEGER NOT NULL,
+      latency_ms INTEGER,
+      first_ms   INTEGER,
+      wer        REAL,
+      cer        REAL,
+      clarity    REAL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_benchmark_results ON benchmark_results(kind, engine, id);
+    `,
+  },
+  {
+    // One login only (2026-11-06): every user except admintest@callmind.uz is
+    // removed and everyone is logged out; that account gets the password the
+    // team chose (only its scrypt hash is here) and the owner role. If it does
+    // not exist yet, it is created as owner of the company people used most
+    // (most users, then most agents). Companies, agents, calls and knowledge
+    // are untouched. Runs once
+    // per database, like every migration — locally and on each deployment.
+    id: '009_single_admin',
+    sql: `
+    INSERT INTO users (id, tenant_id, email, name, password_hash, role, avatar_hue, locale,
+                       status, presence, created_at, updated_at)
+    SELECT 'usr_admintest', t.id, 'admintest@callmind.uz', 'Admin', 'scrypt$16384$8$1$xBH2GtL9F+SKdOcksWdlKw==$S+ix4cc/1onsPSsiMHFeNOpAi4yjvdhaNtYE929uo5CXqbuKEH/lzQ1whwndl86wyGffhyBuv0dzr+MO1OJrMA==', 'owner', 210, 'uz',
+           'active', 'offline', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      FROM tenants t
+     WHERE NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = 'admintest@callmind.uz')
+     ORDER BY (SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id) DESC,
+              (SELECT COUNT(*) FROM agents a WHERE a.tenant_id = t.id) DESC, t.created_at ASC
+     LIMIT 1;
+    UPDATE users
+       SET password_hash = 'scrypt$16384$8$1$xBH2GtL9F+SKdOcksWdlKw==$S+ix4cc/1onsPSsiMHFeNOpAi4yjvdhaNtYE929uo5CXqbuKEH/lzQ1whwndl86wyGffhyBuv0dzr+MO1OJrMA==', role = 'owner', status = 'active',
+           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+     WHERE lower(email) = 'admintest@callmind.uz';
+    DELETE FROM users WHERE lower(email) <> 'admintest@callmind.uz';
+    DELETE FROM sessions;
+    `,
+  },
+  {
+    // An agent's voice model: '' = our own TTS (voice_id, as before); otherwise
+    // an ElevenLabs model through Speko, speaking tts_voice_id. voice_id stays
+    // the own-TTS voice, which phone calls keep using.
+    id: '010_agent_tts',
+    sql: `
+    ALTER TABLE agents ADD COLUMN tts_engine TEXT NOT NULL DEFAULT '';
+    ALTER TABLE agents ADD COLUMN tts_voice_id TEXT NOT NULL DEFAULT '';
+    `,
+  },
 ];
 
 function ensureDirs() {

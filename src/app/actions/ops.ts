@@ -7,9 +7,10 @@ import { assignEscalation, resolveEscalation } from '@/lib/engine/conversation';
 import { endCall, liveAgent } from '@/lib/engine/calls';
 import { simulateBurst, simulateCall, simulatorLoad, stopSimulation } from '@/lib/engine/simulator';
 import { clearDemoHistory, seedDemoHistory } from '@/lib/engine/demo-data';
+import { agentLlm, tenantDefaultLlm } from '@/lib/llm/choice';
 import { summarizeCall } from '@/lib/llm/provider';
 import { telephonyStatus } from '@/lib/telephony/status';
-import type { Call, Escalation, Locale, SpeechTest, Turn } from '@/lib/types';
+import type { Agent, Call, Escalation, Locale, SpeechTest, Turn } from '@/lib/types';
 import { generateApiKey } from '@/lib/auth';
 import { inviteMember } from '@/lib/provision';
 import type { Role } from '@/lib/types';
@@ -197,7 +198,15 @@ export async function refreshSummaryAction(escalationId: string) {
     `SELECT role, text FROM turns WHERE call_id=? AND text != '__unanswered__' ORDER BY ordinal ASC`,
     esc.call_id,
   );
-  const summary = await summarizeCall(turns, (call?.language ?? 'en') as Locale, esc.reason);
+  const agent = call?.agent_id
+    ? get<Agent>('SELECT * FROM agents WHERE id=? AND tenant_id=?', call.agent_id, session.tenant.id)
+    : undefined;
+  const summary = await summarizeCall(
+    turns,
+    (call?.language ?? 'en') as Locale,
+    esc.reason,
+    agent ? agentLlm(agent) : tenantDefaultLlm(session.tenant.id),
+  );
   run('UPDATE escalations SET summary=? WHERE id=?', summary, escalationId);
   run('UPDATE calls SET summary=? WHERE id=?', summary, esc.call_id);
   revalidatePath('/app/inbox');

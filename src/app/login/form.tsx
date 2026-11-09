@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/primitives';
 import { Field, Input } from '@/components/ui/forms';
 import { translator } from '@/lib/i18n';
 import type { UiLocale } from '@/lib/types';
-import { IconAlert, IconEye, IconEyeOff, IconLock, IconSparkle } from '@/components/icons';
+import { IconAlert, IconEye, IconEyeOff, IconLock } from '@/components/icons';
 
 const initial: FormState = {};
 
@@ -75,24 +75,6 @@ export function LoginForm({ locale = 'uz' }: { locale?: UiLocale }) {
             {t('auth.login.createOne')}
           </Link>
         </p>
-      </div>
-
-      <div className="animate-fade-up mt-4 rounded-[14px] bg-surface-2 p-4 hairline" style={{ animationDelay: '80ms' }}>
-        <div className="flex items-start gap-2.5">
-          <IconSparkle size={16} className="mt-px shrink-0 text-brand" />
-          <div className="text-[12.5px] leading-relaxed text-ink-2">
-            <span className="font-medium text-ink">{t('auth.login.demoName')}</span>{' '}
-            {t('auth.login.demoUse') && <>{t('auth.login.demoUse')}{' '}</>}
-            <code className="rounded bg-surface-3 px-1.5 py-0.5 font-mono text-[11.5px] text-ink">
-              demo@medline.uz
-            </code>{' '}
-            /{' '}
-            <code className="rounded bg-surface-3 px-1.5 py-0.5 font-mono text-[11.5px] text-ink">
-              ovozdemo2026
-            </code>{' '}
-            {t('auth.login.demoTail')}
-          </div>
-        </div>
       </div>
     </div>
   );

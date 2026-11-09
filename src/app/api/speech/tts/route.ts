@@ -3,8 +3,9 @@
  *
  * Two response shapes, chosen by the caller:
  *
- *   • `stream: true` → raw 8 kHz mono PCM (`audio/L16`), chunked, one sentence
- *     at a time as each renders. This is the same wire format the telephony
+ *   • `stream: true` → raw mono PCM (`audio/L16`), chunked, one sentence
+ *     at a time as each renders. 8 kHz, unless the caller asks an ElevenLabs
+ *     model for `rate: 24000`; `X-Audio-Rate` says which. This is the same wire format the telephony
  *     bridge consumes, and it exists for the same reason: the listener hears
  *     sentence one while sentence three is still on the GPU. The Playground
  *     plays it through Web Audio (`<audio>` cannot start on a headerless
@@ -18,7 +19,7 @@
  * falls back to the browser's own speech synthesiser.
  */
 import { currentSession } from '@/lib/auth';
-import { isTtsEngine, synthesizeStream, synthesizeWav, ttsConfigured, TtsError } from '@/lib/speech/tts';
+import { isTtsEngine, outputRate, synthesizeStream, synthesizeWav, ttsConfigured, TtsError } from '@/lib/speech/tts';
 import type { Locale } from '@/lib/types';
 
 /**
@@ -32,13 +33,15 @@ export async function POST(request: Request): Promise<Response> {
   const session = await currentSession();
   if (!session) return Response.json({ error: 'unauthorized' }, { status: 401 });
 
-  const { text, voice, language, stream, engine: asked } = (await request.json()) as {
+  const { text, voice, language, stream, engine: asked, rate } = (await request.json()) as {
     text?: string;
     voice?: string;
     language?: Locale;
     stream?: boolean;
     /** The Playground's model picker; omitted ⇒ the internal TTS server. */
     engine?: string;
+    /** Sample rate for an ElevenLabs model (8000 | 16000 | 24000); omitted ⇒ 8 kHz, as before. */
+    rate?: number;
   };
   const engine = isTtsEngine(asked) ? asked : 'default';
   if (!ttsConfigured(engine)) return Response.json({ error: 'tts_not_configured' }, { status: 503 });
@@ -51,13 +54,15 @@ export async function POST(request: Request): Promise<Response> {
     tag: `pg_${session.user.id.slice(0, 8)}`,
     cache: text.trim().length <= CACHEABLE_CHARS,
     engine,
+    sampleRate: typeof rate === 'number' ? rate : undefined,
   };
+  const sentRate = outputRate(opts);
 
   try {
-    if (stream) return streamResponse(synthesizeStream(text, opts));
+    if (stream) return streamResponse(synthesizeStream(text, opts), sentRate);
     const wav = await synthesizeWav(text, opts);
     return new Response(new Uint8Array(wav), {
-      headers: { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store' },
+      headers: { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store', 'X-Audio-Rate': String(sentRate) },
     });
   } catch (err) {
     const status = err instanceof TtsError ? err.status : 502;
@@ -66,7 +71,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
-function streamResponse(chunks: AsyncGenerator<Buffer>): Response {
+function streamResponse(chunks: AsyncGenerator<Buffer>, rate: number): Response {
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
@@ -86,8 +91,9 @@ function streamResponse(chunks: AsyncGenerator<Buffer>): Response {
   });
   return new Response(body, {
     headers: {
-      'Content-Type': 'audio/L16; rate=8000; channels=1',
+      'Content-Type': `audio/L16; rate=${rate}; channels=1`,
       'Cache-Control': 'no-store',
+      'X-Audio-Rate': String(rate),
     },
   });
 }

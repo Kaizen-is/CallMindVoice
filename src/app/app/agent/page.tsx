@@ -8,6 +8,11 @@ import { translator } from '@/lib/i18n';
 import type { Agent, Locale } from '@/lib/types';
 import { safeJson } from '@/lib/utils';
 import { listCustomVoices } from '@/lib/voices';
+import { engineLabel } from '@/lib/llm/provider';
+import { llmOptions, tenantDefaultLlm } from '@/lib/llm/choice';
+import { ENGINES } from '@/lib/speech/registry';
+import { ELEVEN_VOICES } from '@/lib/speech/speko';
+import { ttsEngines } from '@/lib/speech/tts';
 import { AgentStudio } from './studio';
 
 export const metadata: Metadata = { title: 'Agent studio' };
@@ -52,6 +57,18 @@ export default async function AgentPage({
       knowledgeChunks={knowledgeStats(tenant.id).chunks}
       agents={agents}
       customVoices={listCustomVoices(tenant.id).map((v) => ({ id: v.id, name: v.name, mode: v.mode }))}
+      llmOptions={llmOptions()}
+      // What "Account default" means here, e.g. "OpenAI gpt-5.5".
+      llmDefaultLabel={engineLabel(tenantDefaultLlm(tenant.id))}
+      // ElevenLabs models (through Speko) an agent can speak with; '' = own TTS.
+      ttsModels={ENGINES.filter((e) => e.kind === 'tts' && e.id !== 'default').map((e) => ({
+        id: e.id,
+        name: e.name,
+        pricePerMin: e.pricePerMin,
+        ready: Boolean((ttsEngines() as Record<string, boolean>)[e.id]),
+        setup: e.setup,
+      }))}
+      elevenVoices={ELEVEN_VOICES.map((v) => ({ id: v.id, name: v.name, note: v.note }))}
       agent={{
         id: agent.id,
         name: agent.name,
@@ -70,6 +87,9 @@ export default async function AgentPage({
         escalation: agentEscalation(agent),
         hours: agentHours(agent),
         target: agentTarget(agent),
+        llmModel: agent.llm_model ?? '',
+        ttsEngine: agent.tts_engine ?? '',
+        ttsVoiceId: agent.tts_voice_id ?? '',
       }}
     />
   );

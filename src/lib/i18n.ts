@@ -2,6 +2,7 @@ import type { UiLocale } from './types';
 import { landing } from './i18n-landing';
 import { CONSOLE_DICTS } from './i18n-console';
 import { LABEL_DICTS } from './i18n-labels';
+import { LAB_DICTS } from './i18n-lab';
 
 /** Order shown in every language picker. Uzbek Latin then Uzbek Cyrillic. */
 export const LOCALES: UiLocale[] = ['uz', 'uz-Cyrl', 'ru', 'en'];
@@ -627,10 +628,16 @@ const uzCyrl: Dict = {
 };
 
 const DICTS: Record<UiLocale, Dict> = {
-  en: { ...en, ...landing.en, ...CONSOLE_DICTS.en, ...LABEL_DICTS.en },
-  ru: { ...ru, ...landing.ru, ...CONSOLE_DICTS.ru, ...LABEL_DICTS.ru },
-  uz: { ...uz, ...landing.uz, ...CONSOLE_DICTS.uz, ...LABEL_DICTS.uz },
-  'uz-Cyrl': { ...uzCyrl, ...landing['uz-Cyrl'], ...CONSOLE_DICTS['uz-Cyrl'], ...LABEL_DICTS['uz-Cyrl'] },
+  en: { ...en, ...landing.en, ...CONSOLE_DICTS.en, ...LABEL_DICTS.en, ...LAB_DICTS.en },
+  ru: { ...ru, ...landing.ru, ...CONSOLE_DICTS.ru, ...LABEL_DICTS.ru, ...LAB_DICTS.ru },
+  uz: { ...uz, ...landing.uz, ...CONSOLE_DICTS.uz, ...LABEL_DICTS.uz, ...LAB_DICTS.uz },
+  'uz-Cyrl': {
+    ...uzCyrl,
+    ...landing['uz-Cyrl'],
+    ...CONSOLE_DICTS['uz-Cyrl'],
+    ...LABEL_DICTS['uz-Cyrl'],
+    ...LAB_DICTS['uz-Cyrl'],
+  },
 };
 
 /**

@@ -33,6 +33,7 @@ import {
   IconVolume,
   IconWave,
   IconX,
+  IconZap,
   Logo,
 } from '@/components/icons';
 
@@ -122,6 +123,13 @@ export function ConsoleShell({
       items: [
         { href: '/app/analytics', labelKey: 'nav.analytics', icon: <IconChart size={17} /> },
         { href: '/app/numbers', labelKey: 'nav.numbers', icon: <IconGlobe size={17} /> },
+      ],
+    },
+    {
+      title: t('nav.section.models', 'Models'),
+      items: [
+        { href: '/app/models/lab', labelKey: 'nav.devLab', icon: <IconZap size={17} /> },
+        { href: '/app/models/voices', labelKey: 'nav.modelVoices', icon: <IconVolume size={17} /> },
       ],
     },
     {

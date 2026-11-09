@@ -112,7 +112,7 @@ export function TtsLab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
           provider === 'eleven'
-            ? { text: value, voice: elevenVoice, engine: 'eleven_v4_turbo' }
+            ? { text: value, voice: elevenVoice, engine: 'eleven_v4_turbo', rate: 24000 }
             : { text: value, voice },
         ),
       });

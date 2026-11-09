@@ -20,7 +20,8 @@ import { useLiveTranscript } from '@/hooks/use-live-transcript';
 import { decodePcm, speakWithBrowser, VoiceOut } from '@/app/demo/voice-out';
 import { IconHandset, IconHangUp } from '@/app/demo/icons';
 import { readCallEvents, type TurnDetail } from '@/lib/playground-shared';
-import { ModelPicker, useModelChoice, type SttChoice, type TtsChoice } from './model-picker';
+import { ModelMenu } from '@/components/ui/model-menu';
+import { modelOptions, STT_MODELS, TTS_MODELS, useModelChoice, type SttChoice, type TtsChoice } from './model-picker';
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from '@/components/ui/primitives';
 import { Input, Select } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
@@ -95,33 +96,29 @@ function rememberedChat(agentId: string): string | null {
 }
 
 /* ── streamed playback ──────────────────────────────────────────────────────
-   /api/speech/tts streams raw 8 kHz mono PCM with no container, because a
+   /api/speech/tts streams raw mono PCM with no container (8 kHz, or 24 kHz
+   for an ElevenLabs model — the X-Audio-Rate header says which), because a
    container needs its length up front and the whole point is that the length is
    not known yet — the server is still rendering later sentences. `<audio>`
    cannot start on that, so chunks are scheduled through Web Audio instead,
    which also joins sentences on the audio clock rather than by chaining
    elements, so the seams are inaudible. ── */
 
+/** What the server sends when it says nothing else (our own TTS, phone format). */
 const TTS_RATE = 8000;
+/** What the Playground asks ElevenLabs for: 8 kHz cuts everything above 4 kHz and sounds muffled. */
+const WEB_TTS_RATE = 24000;
 
 /** One PCM chunk → an AudioBuffer ready to be scheduled. */
-function pcmToAudioBuffer(ctx: AudioContext, pcm: Uint8Array): AudioBuffer | null {
+function pcmToAudioBuffer(ctx: AudioContext, pcm: Uint8Array, rate: number = TTS_RATE): AudioBuffer | null {
   const frames = Math.floor(pcm.length / 2);
   if (!frames) return null;
-  const buffer = ctx.createBuffer(1, frames, TTS_RATE);
+  const buffer = ctx.createBuffer(1, frames, rate);
   const channel = buffer.getChannelData(0);
   const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
   for (let i = 0; i < frames; i++) channel[i] = view.getInt16(i * 2, true) / 32768;
   return buffer;
 }
-
-const STT_LABEL: Record<SttChoice, string> = { auto: 'Kotib', gapi: 'GAPI', local: 'Zipformer', gemini: 'gemini-3.5' };
-const STT_ENV: Record<SttChoice, string> = {
-  auto: 'STT_TRANSCRIBE_URL',
-  gapi: 'GAPIAPI',
-  local: 'models/uzbek-zipformer',
-  gemini: 'SPEKO_API_KEY',
-};
 
 interface Msg {
   id: string;
@@ -142,6 +139,8 @@ export function Playground({
   locale,
   industry,
   engine,
+  agentEngines,
+  agentVoices = {},
   speech,
 }: {
   agent: {
@@ -161,20 +160,23 @@ export function Playground({
   locale: UiLocale;
   industry: string;
   engine: string;
+  /** The model each agent answers with, by agent id (its own choice or the account default). */
+  agentEngines?: Record<string, string>;
+  /** Agents set to an ElevenLabs model in the agent editor: their model and voice, by agent id. */
+  agentVoices?: Record<string, { engine: string; voice: string }>;
   speech: { stt: Record<SttChoice, boolean>; tts: Record<TtsChoice, boolean>; streamUrl: string | null };
 }) {
   const router = useRouter();
   const toast = useToast();
   const t = translator(locale);
-  // Which STT/TTS engines the turns use — the small picker on the right edge.
+  // Which STT/TTS engines the turns use — the model buttons by the voice and under the call button.
   const { sttEngine, setSttEngine, ttsEngine, setTtsEngine } = useModelChoice(speech.stt, speech.tts);
   const sttOn = speech.stt[sttEngine];
   const ttsOn = speech.tts[ttsEngine];
-  // Whose voices speak: our own TTS (Laylo, Isomiddin, clones) or ElevenLabs.
+  // Whose voices speak: our own TTS (Laylo, Isomiddin, clones) or the chosen
+  // ElevenLabs model's voices (through Speko).
   const voiceProvider: 'own' | 'eleven' = ttsEngine === 'default' ? 'own' : 'eleven';
-  const elevenAvailable = speech.tts.eleven_v4_turbo || speech.tts.eleven_v3_conversational;
-  const lastElevenModelRef = useRef<TtsChoice>(ttsEngine === 'default' ? 'eleven_v4_turbo' : ttsEngine);
-  if (ttsEngine !== 'default') lastElevenModelRef.current = ttsEngine;
+  const modelVoices = elevenVoices;
   const langName = (l: Locale) => t(`play.lang.${l}`, LANG_NAME[l]);
 
   // Which agent the conversation is aimed at. The server resolves this exact
@@ -184,17 +186,25 @@ export function Playground({
   // '' = speak with the selected agent's own voice; anything else overrides it
   // (built-in speakers plus the tenant's cloned/designed voices).
   const [voiceOverride, setVoiceOverride] = useState<string>('');
-  // The voice list belongs to the provider: switching providers, here or in
-  // the model picker, lands on that provider's first voice.
+  // The voice list belongs to the model: switching to another model's voices
+  // lands on that model's first voice.
   useEffect(() => {
-    const isEleven = elevenVoices.some((v) => v.id === voiceOverride);
-    if (voiceProvider === 'eleven' && !isEleven) setVoiceOverride(elevenVoices[0]?.id ?? '');
-    if (voiceProvider === 'own' && isEleven) setVoiceOverride('');
-  }, [voiceProvider, voiceOverride, elevenVoices]);
-  const switchVoiceProvider = (next: 'own' | 'eleven') => {
-    if (next === voiceProvider) return;
-    setTtsEngine(next === 'own' ? 'default' : lastElevenModelRef.current);
-  };
+    const ofModel = modelVoices.some((v) => v.id === voiceOverride);
+    if (voiceProvider === 'eleven' && !ofModel) setVoiceOverride(modelVoices[0]?.id ?? '');
+    if (voiceProvider === 'own' && ofModel) setVoiceOverride('');
+  }, [voiceProvider, voiceOverride, modelVoices]);
+  // An agent set to an ElevenLabs model in the agent editor starts on that
+  // model and voice; both can still be switched here. Agents on our own TTS
+  // keep whatever model is picked. Declared after the effect above so its
+  // voice is set last when both run in the same render.
+  useEffect(() => {
+    const own = agentVoices[selectedAgentId];
+    if (!own || !speech.tts[own.engine as TtsChoice]) return;
+    setTtsEngine(own.engine as TtsChoice);
+    setVoiceOverride(own.voice);
+    // Only when the agent changes; the setters are stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAgentId]);
   const [callId, setCallId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   // Saved conversations with the selected agent, most recent first.
@@ -415,6 +425,7 @@ export function Playground({
             language: lang,
             engine: ttsEngine,
             stream: true,
+            rate: WEB_TTS_RATE,
           }),
           signal: controller.signal,
         });
@@ -422,6 +433,7 @@ export function Playground({
         return false; // aborted or offline — fall back to the browser voice
       }
       if (!res.ok || !res.body) return false;
+      const rate = Number(res.headers.get('x-audio-rate')) || TTS_RATE;
 
       const reader = res.body.getReader();
       const received: Uint8Array[] = [];
@@ -449,7 +461,7 @@ export function Playground({
           leftover = joined.subarray(usable);
           if (!usable) continue;
 
-          const buffer = pcmToAudioBuffer(ctx, joined.subarray(0, usable));
+          const buffer = pcmToAudioBuffer(ctx, joined.subarray(0, usable), rate);
           if (!buffer) continue;
 
           if (!announced) {
@@ -1073,15 +1085,6 @@ export function Playground({
     // lay out as a column so the chat card's own header/footer stay pinned and only
     // the message list scrolls. On mobile the height is auto and the page flows.
     <div className="flex w-full flex-col lg:h-[calc(100vh_-_112px)]">
-      <ModelPicker
-        stt={speech.stt}
-        tts={speech.tts}
-        sttEngine={sttEngine}
-        ttsEngine={ttsEngine}
-        onStt={setSttEngine}
-        onTts={setTtsEngine}
-        t={t}
-      />
       <PageHeader
         title={t('play.title')}
         subtitle={t('play.subtitle')}
@@ -1125,36 +1128,19 @@ export function Playground({
           ))}
         </Select>
         <span className="text-[12.5px] text-ink-3">{t('play.voiceLabel', 'Voice')}</span>
-        <div role="group" aria-label="Voice provider" className="inline-flex rounded-lg bg-surface-2 p-0.5 hairline">
-          {(
-            [
-              ['own', t('play.voiceOwn', 'Own'), true],
-              ['eleven', 'ElevenLabs', elevenAvailable],
-            ] as const
-          ).map(([id, label, enabled]) => (
-            <button
-              key={id}
-              type="button"
-              disabled={!enabled}
-              aria-pressed={voiceProvider === id}
-              title={enabled ? undefined : 'Set SPEKO_API_KEY to enable'}
-              onClick={() => switchVoiceProvider(id)}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-[12.5px] transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-                voiceProvider === id ? 'bg-surface text-ink shadow-sm' : 'text-ink-3 hover:text-ink',
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <ModelMenu
+          options={modelOptions(TTS_MODELS, speech.tts)}
+          value={ttsEngine}
+          onChange={(id) => setTtsEngine(id as TtsChoice)}
+          needsLabel={t('lab.missing', 'Needs {setup}')}
+        />
         {voiceProvider === 'eleven' ? (
           <Select
             value={voiceOverride}
             onChange={(e) => setVoiceOverride(e.target.value)}
             className="w-auto min-w-[180px]"
           >
-            {elevenVoices.map((v) => (
+            {modelVoices.map((v) => (
               <option key={v.id} value={v.id}>{v.name}</option>
             ))}
           </Select>
@@ -1204,7 +1190,8 @@ export function Playground({
               <div>
                 <div className="text-[13.5px] font-semibold text-ink">{agentName}</div>
                 <div className="text-[11.5px] text-ink-3">
-                  {agentStatus === 'live' ? t('play.statusLive', 'Live') : t('play.statusDraft', 'Draft')} · {engine}
+                  {agentStatus === 'live' ? t('play.statusLive', 'Live') : t('play.statusDraft', 'Draft')} ·{' '}
+                  {agentEngines?.[selectedAgentId] ?? engine}
                 </div>
               </div>
             </div>
@@ -1337,31 +1324,16 @@ export function Playground({
                     );
                   })}
                   {speechLang === 'uz' ? (
-                    // Which recogniser hears Uzbek: our own model, GAPI, or the
-                    // in-app streaming Zipformer, or gemini-3.5 — same switch as the model picker.
-                    <div
-                      role="group"
-                      aria-label={t('play.sttEngine', 'Speech recognition')}
-                      className="inline-flex rounded-lg bg-surface p-0.5 hairline"
-                    >
-                      {(['auto', 'gapi', 'local', 'gemini'] as const).map((id) => (
-                        <button
-                          key={id}
-                          type="button"
-                          disabled={!speech.stt[id]}
-                          aria-pressed={sttEngine === id}
-                          title={speech.stt[id] ? undefined : `${t('play.notConfigured', 'Not configured')}: ${STT_ENV[id]}`}
-                          onClick={() => setSttEngine(id)}
-                          style={{ fontSize: 11, lineHeight: '16px' }}
-                          className={cn(
-                            'rounded-md px-1.5 py-0.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-                            sttEngine === id ? 'bg-surface-3 text-ink' : 'text-ink-3 hover:text-ink',
-                          )}
-                        >
-                          {id === 'auto' ? t('play.voiceOwn', 'Own') : STT_LABEL[id]}
-                        </button>
-                      ))}
-                    </div>
+                    // Which recogniser hears Uzbek: our own model, GAPI, the in-app
+                    // streaming Zipformer or gemini-3.5.
+                    <ModelMenu
+                      size="sm"
+                      side="top"
+                      options={modelOptions(STT_MODELS, speech.stt)}
+                      value={sttEngine}
+                      onChange={(id) => setSttEngine(id as SttChoice)}
+                      needsLabel={t('lab.missing', 'Needs {setup}')}
+                    />
                   ) : (
                     <span className="rounded-full bg-surface px-2.5 py-0.5 text-[11px] text-ink-3 hairline">
                       {t('play.sttBrowser', '{lang} → browser voice').replace('{lang}', speechLang.toUpperCase())}

@@ -19,6 +19,7 @@ import { all, get, id, now, run, tx } from '@/lib/db';
 import { publish } from '@/lib/engine/bus';
 import { startCall } from '@/lib/engine/calls';
 import { agentHours, agentTarget } from '@/lib/engine/conversation';
+import { agentLlm } from '@/lib/llm/choice';
 import { classifyIntent, generateAnswer } from '@/lib/llm/provider';
 import { detectLanguage } from '@/lib/rag/text';
 import { fillerLines } from '@/lib/speech/fillers';
@@ -259,6 +260,7 @@ export function openingLine(agent: Agent, lang: DemoLang): Promise<string> {
     target: demoTarget(agent),
     greeting: agent.greeting,
     timeZone: agentHours(agent).timezone,
+    llm: agentLlm(agent),
   }).then((out) => {
     // The local engine is the no-model fallback and knows nothing of the
     // borrower: use a fixed line this time, and ask the model again next call.

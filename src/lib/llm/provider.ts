@@ -13,15 +13,23 @@
  * The voice pipeline is latency-critical (<1 s from end-of-speech to first
  * audio), so the Claude path is tuned for time-to-first-word: thinking off,
  * effort low, a hard output cap, and streaming.
+ *
+ * Which model answers: the agent's own choice (`agents.llm_model`), else the
+ * account's default (Models ▸ LLM), else the first engine with a key set
+ * (`provider()` below). A choice whose key is missing on this server falls
+ * back the same way, so a call never fails over a model setting.
  */
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
+import { llmCost, type LlmProvider } from '@/lib/speech/registry';
+import type { LlmCall } from './call';
 import { hasGemini, geminiJson, geminiText, geminiModel } from './gemini';
 import { hasOpenAI, openaiJsonStream, openaiModel, openaiText } from './openai';
 import { hasOllama, ollamaJson, ollamaJsonStream, ollamaText, ollamaModel } from './ollama';
 import { calendarBlock, identityCheck, type IdentityStatus } from './loan-call';
 import type { RetrievalHit } from '@/lib/rag/retrieve';
 import type { CallTarget, Locale } from '@/lib/types';
+import { recordUsage } from '@/lib/usage-log';
 import {
   classifyIntent,
   summarizeLocal,
@@ -323,7 +331,69 @@ function anthropic(): Anthropic | null {
 
 const MODEL = () => process.env.ANTHROPIC_MODEL || 'claude-opus-5';
 
-type Provider = 'ollama' | 'gemini' | 'anthropic' | 'openai' | 'local';
+/**
+ * Thinking off for voice turns, in the form each Claude model accepts: Opus 5.5
+ * (and Fable / Mythos) cannot turn it off, so low effort is the only lever;
+ * Sonnet 5.5 turns it off with `between_tools`; the others take `disabled`.
+ */
+function claudeThinking(model: string): { thinking?: { type: string } } {
+  if (/^claude-(opus-5-5|fable|mythos)/.test(model)) return {};
+  if (/^claude-sonnet-5-5/.test(model)) return { thinking: { type: 'between_tools' } };
+  return { thinking: { type: 'disabled' } };
+}
+
+type Provider = LlmProvider | 'local';
+
+/** The engine and model one answer uses. */
+export interface LlmSelection {
+  provider: Provider;
+  model: string;
+}
+
+const PROVIDERS: readonly LlmProvider[] = ['openai', 'anthropic', 'gemini', 'ollama'];
+
+/** Whether this server has the key (or URL) the provider needs. */
+export function llmProviderReady(p: LlmProvider): boolean {
+  if (p === 'openai') return hasOpenAI();
+  if (p === 'anthropic') return Boolean(anthropic());
+  if (p === 'gemini') return hasGemini();
+  return hasOllama();
+}
+
+function envModel(p: Provider): string {
+  if (p === 'ollama') return ollamaModel();
+  if (p === 'gemini') return geminiModel();
+  if (p === 'anthropic') return MODEL();
+  if (p === 'openai') return openaiModel();
+  return 'ovoz-local-synthesis';
+}
+
+/**
+ * The model a turn uses. `choice` is `provider:model` (an agent's setting or
+ * the account default); it is honoured when that provider is set up here,
+ * otherwise the server default answers.
+ */
+export function resolveLlm(choice?: string | null): LlmSelection {
+  if (choice) {
+    const at = choice.indexOf(':');
+    const p = choice.slice(0, at) as LlmProvider;
+    const model = choice.slice(at + 1).trim();
+    if (at > 0 && model && PROVIDERS.includes(p) && llmProviderReady(p)) return { provider: p, model };
+  }
+  const p = provider();
+  return { provider: p, model: envModel(p) };
+}
+
+/** `provider:model` for the usage log and the model list. */
+function selectionId(sel: LlmSelection): string {
+  return `${sel.provider}:${sel.model}`;
+}
+
+/** The engine string replies carry (`openai:gpt-5.5`, `claude:…`). */
+function nameOf(sel: LlmSelection): string {
+  if (sel.provider === 'local') return 'ovoz-local-synthesis';
+  return `${sel.provider === 'anthropic' ? 'claude' : sel.provider}:${sel.model}`;
+}
 
 /**
  * Which answer engine is active. Set LLM_PROVIDER to force one explicitly;
@@ -345,26 +415,25 @@ function provider(): Provider {
   return 'local';
 }
 
-export function engineName(): string {
-  const p = provider();
-  if (p === 'ollama') return `ollama:${ollamaModel()}`;
-  if (p === 'gemini') return `gemini:${geminiModel()}`;
-  if (p === 'anthropic') return `claude:${MODEL()}`;
-  if (p === 'openai') return `openai:${openaiModel()}`;
-  return 'ovoz-local-synthesis';
+export function engineName(choice?: string | null): string {
+  return nameOf(resolveLlm(choice));
 }
 
-export function engineIsHosted(): boolean {
-  return provider() !== 'local';
+export function engineIsHosted(choice?: string | null): boolean {
+  return resolveLlm(choice).provider !== 'local';
 }
 
-/** Human-friendly label for the active engine, for the Overview/Settings cards. */
-export function engineLabel(): string {
-  const name = engineName();
-  if (name.startsWith('ollama:')) return name.replace('ollama:', 'Ollama ');
-  if (name.startsWith('gemini:')) return name.replace('gemini:', 'Gemini ');
-  if (name.startsWith('claude:')) return name.replace('claude:', 'Claude ');
-  if (name.startsWith('openai:')) return name.replace('openai:', 'OpenAI ');
+/**
+ * Human-friendly label for the engine that answers — for the Overview,
+ * Settings and Playground. With `choice` (an agent's or the account's model)
+ * it names what that choice resolves to on this server.
+ */
+export function engineLabel(choice?: string | null): string {
+  const sel = resolveLlm(choice);
+  if (sel.provider === 'ollama') return `Ollama ${sel.model}`;
+  if (sel.provider === 'gemini') return `Gemini ${sel.model}`;
+  if (sel.provider === 'anthropic') return `Claude ${sel.model}`;
+  if (sel.provider === 'openai') return `OpenAI ${sel.model}`;
   return 'Local synthesiser';
 }
 
@@ -382,6 +451,8 @@ export interface GenerateInput extends SynthesisInput {
   extraSystem?: string;
   /** A one-line outcome of that lookup, placed after the caller's words — the last thing the model reads. */
   extraNote?: string;
+  /** `provider:model` to answer with — the agent's choice or the account default (see `resolveLlm`). */
+  llm?: string | null;
 }
 
 /**
@@ -394,6 +465,49 @@ export async function generateAnswer(
   input: GenerateInput,
   onDelta?: (delta: string) => void,
 ): Promise<SynthesisOutput> {
+  const sel = resolveLlm(input.llm);
+  const started = performance.now();
+  let firstMs: number | null = null;
+  const call: LlmCall = { model: sel.model };
+  const out = await answerOnce(
+    input,
+    sel,
+    call,
+    onDelta
+      ? (delta) => {
+          if (firstMs === null) firstMs = performance.now() - started;
+          onDelta(delta);
+        }
+      : undefined,
+  );
+  // One usage row per hosted answer (see `@/lib/usage-log`). The "give me a
+  // human" shortcut never reaches a model, so it is not counted.
+  const shortcut = out.intent === 'human' && !input.target?.fullName;
+  if (sel.provider !== 'local' && !shortcut) {
+    const fellBack = out.engine === 'local';
+    recordUsage({
+      kind: 'llm',
+      engine: sel.provider,
+      model: selectionId(sel),
+      ms: performance.now() - started,
+      firstMs,
+      chars: out.answer.length,
+      tokensIn: call.tokensIn ?? null,
+      tokensOut: call.tokensOut ?? null,
+      costUsd: llmCost(selectionId(sel), call.tokensIn, call.tokensOut),
+      ok: !fellBack,
+      error: fellBack ? 'fell_back_to_local' : null,
+    });
+  }
+  return out;
+}
+
+async function answerOnce(
+  input: GenerateInput,
+  sel: LlmSelection,
+  call: LlmCall,
+  onDelta?: (delta: string) => void,
+): Promise<SynthesisOutput> {
   const intent = classifyIntent(input.question);
 
   // Explicit "give me a human" never needs a model round-trip — except on a
@@ -402,8 +516,9 @@ export async function generateAnswer(
     return synthesizeLocal(input);
   }
 
-  const active = provider();
+  const active = sel.provider;
   if (active === 'local') return synthesizeLocal(input);
+  const engine = nameOf(sel);
 
   // Prompt construction is provider-agnostic: a system prompt plus a single
   // user turn carrying the excerpts, recent history and the question.
@@ -443,33 +558,38 @@ export async function generateAnswer(
   if ((active === 'ollama' && onDelta) || active === 'openai') {
     let streamed = '';
     const stream = active === 'openai' ? openaiJsonStream : ollamaJsonStream;
-    const raw = await stream(system, user, (delta) => {
-      streamed += delta;
-      onDelta?.(delta);
-    });
+    const raw = await stream(
+      system,
+      user,
+      (delta) => {
+        streamed += delta;
+        onDelta?.(delta);
+      },
+      call,
+    );
     try {
       const parsed = raw
         ? (JSON.parse(raw) as { answer: string; answered: boolean; usedExcerpts: number[] })
         : null;
-      if (parsed?.answer?.trim()) return finalize(parsed, engineName());
+      if (parsed?.answer?.trim()) return finalize(parsed, engine);
     } catch {
       /* handled below */
     }
     // The stream broke after part of the answer went out: keep what was said
     // rather than swap in a different reply mid-sentence.
     if (streamed.trim()) {
-      return { answer: streamed.trim(), intent, answered: true, usedHits: [], engine: engineName() };
+      return { answer: streamed.trim(), intent, answered: true, usedHits: [], engine };
     }
     return synthesizeLocal(input);
   }
 
   if (active === 'gemini' || active === 'ollama') {
     try {
-      const raw = active === 'ollama' ? await ollamaJson(system, user) : await geminiJson(system, user);
+      const raw = active === 'ollama' ? await ollamaJson(system, user, call) : await geminiJson(system, user, call);
       if (!raw) return synthesizeLocal(input);
       const parsed = JSON.parse(raw) as { answer: string; answered: boolean; usedExcerpts: number[] };
       if (!parsed.answer?.trim()) return synthesizeLocal(input);
-      return finalize(parsed, engineName());
+      return finalize(parsed, engine);
     } catch {
       return synthesizeLocal(input);
     }
@@ -479,18 +599,20 @@ export async function generateAnswer(
   if (!claude) return synthesizeLocal(input);
   try {
     const message = await claude.messages.create({
-      model: MODEL(),
+      model: sel.model,
       max_tokens: 400,
       // Voice turns are latency-bound; depth of reasoning is not what makes
       // this answer good — grounding is. See README ▸ Latency budget.
-      thinking: { type: 'disabled' },
+      ...claudeThinking(sel.model),
       output_config: {
         effort: 'low',
         format: { type: 'json_schema', schema: ANSWER_SCHEMA },
       },
       system,
       messages: [{ role: 'user', content: user }],
-    });
+    } as Anthropic.MessageCreateParamsNonStreaming);
+    call.tokensIn = message.usage.input_tokens;
+    call.tokensOut = message.usage.output_tokens;
 
     if (message.stop_reason === 'refusal') return synthesizeLocal(input);
     const raw = message.content.find((b) => b.type === 'text');
@@ -507,7 +629,7 @@ export async function generateAnswer(
 export async function* streamAnswer(
   input: GenerateInput,
 ): AsyncGenerator<{ delta?: string; done?: SynthesisOutput }> {
-  if (provider() === 'local') {
+  if (resolveLlm(input.llm).provider === 'local') {
     const result = synthesizeLocal(input);
     // Mirror the streaming shape so the client renders identically.
     for (const word of result.answer.split(/(\s+)/)) {
@@ -532,12 +654,16 @@ export async function summarizeCall(
   turns: Array<{ role: string; text: string }>,
   language: Locale,
   reason: string,
+  /** The agent's or account's model (`provider:model`); the server default when absent. */
+  llm?: string | null,
 ): Promise<string> {
   const fallback = summarizeLocal(turns, language, reason);
   if (turns.length < 2) return fallback;
 
-  const active = provider();
+  const sel = resolveLlm(llm);
+  const active = sel.provider;
   if (active === 'local') return fallback;
+  const call: LlmCall = { model: sel.model };
 
   const system =
     'You brief a human contact-centre operator who is about to pick up a live call ' +
@@ -552,10 +678,10 @@ export async function summarizeCall(
   if (active === 'gemini' || active === 'ollama' || active === 'openai') {
     const text =
       active === 'ollama'
-        ? await ollamaText(system, user, 300)
+        ? await ollamaText(system, user, 300, call)
         : active === 'openai'
-          ? await openaiText(system, user, 300)
-          : await geminiText(system, user, 300);
+          ? await openaiText(system, user, 300, call)
+          : await geminiText(system, user, 300, call);
     return text?.trim() ? text.trim() : fallback;
   }
 
@@ -563,13 +689,13 @@ export async function summarizeCall(
   if (!claude) return fallback;
   try {
     const message = await claude.messages.create({
-      model: MODEL(),
+      model: sel.model,
       max_tokens: 300,
-      thinking: { type: 'disabled' },
+      ...claudeThinking(sel.model),
       output_config: { effort: 'low' },
       system,
       messages: [{ role: 'user', content: user }],
-    });
+    } as Anthropic.MessageCreateParamsNonStreaming);
     if (message.stop_reason === 'refusal') return fallback;
     const block = message.content.find((b) => b.type === 'text');
     return block && block.type === 'text' && block.text.trim() ? block.text.trim() : fallback;

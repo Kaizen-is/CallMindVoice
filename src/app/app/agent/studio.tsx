@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { createAgentAction, saveAgentAction, setAgentStatusAction, type AgentDraft } from '@/app/actions/agent';
 import { PERSONAS, VOICES, WEEKDAYS } from '@/lib/catalog';
 import { translator } from '@/lib/i18n';
+import type { LlmOption } from '@/lib/llm/choice';
 import type { BusinessHours, CallTarget, EscalationPolicy, Locale, UiLocale } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Badge, Button, Card, CardHeader, PageHeader, Tabs } from '@/components/ui/primitives';
@@ -43,6 +44,9 @@ interface AgentView {
   escalation: EscalationPolicy;
   hours: BusinessHours;
   target: CallTarget;
+  llmModel: string;
+  ttsEngine: string;
+  ttsVoiceId: string;
 }
 
 const LANGS: Array<{ value: Locale; label: string; flag: React.ReactNode }> = [
@@ -60,6 +64,10 @@ export function AgentStudio({
   canEdit,
   knowledgeChunks,
   customVoices = [],
+  llmOptions = [],
+  llmDefaultLabel,
+  ttsModels = [],
+  elevenVoices = [],
 }: {
   agent: AgentView;
   agents: Array<{ id: string; name: string; status: 'draft' | 'live' | 'paused' }>;
@@ -67,6 +75,11 @@ export function AgentStudio({
   canEdit: boolean;
   knowledgeChunks: number;
   customVoices?: Array<{ id: string; name: string; mode: 'clone' | 'design' }>;
+  llmOptions?: LlmOption[];
+  llmDefaultLabel?: string;
+  /** The ElevenLabs models (through Speko) an agent can speak with. */
+  ttsModels?: Array<{ id: string; name: string; pricePerMin: number | null; ready: boolean; setup: string }>;
+  elevenVoices?: Array<{ id: string; name: string; note: string }>;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -114,6 +127,9 @@ export function AgentStudio({
     escalation: agent.escalation,
     hours: agent.hours,
     target: agent.target,
+    llmModel: agent.llmModel,
+    ttsEngine: agent.ttsEngine,
+    ttsVoiceId: agent.ttsVoiceId,
   });
 
   const dirty = useMemo(
@@ -135,6 +151,9 @@ export function AgentStudio({
         escalation: agent.escalation,
         hours: agent.hours,
         target: agent.target,
+        llmModel: agent.llmModel,
+        ttsEngine: agent.ttsEngine,
+        ttsVoiceId: agent.ttsVoiceId,
       }),
     [draft, agent],
   );
@@ -261,24 +280,95 @@ export function AgentStudio({
                 <Field label={t('agent.field.name', 'Agent name')}>
                   <Input value={draft.name} onChange={(e) => set('name', e.target.value)} />
                 </Field>
-                <Field label={t('agent.field.voice', 'Voice')}>
-                  <Select value={draft.voiceId} onChange={(e) => set('voiceId', e.target.value)}>
-                    {VOICES.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name} — {t(`voice.${v.id}.note`, v.note)}
-                      </option>
-                    ))}
-                    {customVoices.length > 0 && (
-                      <optgroup label={t('dev.tts.voiceCustomGroup', 'Your voices')}>
-                        {customVoices.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {v.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
+                <Field
+                  label={t('agent.field.llm', 'Language model')}
+                  hint={t('agent.field.llmHint', 'The model that writes the answers. Prices and speed: Models ▸ Model lab ▸ LLM.')}
+                >
+                  <Select value={draft.llmModel} onChange={(e) => set('llmModel', e.target.value)}>
+                    <option value="">
+                      {t('agent.field.llmDefault', 'Account default')}
+                      {llmDefaultLabel ? ` — ${llmDefaultLabel}` : ''}
+                    </option>
+                    {['OpenAI', 'Anthropic', 'Google', 'Self-hosted'].map((vendor) => {
+                      const models = llmOptions.filter((m) => m.vendor === vendor);
+                      if (!models.length) return null;
+                      return (
+                        <optgroup key={vendor} label={vendor}>
+                          {models.map((m) => (
+                            <option key={m.id} value={m.id} disabled={!m.ready && m.id !== draft.llmModel}>
+                              {m.name}
+                              {m.ready ? '' : ` — ${t('agent.field.llmNeeds', 'needs {key}').replace('{key}', m.setup)}`}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
                   </Select>
                 </Field>
+                <Field
+                  label={t('agent.field.ttsModel', 'Voice model')}
+                  hint={t('agent.field.ttsModelHint', 'The speech engine that reads the answers. Prices and speed: Models ▸ Model lab ▸ TTS.')}
+                >
+                  <Select
+                    value={draft.ttsEngine}
+                    onChange={(e) => {
+                      const engine = e.target.value;
+                      // An ElevenLabs model keeps its voice, or starts on the first one; own TTS has none.
+                      setDraft((d) => ({
+                        ...d,
+                        ttsEngine: engine,
+                        ttsVoiceId: engine ? d.ttsVoiceId || elevenVoices[0]?.id || '' : '',
+                      }));
+                    }}
+                  >
+                    <option value="">{t('agent.field.ttsOwn', 'Own TTS')} — CallMind</option>
+                    {ttsModels.map((m) => (
+                      <option key={m.id} value={m.id} disabled={!m.ready && m.id !== draft.ttsEngine}>
+                        {m.name}
+                        {m.pricePerMin != null ? ` — $${m.pricePerMin.toFixed(3)}/min` : ''}
+                        {m.ready ? '' : ` — ${t('agent.field.llmNeeds', 'needs {key}').replace('{key}', m.setup)}`}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                {draft.ttsEngine ? (
+                  <Field
+                    label={t('agent.field.voice', 'Voice')}
+                    hint={t('agent.field.phoneVoice', 'Phone calls still speak with {voice} (own TTS).').replace(
+                      '{voice}',
+                      VOICES.find((v) => v.id === draft.voiceId)?.name ??
+                        customVoices.find((v) => v.id === draft.voiceId)?.name ??
+                        draft.voiceId,
+                    )}
+                  >
+                    <Select value={draft.ttsVoiceId} onChange={(e) => set('ttsVoiceId', e.target.value)}>
+                      {elevenVoices.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} — {v.note}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : (
+                  <Field label={t('agent.field.voice', 'Voice')}>
+                    <Select value={draft.voiceId} onChange={(e) => set('voiceId', e.target.value)}>
+                      {VOICES.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} — {t(`voice.${v.id}.note`, v.note)}
+                        </option>
+                      ))}
+                      {customVoices.length > 0 && (
+                        <optgroup label={t('dev.tts.voiceCustomGroup', 'Your voices')}>
+                          {customVoices.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </Select>
+                  </Field>
+                )}
               </div>
               <Field
                 className="mt-4"
@@ -715,6 +805,9 @@ export function AgentStudio({
                   escalation: agent.escalation,
                   hours: agent.hours,
                   target: agent.target,
+                  llmModel: agent.llmModel,
+                  ttsEngine: agent.ttsEngine,
+                  ttsVoiceId: agent.ttsVoiceId,
                 })
               }
             >
