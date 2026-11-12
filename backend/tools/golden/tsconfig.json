@@ -1,0 +1,40 @@
+{
+  "//": "Compiles the ORIGINAL TypeScript the golden generators run (CommonJS, into ./out). Run from the repo root: npx tsc -p backend/tools/golden/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out",
+    "rootDir": "../../../src",
+    "module": "commonjs",
+    "target": "es2022",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "noEmitOnError": false,
+    "baseUrl": "../../..",
+    "paths": {
+      "@/*": [
+        "src/*"
+      ]
+    }
+  },
+  "files": [
+    "../../../src/lib/rag/text.ts",
+    "../../../src/lib/rag/embed.ts",
+    "../../../src/lib/rag/chunk.ts",
+    "../../../src/lib/rag/retrieve.ts",
+    "../../../src/lib/starter-packs.ts",
+    "../../../src/lib/speech/numbers.ts",
+    "../../../src/lib/speech/normalize.ts",
+    "../../../src/lib/llm/local.ts",
+    "../../../src/lib/llm/loan-call.ts",
+    "../../../src/lib/llm/json-stream.ts",
+    "../../../src/lib/llm/provider.ts",
+    "../../../src/lib/speech/tts.ts",
+    "../../../src/lib/speech/stt.ts",
+    "../../../src/lib/engine/conversation.ts",
+    "../../../src/lib/engine/calls.ts",
+    "../../../src/lib/db.ts"
+  ]
+}

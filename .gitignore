@@ -18,3 +18,6 @@ backend/.venv/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
+
+# Golden generators: compiled TypeScript
+backend/tools/golden/out/
