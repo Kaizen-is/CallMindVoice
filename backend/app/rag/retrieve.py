@@ -175,12 +175,7 @@ def rank(
             1 / (RRF_K + dense_rank[i]) if dense_used and i in dense_rank else 0
         )
         cov = _coverage(corpus, i, query_terms)
-        score = (
-            rrf * 100
-            + cov * 0.85
-            + (lex[i] / max_lex) * 0.45
-            + ((dense[i] / max_dense) * 0.4 if dense_used else 0)
-        )
+        score = rrf * 100 + cov * 0.85 + (lex[i] / max_lex) * 0.45 + ((dense[i] / max_dense) * 0.4 if dense_used else 0)
         fused.append({"i": i, "score": score, "cov": cov})
 
     fused.sort(key=lambda f: -f["score"])  # stable, like Array.prototype.sort
@@ -246,9 +241,7 @@ _cache: dict[str, Corpus] = {}
 
 
 def _signature(conn: Connection, tenant_id: str) -> str:
-    row = db.fetch_one(
-        conn, "SELECT COUNT(*) AS c, MAX(created_at) AS m FROM chunks WHERE tenant_id = :t", t=tenant_id
-    )
+    row = db.fetch_one(conn, "SELECT COUNT(*) AS c, MAX(created_at) AS m FROM chunks WHERE tenant_id = :t", t=tenant_id)
     return f"{(row or {}).get('c') or 0}:{(row or {}).get('m') or ''}"
 
 

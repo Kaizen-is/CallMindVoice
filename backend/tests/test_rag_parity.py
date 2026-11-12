@@ -58,9 +58,7 @@ def test_faq_chunks():
         {"q": "  Karta yo‘qolsa nima qilish kerak?  ", "a": " 1600 ga qo‘ng‘iroq qiling. "},
         {"q": "empty answer", "a": "   "},
     ]
-    got = [
-        {"heading": c.heading, "text": c.text, "tokenCount": c.token_count} for c in chunk.chunk_faq(pairs)
-    ]
+    got = [{"heading": c.heading, "text": c.text, "tokenCount": c.token_count} for c in chunk.chunk_faq(pairs)]
     assert got == GOLDEN["faq"]
 
 
@@ -93,8 +91,7 @@ QUERIES = GOLDEN["retrievals"]
 def test_retrieval_scores_are_identical(case):
     result = retrieve.rank(_corpus(), case["query"], top_k=5)
     got = [
-        {k: h[k] for k in ("chunkId", "score", "lexicalScore", "denseScore", "rank", "snippet")}
-        for h in result.hits
+        {k: h[k] for k in ("chunkId", "score", "lexicalScore", "denseScore", "rank", "snippet")} for h in result.hits
     ]
     assert got == case["hits"]
     assert result.confidence == case["confidence"]

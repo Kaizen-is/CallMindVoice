@@ -282,7 +282,7 @@ def estimate_tokens(text: str) -> int:
     return max(1, js_round(utf16_len(text) / 3.6))
 
 
-_SENTENCE_SPLIT = re.compile(f"(?<=[.!?…])[{JS_S}]+(?=[A-ZА-ЯЎҚҒҲ«\"(0-9])|\\n{{2,}}")
+_SENTENCE_SPLIT = re.compile(f'(?<=[.!?…])[{JS_S}]+(?=[A-ZА-ЯЎҚҒҲ«"(0-9])|\\n{{2,}}')
 
 
 def sentences(text: str) -> list[str]:

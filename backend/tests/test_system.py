@@ -14,18 +14,33 @@ def _seed_user(sql, *, status: str = "active", expires_in: timedelta = timedelta
     now = "2026-11-12T00:00:00.000Z"
     sql(
         "INSERT INTO tenants (id, name, slug, created_at, updated_at) VALUES (?,?,?,?,?)",
-        "ten_test000000000001", "Test Bank", "test-bank", now, now,
+        "ten_test000000000001",
+        "Test Bank",
+        "test-bank",
+        now,
+        now,
     )
     sql(
         "INSERT INTO users (id, tenant_id, email, name, password_hash, role, status, created_at, updated_at) "
         "VALUES (?,?,?,?,?,?,?,?,?)",
-        "usr_test000000000001", "ten_test000000000001", "aziz@example.uz", "Aziz", "x", "admin",
-        status, now, now,
+        "usr_test000000000001",
+        "ten_test000000000001",
+        "aziz@example.uz",
+        "Aziz",
+        "x",
+        "admin",
+        status,
+        now,
+        now,
     )
     sid = "ses_test000000000001"
     sql(
         "INSERT INTO sessions (id, user_id, tenant_id, created_at, expires_at) VALUES (?,?,?,?,?)",
-        sid, "usr_test000000000001", "ten_test000000000001", now, to_iso(datetime.now(UTC) + expires_in),
+        sid,
+        "usr_test000000000001",
+        "ten_test000000000001",
+        now,
+        to_iso(datetime.now(UTC) + expires_in),
     )
     return sid
 
@@ -89,7 +104,12 @@ def test_api_key_scopes(data_dir, sql):
     raw = "ovoz_sk_yv66vgARIjNEVWZ3iJmqu8zd7v8AESIz"
     sql(
         "INSERT INTO api_keys (id, tenant_id, name, prefix, hash, scopes, created_at) VALUES (?,?,?,?,?,?,?)",
-        "key_test000000000001", "ten_test000000000001", "test", raw[:16], api_key_hash(raw), "read",
+        "key_test000000000001",
+        "ten_test000000000001",
+        "test",
+        raw[:16],
+        api_key_hash(raw),
+        "read",
         "2026-11-12T00:00:00.000Z",
     )
     auth = check_api_key(f"Bearer {raw}", "read")

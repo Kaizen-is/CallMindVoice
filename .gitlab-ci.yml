@@ -23,6 +23,7 @@ backend:
     - cd backend
     - pip install --quiet -e ".[dev]"
     - ruff check .
+    - ruff format --check .
     - pytest
 
 build:

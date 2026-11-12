@@ -16,6 +16,13 @@ import struct
 # JavaScript's \s, exactly (ECMAScript WhiteSpace + LineTerminator), as the body of a character class.
 JS_S = "\t\n\v\f\r    -     　﻿"
 
+# JavaScript's \b: a boundary between an ASCII word character [A-Za-z0-9_] and anything else.
+# (So `\bсум\b` almost never matches in JavaScript — Cyrillic letters are not "word" characters.)
+JS_B = r"(?:(?<=[A-Za-z0-9_])(?![A-Za-z0-9_])|(?<![A-Za-z0-9_])(?=[A-Za-z0-9_]))"
+
+# JavaScript's `^` under the `m` flag: start of input or after any line terminator (\n \r    ).
+JS_LINE_START = r"(?<![^\n\r  ])"
+
 
 def js_round(x: float) -> int:
     """`Math.round`: halves round toward +infinity."""
@@ -75,7 +82,7 @@ def _words(x: float) -> tuple[int, int]:
 
 def _with_high(x: float, hi: int) -> float:
     lo = int.from_bytes(_D.pack(x), "little") & 0xFFFFFFFF
-    return _D.unpack(((((hi & 0xFFFFFFFF) << 32) | lo)).to_bytes(8, "little"))[0]
+    return _D.unpack((((hi & 0xFFFFFFFF) << 32) | lo).to_bytes(8, "little"))[0]
 
 
 def js_log(x: float) -> float:

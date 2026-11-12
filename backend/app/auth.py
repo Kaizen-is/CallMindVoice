@@ -32,8 +32,7 @@ _RANK: dict[str, int] = {"analyst": 1, "operator": 2, "admin": 3, "owner": 4}
 
 # The user columns the TypeScript app exposes (SafeUser: everything but password_hash).
 _SAFE_USER_COLUMNS = (
-    "id, tenant_id, email, name, role, avatar_hue, locale, status, presence, "
-    "last_seen_at, created_at, updated_at"
+    "id, tenant_id, email, name, role, avatar_hue, locale, status, presence, last_seen_at, created_at, updated_at"
 )
 
 
@@ -85,9 +84,7 @@ def decode_session(token: str, secret: str) -> str | None:
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     derived = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=16384, r=8, p=1, dklen=64)
-    return "$".join(
-        ["scrypt", "16384", "8", "1", base64.b64encode(salt).decode(), base64.b64encode(derived).decode()]
-    )
+    return "$".join(["scrypt", "16384", "8", "1", base64.b64encode(salt).decode(), base64.b64encode(derived).decode()])
 
 
 def verify_password(password: str, stored: str) -> bool:

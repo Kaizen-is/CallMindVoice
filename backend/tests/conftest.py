@@ -19,9 +19,7 @@ SECRET = "test-secret-öçü-2026"  # same secret as the TypeScript reference va
 def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     con = sqlite3.connect(tmp_path / "ovoz.db")
     con.executescript((FIXTURES / "schema.sql").read_text(encoding="utf-8"))
-    con.execute(
-        "INSERT INTO _migrations (id, applied_at) VALUES ('010_agent_tts', '2026-11-12T00:00:00.000Z')"
-    )
+    con.execute("INSERT INTO _migrations (id, applied_at) VALUES ('010_agent_tts', '2026-11-12T00:00:00.000Z')")
     con.commit()
     con.close()
 
