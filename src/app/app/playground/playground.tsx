@@ -320,9 +320,12 @@ export function Playground({
 
   // With the local streaming model picked, words appear while the caller is
   // still speaking; the turn itself still uses the finished utterance.
+  // Muting closes this stream too: it opens its own microphone, so a muted
+  // caller would otherwise still be transcribed, and those words would be sent
+  // with the next phrase.
   const live = useLiveTranscript({
     url: speech.streamUrl,
-    active: sttEngine === 'local' && speech.stt.local && isSessionActive,
+    active: sttEngine === 'local' && speech.stt.local && isSessionActive && !muted,
   });
   // The agent's own voice is not the caller's words; drop it between turns.
   useEffect(() => {
