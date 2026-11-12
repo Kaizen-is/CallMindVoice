@@ -45,7 +45,7 @@ export function TtsLab({
   customVoices: VoiceOpt[];
   elevenVoices: VoiceOpt[];
   history: SpeechTest[];
-  speech: { tts: boolean; eleven: boolean };
+  speech: { tts: boolean; eleven: boolean; brb: boolean };
 }) {
   const t = translator(locale);
   const toast = useToast();
@@ -56,11 +56,11 @@ export function TtsLab({
   const [voice, setVoice] = useState<string>(agents[0]?.voiceId ?? voices[0]?.id ?? 'laylo');
   // Whose voices speak: our own TTS server or ElevenLabs (via Speko), each
   // with its own voice list — the same switch as the Playground.
-  const [provider, setProvider] = useState<'own' | 'eleven'>(
-    speech.tts || !speech.eleven ? 'own' : 'eleven',
+  const [provider, setProvider] = useState<'own' | 'eleven' | 'brb'>(
+    speech.tts || (!speech.eleven && !speech.brb) ? 'own' : speech.eleven ? 'eleven' : 'brb',
   );
   const [elevenVoice, setElevenVoice] = useState<string>(elevenVoices[0]?.id ?? '');
-  const providerReady = provider === 'own' ? speech.tts : speech.eleven;
+  const providerReady = provider === 'own' ? speech.tts : provider === 'eleven' ? speech.eleven : speech.brb;
   const [busy, setBusy] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
@@ -113,7 +113,9 @@ export function TtsLab({
         body: JSON.stringify(
           provider === 'eleven'
             ? { text: value, voice: elevenVoice, engine: 'eleven_v4_turbo', rate: 24000 }
-            : { text: value, voice },
+            : provider === 'brb'
+              ? { text: value, engine: 'brb', language: 'uz', rate: 24000 }
+              : { text: value, voice },
         ),
       });
       if (!res.ok) {
@@ -128,7 +130,7 @@ export function TtsLab({
         const saved = await saveSpeechTestAction({
           kind: 'tts',
           input: value,
-          voice: provider === 'eleven' ? elevenVoice : voice,
+          voice: provider === 'eleven' ? elevenVoice : provider === 'brb' ? 'brb' : voice,
         });
         if (saved.ok) setHistory((h) => [saved.test, ...h].slice(0, 20));
       } catch {
@@ -154,7 +156,7 @@ export function TtsLab({
               <h3 className="text-[14px] font-semibold text-ink">{t('dev.tts.title')}</h3>
             </div>
 
-            {!speech.tts && !speech.eleven ? (
+            {!speech.tts && !speech.eleven && !speech.brb ? (
               <EmptyState
                 icon={<IconAlert size={20} />}
                 title={t('dev.tts.notConfiguredTitle')}
@@ -181,16 +183,23 @@ export function TtsLab({
                     options={[
                       { value: 'own', label: t('play.voiceOwn', 'Own') },
                       { value: 'eleven', label: 'ElevenLabs' },
+                      { value: 'brb', label: 'BRB' },
                     ]}
                   />
                   {!providerReady && (
                     <p className="mb-2 text-[12px] text-warning">
                       {provider === 'own'
                         ? t('dev.tts.notConfiguredBody')
-                        : t('dev.tts.elevenNotConfigured', 'Set SPEKO_API_KEY in .env to use ElevenLabs.')}
+                        : provider === 'brb'
+                          ? t('dev.tts.brbNotConfigured', 'Set BRB_SPEECH_URL, BRB_SPEECH_LOGIN and BRB_SPEECH_PASSWORD in .env to use the BRB model.')
+                          : t('dev.tts.elevenNotConfigured', 'Set SPEKO_API_KEY in .env to use ElevenLabs.')}
                     </p>
                   )}
-                  {provider === 'eleven' ? (
+                  {provider === 'brb' ? (
+                    <Select value="" disabled onChange={() => {}}>
+                      <option value="">BRB TTS</option>
+                    </Select>
+                  ) : provider === 'eleven' ? (
                     <Select value={elevenVoice} onChange={(e) => setElevenVoice(e.target.value)}>
                       {elevenVoices.map((v) => (
                         <option key={v.id} value={v.id}>

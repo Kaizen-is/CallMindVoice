@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ModelOption } from '@/components/ui/model-menu';
 
 export type SttChoice = 'auto' | 'gapi' | 'local' | 'gemini' | 'scribe';
-export type TtsChoice = 'default' | 'eleven_v3_conversational' | 'eleven_v4_turbo';
+export type TtsChoice = 'default' | 'brb' | 'eleven_v3_conversational' | 'eleven_v4_turbo';
 
 export const STT_MODELS: Array<{ id: SttChoice; name: string; detail: string; setup: string }> = [
   { id: 'auto', name: 'Own STT', detail: 'CallMind', setup: 'STT_TRANSCRIBE_URL' },
@@ -24,6 +24,8 @@ export const TTS_MODELS: Array<{ id: TtsChoice; name: string; detail: string; se
   { id: 'default', name: 'Own TTS', detail: 'CallMind', setup: 'TTS_BASE_URL' },
   { id: 'eleven_v4_turbo', name: 'ElevenLabs v4 Turbo', detail: 'Speko', setup: 'SPEKO_API_KEY' },
   { id: 'eleven_v3_conversational', name: 'ElevenLabs v3', detail: 'Speko', setup: 'SPEKO_API_KEY' },
+  // Last, so it is never the starting pick while the proxy is reachable only over the VPN.
+  { id: 'brb', name: 'BRB TTS', detail: 'own model · VPN', setup: 'BRB_SPEECH_LOGIN' },
 ];
 
 /** The model list for a ModelMenu, with availability on this server. */

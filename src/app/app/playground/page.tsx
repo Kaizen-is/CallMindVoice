@@ -39,7 +39,10 @@ export default async function PlaygroundPage() {
       agentVoices={Object.fromEntries(
         agents.flatMap((a) => {
           const row = get<Agent>('SELECT * FROM agents WHERE id=? AND tenant_id=?', a.id, tenant.id);
-          return row?.tts_engine && row.tts_voice_id ? [[a.id, { engine: row.tts_engine, voice: row.tts_voice_id }]] : [];
+          // The BRB model has no voice to pick, so its agents carry the engine alone.
+          return row?.tts_engine && (row.tts_voice_id || row.tts_engine === 'brb')
+            ? [[a.id, { engine: row.tts_engine, voice: row.tts_voice_id }]]
+            : [];
         }),
       )}
       agentEngines={Object.fromEntries(

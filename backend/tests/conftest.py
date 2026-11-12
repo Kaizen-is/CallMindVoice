@@ -71,7 +71,8 @@ PROVIDER_ENV = (
     "OLLAMA_API_KEY", "OLLAMA_KEEP_ALIVE", "OLLAMA_TIMEOUT_MS", "LLM_PROVIDER", "LLM_FALLBACK_MODEL", "TTS_BASE_URL",
     "TTS_CLIENT_ID", "TTS_CLIENT_SECRET", "TTS_JWT_TOKEN", "TTS_STREAM_CHUNK_SEC", "SPEKO_API_KEY", "SPEKO_BASE_URL",
     "SPEKO_TTS_VOICE", "STT_TRANSCRIBE_URL", "WHISPER_TRANSCRIBE_URL", "WHISPER_MODEL", "WHISPER_API_KEY",
-    "GAPI_API_KEY", "GAPIAPI", "GAPI_BASE_URL", "DENOISE_URL", "ZIPFORMER_MODEL_DIR",
+    "GAPI_API_KEY", "GAPIAPI", "GAPI_BASE_URL", "DENOISE_URL", "ZIPFORMER_MODEL_DIR", "BRB_SPEECH_URL",
+    "BRB_SPEECH_LOGIN", "BRB_SPEECH_PASSWORD",
 )  # fmt: skip
 
 
@@ -88,8 +89,9 @@ def _clean_providers(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 def _reset_provider_state() -> None:
     from app import http
     from app.llm import claude
-    from app.speech import tts
+    from app.speech import brb, tts
 
+    brb.reset()
     http.set_transport(None)
     claude._client = None
     claude._client_key = None

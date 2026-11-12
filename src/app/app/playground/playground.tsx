@@ -190,9 +190,10 @@ export function Playground({
   const { sttEngine, setSttEngine, ttsEngine, setTtsEngine } = useModelChoice(speech.stt, speech.tts);
   const sttOn = speech.stt[sttEngine];
   const ttsOn = speech.tts[ttsEngine];
-  // Whose voices speak: our own TTS (Laylo, Isomiddin, clones) or the chosen
-  // ElevenLabs model's voices (through Speko).
-  const voiceProvider: 'own' | 'eleven' = ttsEngine === 'default' ? 'own' : 'eleven';
+  // Whose voices speak: our own TTS (Laylo, Isomiddin, clones), the chosen
+  // ElevenLabs model's voices (through Speko), or the BRB model's single voice.
+  const voiceProvider: 'own' | 'eleven' | 'brb' =
+    ttsEngine === 'default' ? 'own' : ttsEngine === 'brb' ? 'brb' : 'eleven';
   const modelVoices = elevenVoices;
   const langName = (l: Locale) => t(`play.lang.${l}`, LANG_NAME[l]);
 
@@ -208,7 +209,7 @@ export function Playground({
   useEffect(() => {
     const ofModel = modelVoices.some((v) => v.id === voiceOverride);
     if (voiceProvider === 'eleven' && !ofModel) setVoiceOverride(modelVoices[0]?.id ?? '');
-    if (voiceProvider === 'own' && ofModel) setVoiceOverride('');
+    if (voiceProvider !== 'eleven' && ofModel) setVoiceOverride('');
   }, [voiceProvider, voiceOverride, modelVoices]);
   // An agent set to an ElevenLabs model in the agent editor starts on that
   // model and voice; both can still be switched here. Agents on our own TTS
@@ -530,8 +531,8 @@ export function Playground({
         if (continueSession) resumeListening();
         return;
       }
-      // The internal voice is Uzbek-only; ElevenLabs speaks every language.
-      if (ttsOn && (lang === 'uz' || ttsEngine !== 'default')) {
+      // The internal and BRB voices are Uzbek-only; ElevenLabs speaks every language.
+      if (ttsOn && (lang === 'uz' || (ttsEngine !== 'default' && ttsEngine !== 'brb'))) {
         // Stale once this playback has been superseded (barge-in, new call) or
         // the session has ended under us.
         const stale = () =>
@@ -1207,7 +1208,7 @@ export function Playground({
           onChange={(id) => setTtsEngine(id as TtsChoice)}
           needsLabel={t('lab.missing', 'Needs {setup}')}
         />
-        {voiceProvider === 'eleven' ? (
+        {voiceProvider === 'brb' ? null : voiceProvider === 'eleven' ? (
           <Select
             value={voiceOverride}
             onChange={(e) => setVoiceOverride(e.target.value)}

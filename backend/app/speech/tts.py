@@ -29,7 +29,7 @@ from app import http
 from app.config import get_settings
 from app.env import env, env_raw
 from app.jscompat import js_number_str, js_round, js_trim, utf16_len
-from app.speech import speko
+from app.speech import brb, speko
 from app.speech.normalize import normalize_for_speech, split_for_speech
 from app.streams import error_body, read_until
 from app.usage_log import UsageEntry, record_usage
@@ -56,13 +56,17 @@ def _internal_configured() -> bool:
 
 
 def tts_engines() -> dict[str, bool]:
-    """Which engines this deployment can run (`default` = the own TTS server)."""
+    """Which engines this deployment can run (`default` = the own TTS server, `brb` = our model via the VPN)."""
     ready = speko.speko_configured()
-    return {"default": _internal_configured(), **{m: ready for m in speko.SPEKO_TTS_MODELS}}
+    return {
+        "default": _internal_configured(),
+        "brb": brb.brb_configured(),
+        **{m: ready for m in speko.SPEKO_TTS_MODELS},
+    }
 
 
 def is_tts_engine(value: object) -> bool:
-    return value == "default" or value in speko.SPEKO_TTS_MODELS
+    return value in ("default", "brb") or value in speko.SPEKO_TTS_MODELS
 
 
 def tts_configured(engine: str = "default") -> bool:
@@ -176,10 +180,26 @@ async def _stream_pcm(text: str, voice: ResolvedVoice, quick_start: bool = False
         await res.aclose()
 
 
+async def _brb_pcm(text: str, rate: int) -> AsyncIterator[bytes]:
+    """The BRB proxy answers with the whole WAV: decoded to mono PCM at `rate`, handed on in half-second pieces."""
+    try:
+        wav = await brb.brb_speech(text)
+    except brb.BrbError as err:
+        raise TtsError(str(err), err.status) from err
+    pcm = wav_to_pcm(wav, rate)
+    for at in range(0, len(pcm), rate):  # 16-bit mono: `rate` bytes are half a second
+        yield pcm[at : at + rate]
+
+
 async def _raw_engine_pcm(text: str, voice: ResolvedVoice, opts: SynthOptions) -> AsyncIterator[bytes]:
     engine = opts.engine or "default"
     if engine == "default":
         async with aclosing(_stream_pcm(text, voice, opts.quick_start)) as pieces:
+            async for piece in pieces:
+                yield piece
+        return
+    if engine == "brb":
+        async with aclosing(_brb_pcm(text, _rate(opts))) as pieces:
             async for piece in pieces:
                 yield piece
         return
@@ -255,6 +275,10 @@ def cache_key(
     h = hashlib.sha1()
     h.update(text.encode("utf-8", "surrogatepass"))
     h.update(b" ")
+    # The BRB model has one voice: only the sample rate (when not 8 kHz) keys it.
+    if engine == "brb":
+        h.update(f"brb{'' if rate == SAMPLE_RATE else f':{rate}'}".encode())
+        return h.hexdigest()
     # ElevenLabs renders ignore the internal voice: the model, voice and (when not 8 kHz) rate key them.
     if engine != "default":
         suffix = "" if rate == SAMPLE_RATE else f":{rate}"
@@ -406,6 +430,11 @@ def pcm_to_wav(pcm: bytes, sample_rate: int = SAMPLE_RATE) -> bytes:
 
 def wav_to_pcm8k(buf: bytes) -> bytes:
     """Any WAV the TTS returns → 8 kHz mono 16-bit PCM (not a WAV: assumed raw already)."""
+    return wav_to_pcm(buf, SAMPLE_RATE)
+
+
+def wav_to_pcm(buf: bytes, rate: int) -> bytes:
+    """A WAV → mono 16-bit PCM at `rate` (anything that is not a WAV is passed through)."""
     if len(buf) < 44 or buf[0:4] != b"RIFF" or buf[8:12] != b"WAVE":
         return buf
     offset = 12
@@ -433,8 +462,8 @@ def wav_to_pcm8k(buf: bytes) -> bytes:
     pcm = data
     if fmt[0] == 2:
         pcm = _downmix_stereo16(pcm)
-    if fmt[1] != SAMPLE_RATE:
-        pcm = _resample16(pcm, fmt[1], SAMPLE_RATE)
+    if fmt[1] != rate:
+        pcm = _resample16(pcm, fmt[1], rate)
     return pcm
 
 

@@ -81,6 +81,8 @@ export interface VoicePick {
 export function voicePick(agent: Agent, engine: unknown, voice: unknown): VoicePick {
   const tts: TtsEngine = isTtsEngine(engine) && ttsConfigured(engine) ? engine : 'default';
   if (tts === 'default') return { engine: tts, voiceId: callVoice(agent, voice) };
+  // Our BRB model has a single voice.
+  if (tts === 'brb') return { engine: tts, voiceId: '' };
   const want = typeof voice === 'string' && voice ? voice : agent.tts_voice_id;
   return { engine: tts, voiceId: ELEVEN_VOICES.some((v) => v.id === want) ? want : ELEVEN_VOICES[0].id };
 }

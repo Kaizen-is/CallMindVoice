@@ -113,6 +113,8 @@ def voice_pick(agent: dict[str, Any], engine: object, voice: object) -> VoicePic
     tts = engine if is_tts_engine(engine) and tts_configured(engine) else "default"  # type: ignore[arg-type]
     if tts == "default":
         return VoicePick(tts, call_voice(agent, voice))
+    if tts == "brb":  # our BRB model has a single voice
+        return VoicePick(tts, "")
     want = voice if isinstance(voice, str) and voice else agent.get("tts_voice_id")
     known = any(v["id"] == want for v in ELEVEN_VOICES)
     return VoicePick(tts, want if known else ELEVEN_VOICES[0]["id"])  # type: ignore[arg-type]

@@ -32,8 +32,10 @@ export default async function VoicesPage({
     ...listCustomVoices(tenant.id).map((v) => ({ id: v.id, name: v.name, note: v.mode })),
   ];
   const eleven = ELEVEN_VOICES.map((v) => ({ id: v.id, name: v.name, note: `${v.gender === 'female' ? '♀' : '♂'} ${v.note}` }));
+  // The BRB model (our own, through the VPN) has one voice.
+  const brb = [{ id: 'brb', name: 'BRB TTS', note: 'own model' }];
   const voices: GalleryVoice[] = models.flatMap((m) =>
-    (m.id === 'default' ? own : eleven).map((v) => ({ ...v, model: m.id })),
+    (m.id === 'default' ? own : m.id === 'brb' ? brb : eleven).map((v) => ({ ...v, model: m.id })),
   );
 
   return (

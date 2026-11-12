@@ -49,6 +49,8 @@ export interface AgentDraft {
 
 /** The voice model and ElevenLabs voice to store: both valid, or both ''. */
 function agentTts(draft: AgentDraft): [string, string] {
+  // The BRB model speaks with its one voice.
+  if (draft.ttsEngine === 'brb') return ['brb', ''];
   const engine = SPEKO_TTS_MODELS.includes(draft.ttsEngine as SpekoTtsModel) ? draft.ttsEngine : '';
   if (!engine) return ['', ''];
   const voice = ELEVEN_VOICES.find((v) => v.id === draft.ttsVoiceId)?.id ?? ELEVEN_VOICES[0].id;

@@ -22,6 +22,8 @@
  *     (eleven_v3_conversational / eleven_v4_turbo), ~900 characters a minute
  *     → $0.045 / $0.036. Speko's router adds 5% on top.
  *   • Zipformer runs inside the app: $0.
+ *   • BRB TTS is our own model behind the BRB speech proxy (VPN): no per-minute
+ *     price, but the account has a request limit.
  */
 import type { Locale } from '@/lib/types';
 
@@ -56,6 +58,7 @@ export const ENGINES: readonly EngineInfo[] = [
 
   /* ── text to speech ── */
   { kind: 'tts', id: 'default', name: 'Own TTS', vendor: 'CallMind', runs: 'server', live: true, languages: ['uz'], pricePerMin: null, setup: 'TTS_BASE_URL' },
+  { kind: 'tts', id: 'brb', name: 'BRB TTS', vendor: 'BRB (own model)', runs: 'server', live: false, languages: ['uz'], pricePerMin: null, setup: 'BRB_SPEECH_LOGIN' },
   { kind: 'tts', id: 'eleven_v3_conversational', name: 'ElevenLabs v3', vendor: 'ElevenLabs', via: 'Speko', runs: 'cloud', live: true, languages: ['uz', 'ru', 'en'], pricePerMin: 0.045, setup: 'SPEKO_API_KEY' },
   { kind: 'tts', id: 'eleven_v4_turbo', name: 'ElevenLabs v4 Turbo', vendor: 'ElevenLabs', via: 'Speko', runs: 'cloud', live: true, languages: ['uz', 'ru', 'en'], pricePerMin: 0.036, setup: 'SPEKO_API_KEY' },
 ];

@@ -57,6 +57,8 @@ ENGINES: tuple[EngineInfo, ...] = (
     ),
     # text to speech
     EngineInfo("tts", "default", "Own TTS", "CallMind", "server", True, ("uz",), None, "TTS_BASE_URL"),
+    # Our own model behind the BRB speech proxy (VPN): no per-minute price, but a request limit.
+    EngineInfo("tts", "brb", "BRB TTS", "BRB (own model)", "server", False, ("uz",), None, "BRB_SPEECH_LOGIN"),
     EngineInfo(
         "tts",
         "eleven_v3_conversational",

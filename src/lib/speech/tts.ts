@@ -26,6 +26,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { buildTtsForm, resolveVoice, type ResolvedVoice } from '@/lib/voices';
 import { recordUsage } from '@/lib/usage-log';
+import { BrbError, brbConfigured, brbSpeech } from './brb';
 import { normalizeForSpeech, splitForSpeech } from './normalize';
 import {
   elevenVoice,
@@ -61,10 +62,11 @@ export class TtsError extends Error {
 /* ── configuration ───────────────────────────────────────────── */
 
 /**
- * `default` is the internal TTS server below; the others are ElevenLabs
+ * `default` is the internal TTS server below; `brb` our own model behind the
+ * BRB speech proxy (`./brb`, through the VPN); the others are ElevenLabs
  * models through Speko (`./speko`).
  */
-export type TtsEngine = 'default' | SpekoTtsModel;
+export type TtsEngine = 'default' | 'brb' | SpekoTtsModel;
 
 function internalTtsConfigured(): boolean {
   return Boolean(
@@ -77,12 +79,13 @@ export function ttsEngines(): Record<TtsEngine, boolean> {
   const speko = spekoConfigured();
   return {
     default: internalTtsConfigured(),
+    brb: brbConfigured(),
     ...(Object.fromEntries(SPEKO_TTS_MODELS.map((m) => [m, speko])) as Record<SpekoTtsModel, boolean>),
   };
 }
 
 export function isTtsEngine(value: unknown): value is TtsEngine {
-  return value === 'default' || SPEKO_TTS_MODELS.includes(value as SpekoTtsModel);
+  return value === 'default' || value === 'brb' || SPEKO_TTS_MODELS.includes(value as SpekoTtsModel);
 }
 
 export function ttsConfigured(engine: TtsEngine = 'default'): boolean {
@@ -187,6 +190,10 @@ async function* rawEnginePcm(
     yield* streamPcm(text, voice, opts.quickStart);
     return;
   }
+  if (engine === 'brb') {
+    yield* brbPcm(text, outputRate(opts));
+    return;
+  }
   try {
     yield* spekoStreamPcm(
       text,
@@ -200,6 +207,23 @@ async function* rawEnginePcm(
     if (err instanceof SpekoError) throw new TtsError(err.message, err.status);
     throw err;
   }
+}
+
+/**
+ * The BRB proxy answers with the whole WAV (no streaming): decoded to mono
+ * PCM at `rate` and handed on in half-second pieces, like the streamed engines.
+ */
+async function* brbPcm(text: string, rate: number): AsyncGenerator<Buffer, void, unknown> {
+  let wav: Buffer;
+  try {
+    wav = await brbSpeech(text);
+  } catch (err) {
+    if (err instanceof BrbError) throw new TtsError(err.message, err.status);
+    throw err;
+  }
+  const pcm = wavToPcm(wav, rate);
+  const piece = rate; // 16-bit mono: `rate` bytes are half a second
+  for (let at = 0; at < pcm.length; at += piece) yield pcm.subarray(at, at + piece);
 }
 
 /* ── streaming render: generate_v2/stream ────────────────────── */
@@ -281,6 +305,11 @@ function cacheKey(
   const h = createHash('sha1');
   h.update(text);
   h.update(' ');
+  // The BRB model has one voice: only the sample rate (when not 8 kHz) keys it.
+  if (engine === 'brb') {
+    h.update(`brb${rate === SAMPLE_RATE ? '' : `:${rate}`}`);
+    return h.digest('hex');
+  }
   // ElevenLabs renders ignore the internal voice; the model, ElevenLabs voice
   // and (when not the phone's 8 kHz) the sample rate key them.
   if (engine !== 'default') {
@@ -470,6 +499,11 @@ export function pcmToWav(pcm: Buffer, sampleRate = SAMPLE_RATE): Buffer {
  * server-side voice change can never make the line sound chipmunked.
  */
 export function wavToPcm8k(buf: Buffer): Buffer {
+  return wavToPcm(buf, SAMPLE_RATE);
+}
+
+/** Decode a WAV to mono 16-bit PCM at `rate` (anything that is not a WAV is passed through). */
+export function wavToPcm(buf: Buffer, rate: number): Buffer {
   if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') {
     return buf; // not a WAV — assume it is already raw slin
   }
@@ -493,7 +527,7 @@ export function wavToPcm8k(buf: Buffer): Buffer {
 
   let pcm = data;
   if (fmt.channels === 2) pcm = downmixStereo16(pcm);
-  if (fmt.sampleRate !== SAMPLE_RATE) pcm = resample16(pcm, fmt.sampleRate, SAMPLE_RATE);
+  if (fmt.sampleRate !== rate) pcm = resample16(pcm, fmt.sampleRate, rate);
   return pcm;
 }
 

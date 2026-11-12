@@ -4,6 +4,7 @@ import { all } from '@/lib/db';
 import { listSpeechTests } from '@/lib/engine/calls';
 import { VOICES } from '@/lib/catalog';
 import { listCustomVoices } from '@/lib/voices';
+import { brbConfigured } from '@/lib/speech/brb';
 import { ELEVEN_VOICES, spekoConfigured } from '@/lib/speech/speko';
 import { TtsLab } from './tts-lab';
 
@@ -32,6 +33,7 @@ export default async function DevTtsPage() {
       speech={{
         tts: Boolean(process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN),
         eleven: spekoConfigured(),
+        brb: brbConfigured(),
       }}
     />
   );

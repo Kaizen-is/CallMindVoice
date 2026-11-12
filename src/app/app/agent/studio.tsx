@@ -313,11 +313,12 @@ export function AgentStudio({
                     value={draft.ttsEngine}
                     onChange={(e) => {
                       const engine = e.target.value;
-                      // An ElevenLabs model keeps its voice, or starts on the first one; own TTS has none.
+                      // An ElevenLabs model keeps its voice, or starts on the first one; own TTS
+                      // and the BRB model (one voice) have none to pick.
                       setDraft((d) => ({
                         ...d,
                         ttsEngine: engine,
-                        ttsVoiceId: engine ? d.ttsVoiceId || elevenVoices[0]?.id || '' : '',
+                        ttsVoiceId: engine && engine !== 'brb' ? d.ttsVoiceId || elevenVoices[0]?.id || '' : '',
                       }));
                     }}
                   >
@@ -331,7 +332,16 @@ export function AgentStudio({
                     ))}
                   </Select>
                 </Field>
-                {draft.ttsEngine ? (
+                {draft.ttsEngine === 'brb' ? (
+                  <Field
+                    label={t('agent.field.voice', 'Voice')}
+                    hint={t('agent.field.brbVoice', 'The BRB model speaks with its own single voice.')}
+                  >
+                    <Select value="" disabled onChange={() => {}}>
+                      <option value="">BRB TTS</option>
+                    </Select>
+                  </Field>
+                ) : draft.ttsEngine ? (
                   <Field
                     label={t('agent.field.voice', 'Voice')}
                     hint={t('agent.field.phoneVoice', 'Phone calls still speak with {voice} (own TTS).').replace(
