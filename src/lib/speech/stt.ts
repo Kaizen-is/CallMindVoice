@@ -29,11 +29,14 @@
  *     through Speko (see `./speko`).
  *   • **ElevenLabs Scribe** (`scribe`, `SPEKO_API_KEY`) — ElevenLabs Scribe v2
  *     through Speko, one shot per utterance.
+ *   • **BRB Whisper** (`brb`, `BRB_STT_URL`) — our own Whisper model on Triton,
+ *     over gRPC through the BRB VPN (see `./brb-stt`).
  */
 import 'server-only';
 import { geminiTranscribe, hasGemini } from '@/lib/llm/gemini';
 import type { Locale } from '@/lib/types';
 import { recordUsage } from '@/lib/usage-log';
+import { brbSttConfigured, brbSttModel, brbTranscribe } from './brb-stt';
 import { denoise } from './denoise';
 import { gapiConfigured, gapiTranscribe } from './gapi';
 import {
@@ -58,14 +61,14 @@ export class SttError extends Error {
 export interface Transcript {
   text: string;
   /** Which engine produced this text — surfaced in logs to debug bad turns. */
-  engine: 'kotib' | 'whisper' | 'gemini' | 'gapi' | 'local' | 'speko' | 'scribe' | 'none';
+  engine: 'kotib' | 'whisper' | 'gemini' | 'gapi' | 'local' | 'speko' | 'scribe' | 'brb' | 'none';
   language: string | null;
 }
 
 /** What a caller can ask for: `auto` is the Kotib/Whisper/Gemini logic below. */
-export type SttEngine = 'auto' | 'gapi' | 'local' | 'gemini' | 'scribe';
+export type SttEngine = 'auto' | 'gapi' | 'local' | 'gemini' | 'scribe' | 'brb';
 
-export const STT_ENGINES: readonly SttEngine[] = ['auto', 'gapi', 'local', 'gemini', 'scribe'];
+export const STT_ENGINES: readonly SttEngine[] = ['auto', 'gapi', 'local', 'gemini', 'scribe', 'brb'];
 
 export function isSttEngine(value: unknown): value is SttEngine {
   return typeof value === 'string' && (STT_ENGINES as readonly string[]).includes(value);
@@ -83,6 +86,7 @@ export function sttEngines(): Record<SttEngine, boolean> {
     local: zipformerAvailable(),
     gemini: spekoConfigured(),
     scribe: spekoConfigured(),
+    brb: brbSttConfigured(),
   };
 }
 
@@ -93,7 +97,7 @@ export function sttConfigured(): boolean {
 /* ── single engines, by name (the model lab) ─────────────────── */
 
 /** Every engine on its own, as the usage log and the model lab name them. */
-export type SttEngineId = 'kotib' | 'whisper' | 'gapi' | 'local' | 'speko' | 'gemini' | 'scribe';
+export type SttEngineId = 'kotib' | 'whisper' | 'gapi' | 'local' | 'speko' | 'gemini' | 'scribe' | 'brb';
 
 /** Which single engines this deployment can run. */
 export function sttEngineIds(): Record<SttEngineId, boolean> {
@@ -105,6 +109,7 @@ export function sttEngineIds(): Record<SttEngineId, boolean> {
     speko: spekoConfigured(),
     gemini: hasGemini(),
     scribe: spekoConfigured(),
+    brb: brbSttConfigured(),
   };
 }
 
@@ -136,6 +141,8 @@ export async function transcribeOne(
       return spekoGemini(audio, language);
     case 'scribe':
       return spekoScribe(audio, language);
+    case 'brb':
+      return brbWhisper(audio, language);
     case 'gemini': {
       const heard = await gemini(audio, language ?? 'uz');
       if (!heard) throw new SttError('gemini_failed');
@@ -285,6 +292,20 @@ function spekoScribe(audio: ArrayBuffer, language?: Locale): Promise<Transcript>
     }
     if (!text || isHallucination(text)) return EMPTY;
     return { text: uzbekNumbersToDigits(text), engine: 'scribe', language: language ?? 'uz' };
+  });
+}
+
+/** BRB Whisper (our own model on Triton); numbers as digits, like the other engines. */
+function brbWhisper(audio: ArrayBuffer, language?: Locale): Promise<Transcript> {
+  return logged('brb', brbSttModel(), audio, async () => {
+    let text: string;
+    try {
+      text = await brbTranscribe(wavToPcm16k(audio), language);
+    } catch (err) {
+      throw new SttError(`brb: ${err instanceof Error ? err.message : 'failed'}`);
+    }
+    if (!text || isHallucination(text)) return EMPTY;
+    return { text: uzbekNumbersToDigits(text), engine: 'brb', language: language ?? 'uz' };
   });
 }
 
@@ -454,6 +475,7 @@ export async function transcribe(
     if (opts.engine === 'local') return localZipformer(opts.denoise ? await denoise(audio) : audio);
     if (opts.engine === 'gemini') return spekoGemini(opts.denoise ? await denoise(audio) : audio, opts.language);
     if (opts.engine === 'scribe') return spekoScribe(opts.denoise ? await denoise(audio) : audio, opts.language);
+    if (opts.engine === 'brb') return brbWhisper(opts.denoise ? await denoise(audio) : audio, opts.language);
     return gapiOne(audio, opts.language, opts.denoise);
   }
 

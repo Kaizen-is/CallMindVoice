@@ -148,6 +148,30 @@ const CALENDAR_CASES = [
   ['2026-11-14T23:30:00Z', 'America/New_York'],
 ];
 
+// The day a caller names (loan calls): every rule, number words in both languages, month and
+// year edges, a time zone ahead of and one behind UTC, and lines that name no day.
+const NAMED_DAY_LINES = [
+  '1 haftadan keyin', 'bir haftadan keyin', 'ikki haftadan soʻng', "uch haftadan so'ng", '3 kundan keyin', "o'n kundan keyin",
+  'oʻn besh kundan keyin', 'bir oydan keyin', '2 oydan keyin', 'ertaga', 'Ertaga toʻlayman', 'indinga', 'bugun', 'ertagacha',
+  'juma kuni', 'Payshanba', 'shanbada', 'yakshanbaga', 'dushanba kuni', 'kelasi hafta seshanba', 'keyingi hafta jumada',
+  '25-noyabr', '25 noyabrda', 'yigirma beshinchi', 'beshinchi kuni', '5-chi', '31-chi', '30-sanada', 'oʻn toʻqqizinchi noyabr',
+  '5 yanvar', '29-fevral', 'oy oxirida', 'keyingi oy boshida', 'через неделю', 'через две недели', 'через 3 дня',
+  'через месяц', 'через пятнадцать дней', 'завтра', 'послезавтра', 'сегодня', 'в пятницу', 'в среду', 'в следующий вторник',
+  'двадцать пятого ноября', '25-го ноября', 'третьего числа', 'четвёртого декабря', 'тридцатого', 'в конце месяца',
+  'в начале следующего месяца', 'ertaga emas', 'не завтра', '1992', '92-yil', 'nech pul?', 'keyinroq', 'pul boʻlganda',
+  'mayli', 'Ha, ertaga 5 da', '', '12 000 soʻm',
+  // Words that only look like dates: "marta" (times), "mayli" (all right), ordinals that count, "средства" (funds).
+  "bir marta to'layman", '3 marta', '1 mayli', 'birinchi toʻlovni qachon qilaman?', 'ikkinchi qismini', '5-chi kuni toʻlayman',
+  '25-chi.', 'у меня нет средств', 'среди недели', 'в среду утром', 'до пятницы', 'в субботу', '12 martda', 'noyabrning 5-chi',
+];
+const NAMED_DAY_NOWS = [
+  ['2026-11-12T09:30:00Z', 'Asia/Tashkent'],
+  ['2026-11-15T20:30:00Z', 'Asia/Tashkent'],
+  ['2026-12-28T10:00:00Z', 'Asia/Tashkent'],
+  ['2028-01-31T10:00:00Z', 'Asia/Tashkent'],
+  ['2026-11-14T23:30:00Z', 'America/New_York'],
+];
+
 const STREAM_CASES = [
   { raw: '{"answer":"Assalomu alaykum, kreditingiz bo\'yicha.","answered":true,"usedExcerpts":[1]}', cuts: [1, 5, 12, 20, 33, 47, 60] },
   { raw: '{"answer":"Qator\\nyangi \\"iqtibos\\" va \\\\ teskari, \\u0451lka \\u00e9","answered":false,"usedExcerpts":[]}', cuts: [14, 15, 16, 30, 31, 44, 45, 46, 47, 52] },
@@ -166,6 +190,7 @@ const golden = {
   synth: SYNTH_CASES.map((c) => ({ ...c, output: local.synthesizeLocal({ ...c, agentName: 'Nadya' }) })),
   summaries: SUMMARY_CASES.map((c) => ({ ...c, output: local.summarizeLocal(c.turns, c.language, c.reason) })),
   identity: IDENTITY_CASES.map((c) => ({ ...c, output: loan.identityCheck({ fullName: 'Aziz', birthYear: c.birthYear, loanAmount: '', prompt: '' }, c.lines) })),
+  namedDay: NAMED_DAY_NOWS.flatMap(([iso, tz]) => NAMED_DAY_LINES.map((line) => ({ line, now: iso, timeZone: tz, output: loan.namedDay(line, tz, new Date(iso)) }))),
   calendar: CALENDAR_CASES.map(([iso, tz]) => ({ now: iso, timeZone: tz, output: loan.calendarBlock(tz, new Date(iso)) })),
   stream: STREAM_CASES.map((c) => {
     const deltas = [];

@@ -30,7 +30,16 @@ from app.rag.text import detect_language
 from app.speech.fillers import filler_lines
 from app.speech.speko import ELEVEN_VOICES
 from app.speech.stt import Transcript, is_stt_engine, transcribe
-from app.speech.tts import SynthOptions, cached_pcm, is_tts_engine, synthesize_pcm, synthesize_stream, tts_configured
+from app.speech.tts import (
+    SAMPLE_RATE,
+    SynthOptions,
+    cached_pcm,
+    is_tts_engine,
+    output_rate,
+    synthesize_pcm,
+    synthesize_stream,
+    tts_configured,
+)
 from app.voices import list_custom_voices
 
 log = logging.getLogger("callmind.playground")
@@ -148,6 +157,11 @@ def stt_pick(value: object) -> str:
     return value if is_stt_engine(value) else "auto"  # type: ignore[return-value]
 
 
+# The Playground call plays in a browser, not down a phone line: models that render more than
+# 8 kHz (BRB, ElevenLabs) are asked for 24 kHz. Our own TTS server only makes 8 kHz and ignores it.
+WEB_RATE = 24000
+
+
 def _synth_options(agent: dict[str, Any], lang: str, pick: VoicePick, quick_start: bool = False) -> SynthOptions:
     # Cached, like the demo: scripted calls repeat sentences, and a hit is a file read.
     return SynthOptions(
@@ -157,8 +171,15 @@ def _synth_options(agent: dict[str, Any], lang: str, pick: VoicePick, quick_star
         tag="pg_call",
         cache=True,
         engine=pick.engine,
+        sample_rate=WEB_RATE,
         quick_start=quick_start,
     )
+
+
+def _rate_of(opts: SynthOptions) -> dict[str, int]:
+    """The `rate` an audio event carries: only when it is not the phone's 8 kHz, which the page assumes."""
+    rate = output_rate(opts.engine, opts.sample_rate)
+    return {} if rate == SAMPLE_RATE else {"rate": rate}
 
 
 def _can_speak(pick: VoicePick) -> bool:
@@ -197,13 +218,14 @@ async def speak(agent: dict[str, Any], text: str, lang: str, pick: VoicePick, se
     if not _can_speak(pick):
         send({"t": "voice", "ok": False})
         return
+    opts = _synth_options(agent, lang, pick)
     sent = 0
     try:
-        async with aclosing(synthesize_stream(text, _synth_options(agent, lang, pick))) as pieces:
+        async with aclosing(synthesize_stream(text, opts)) as pieces:
             async for pcm in pieces:
                 if signal.aborted:
                     break
-                send({"t": "audio", "pcm": _b64(pcm)})
+                send({"t": "audio", "pcm": _b64(pcm), **_rate_of(opts)})
                 sent += 1
     except Exception as err:  # noqa: BLE001
         log.warning("[playground] tts failed: %s", err)
@@ -362,7 +384,7 @@ class SpeakAsWritten:
                     async for pcm in pieces:
                         if self.signal.aborted:
                             break
-                        self.send({"t": "audio", "pcm": _b64(pcm)})
+                        self.send({"t": "audio", "pcm": _b64(pcm), **_rate_of(self.opts)})
                         if self.sent == 0 and self.options.on_first_audio:
                             self.options.on_first_audio()
                         self.sent += 1
@@ -413,20 +435,21 @@ def warm_fillers(agent: dict[str, Any], lang: str, pick: VoicePick) -> None:
     background.spawn(warm())
 
 
-def filler_for(agent: dict[str, Any], call_id: str, said: str, pick: VoicePick) -> str | None:
-    """A cached filler for this turn (base64 PCM), or None — never rendered now, to keep the line free."""
+def filler_for(agent: dict[str, Any], call_id: str, said: str, pick: VoicePick) -> dict[str, Any] | None:
+    """A cached filler for this turn, as the `filler` event's fields, or None — never rendered now."""
     if not _can_speak(pick) or classify_intent(said) in NO_FILLER:
         return None
     language = detect_language(said)
     lines = filler_lines(language)
     turn = _fillers.get(call_id, 0)
-    pcm = cached_pcm(lines[turn % len(lines)], _synth_options(agent, language, pick))
+    opts = _synth_options(agent, language, pick)
+    pcm = cached_pcm(lines[turn % len(lines)], opts)
     if not pcm:
         return None
     _fillers[call_id] = turn + 1
     if len(_fillers) > 2000:
         _fillers.clear()
-    return _b64(pcm)
+    return {"pcm": _b64(pcm), **_rate_of(opts)}
 
 
 # ── transcribing during the pause ───────────────────────────────────

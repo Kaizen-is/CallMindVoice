@@ -268,7 +268,8 @@
    "name": "gemini_stream_503_haiku_rescues_streamed",
    "env": {
     "GEMINI_API_KEY": "g-key",
-    "ANTHROPIC_API_KEY": "a-key"
+    "ANTHROPIC_API_KEY": "a-key",
+    "LLM_PROVIDER": "gemini"
    },
    "delta": true,
    "input": {
@@ -688,7 +689,8 @@
    "name": "gemini_one_piece_unreadable_haiku_one_piece",
    "env": {
     "GEMINI_API_KEY": "g-key",
-    "ANTHROPIC_API_KEY": "a-key"
+    "ANTHROPIC_API_KEY": "a-key",
+    "LLM_PROVIDER": "gemini"
    },
    "delta": false,
    "input": {
@@ -885,7 +887,8 @@
    "name": "gemini_stream_breaks_after_partial",
    "env": {
     "GEMINI_API_KEY": "g-key",
-    "ANTHROPIC_API_KEY": "a-key"
+    "ANTHROPIC_API_KEY": "a-key",
+    "LLM_PROVIDER": "gemini"
    },
    "delta": true,
    "input": {
@@ -999,7 +1002,8 @@
    "env": {
     "GEMINI_API_KEY": "g-key",
     "LLM_FALLBACK_MODEL": "off",
-    "ANTHROPIC_API_KEY": "a-key"
+    "ANTHROPIC_API_KEY": "a-key",
+    "LLM_PROVIDER": "gemini"
    },
    "delta": false,
    "input": {
@@ -2308,7 +2312,7 @@
     {
      "kind": "create",
      "params": {
-      "model": "claude-opus-5",
+      "model": "claude-haiku-5-5",
       "max_tokens": 400,
       "thinking": {
        "type": "disabled"
@@ -2401,11 +2405,11 @@
     {
      "kind": "llm",
      "engine": "anthropic",
-     "model": "anthropic:claude-opus-5",
+     "model": "anthropic:claude-haiku-5-5",
      "chars": 89,
      "tokensIn": 1,
      "tokensOut": 1,
-     "costUsd": null,
+     "costUsd": 6e-7,
      "ok": false,
      "error": "fell_back_to_local",
      "firstMs": null
@@ -2486,6 +2490,425 @@
    "claudeCalls": [
     {
      "kind": "stream",
+     "params": {
+      "model": "claude-haiku-5-5",
+      "max_tokens": 400,
+      "thinking": {
+       "type": "disabled"
+      },
+      "output_config": {
+       "effort": "low",
+       "format": {
+        "type": "json_schema",
+        "schema": {
+         "type": "object",
+         "properties": {
+          "answer": {
+           "type": "string",
+           "description": "What the assistant says out loud, in the caller’s language."
+          },
+          "answered": {
+           "type": "boolean",
+           "description": "True only if the excerpts fully support the answer."
+          },
+          "usedExcerpts": {
+           "type": "array",
+           "items": {
+            "type": "integer"
+           },
+           "description": "Numbers of the excerpts the answer relies on."
+          }
+         },
+         "required": [
+          "answer",
+          "answered",
+          "usedExcerpts"
+         ],
+         "additionalProperties": false
+        }
+       }
+      },
+      "system": "You are Laylo, the voice assistant answering the phone for this company.\nReply in Uzbek. If the caller switches language mid-call, switch with them.\nYour reply is read aloud by a speech synthesiser, so:\n- Two or three short sentences at most. Never use markdown, lists, or headings.\n- Write numbers, prices and times the way a person says them out loud.\n- Do not include internal or system XML tags in your response.\nROUTING — decide what the question is about:\n- Company questions (this company’s prices, hours, services, policies, staff,\n  addresses): answer ONLY from the knowledge base excerpts supplied in the user\n  turn. Never guess a company price, date, phone number or medical fact that is\n  not in the excerpts. If the excerpts lack the answer, set answered=false and\n  say — in the caller’s language — that you will pass them to a colleague.\n- General-knowledge questions (facts about the world, definitions, simple\n  calculations, anything not specific to this company): answer directly from\n  your own knowledge, set answered=true and usedExcerpts=[]. Do not mention\n  the knowledge base or transfer the caller for these.\nMEMORY — this is one continuous conversation. Remember everything the caller\nhas told you earlier in it (their name, what they asked, details they gave) and\nuse it. Questions about the conversation itself (\"what is my name?\", \"what did\nI ask before?\") are answered from the conversation: answered=true, usedExcerpts=[].",
+      "messages": [
+       {
+        "role": "user",
+        "content": "KNOWLEDGE BASE EXCERPTS\n\n[1] source: Narxlar › Kredit\nKredit foizi yillik 24%. Muddat 36 oygacha.\n\n[2] source: Ish vaqti\nDushanba–juma 09:00–18:00. 😀 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\n[3] source: Manzil › Filial\nToshkent, Amir Temur 1.\n\nCALLER: Salom\nYOU: Assalomu alaykum! Qanday yordam bera olaman?\nCALLER: Kredit foizi qancha?"
+       }
+      ]
+     }
+    }
+   ],
+   "deltas": [],
+   "result": {
+    "answer": "Bu xizmat narxi: Kredit foizi yillik 24%. Muddat 36 oygacha. Yana biror savolingiz bormi?",
+    "intent": "price",
+    "answered": true,
+    "usedHits": [
+     {
+      "chunkId": "chk_a",
+      "documentId": "doc_1",
+      "documentTitle": "Narxlar",
+      "heading": "Kredit",
+      "text": "Kredit foizi yillik 24%. Muddat 36 oygacha.",
+      "snippet": "Kredit foizi…",
+      "score": 0.8123456,
+      "lexicalScore": 0.7,
+      "denseScore": 0.6
+     },
+     {
+      "chunkId": "chk_b",
+      "documentId": "doc_2",
+      "documentTitle": "Ish vaqti",
+      "heading": null,
+      "text": "Dushanba–juma 09:00–18:00. 😀 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "snippet": "Dushanba…",
+      "score": 0.5,
+      "lexicalScore": 0.4,
+      "denseScore": 0.3
+     },
+     {
+      "chunkId": "chk_c",
+      "documentId": "doc_3",
+      "documentTitle": "Manzil",
+      "heading": "Filial",
+      "text": "Toshkent, Amir Temur 1.",
+      "snippet": "Toshkent…",
+      "score": 0.31,
+      "lexicalScore": 0.2,
+      "denseScore": 0.1
+     }
+    ],
+    "engine": "local"
+   },
+   "usage": [
+    {
+     "kind": "llm",
+     "engine": "anthropic",
+     "model": "anthropic:claude-haiku-5-5",
+     "chars": 89,
+     "tokensIn": null,
+     "tokensOut": null,
+     "costUsd": null,
+     "ok": false,
+     "error": "fell_back_to_local",
+     "firstMs": null
+    }
+   ],
+   "leftover": {
+    "fetch": 0,
+    "claude": 0
+   }
+  },
+  {
+   "name": "haiku_default_with_both_keys",
+   "env": {
+    "GEMINI_API_KEY": "g-key",
+    "ANTHROPIC_API_KEY": "a-key"
+   },
+   "delta": true,
+   "input": {
+    "question": "Kredit foizi qancha?",
+    "hits": [
+     {
+      "chunkId": "chk_a",
+      "documentId": "doc_1",
+      "documentTitle": "Narxlar",
+      "heading": "Kredit",
+      "text": "Kredit foizi yillik 24%. Muddat 36 oygacha.",
+      "snippet": "Kredit foizi…",
+      "score": 0.8123456,
+      "lexicalScore": 0.7,
+      "denseScore": 0.6
+     },
+     {
+      "chunkId": "chk_b",
+      "documentId": "doc_2",
+      "documentTitle": "Ish vaqti",
+      "heading": null,
+      "text": "Dushanba–juma 09:00–18:00. 😀 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "snippet": "Dushanba…",
+      "score": 0.5,
+      "lexicalScore": 0.4,
+      "denseScore": 0.3
+     },
+     {
+      "chunkId": "chk_c",
+      "documentId": "doc_3",
+      "documentTitle": "Manzil",
+      "heading": "Filial",
+      "text": "Toshkent, Amir Temur 1.",
+      "snippet": "Toshkent…",
+      "score": 0.31,
+      "lexicalScore": 0.2,
+      "denseScore": 0.1
+     }
+    ],
+    "confidence": 0.81,
+    "language": "uz",
+    "agentName": "Laylo",
+    "threshold": 0.55,
+    "history": [
+     {
+      "role": "caller",
+      "text": "Salom"
+     },
+     {
+      "role": "agent",
+      "text": "Assalomu alaykum! Qanday yordam bera olaman?"
+     }
+    ]
+   },
+   "fetch": [],
+   "claude": [
+    {
+     "events": [
+      {
+       "type": "content_block_delta",
+       "index": 0,
+       "delta": {
+        "type": "text_delta",
+        "text": "{\"answe"
+       }
+      },
+      {
+       "type": "content_block_delta",
+       "index": 0,
+       "delta": {
+        "type": "text_delta",
+        "text": "r\":\"Yil"
+       }
+      },
+      {
+       "type": "content_block_delta",
+       "index": 0,
+       "delta": {
+        "type": "text_delta",
+        "text": "lik 24 "
+       }
+      },
+      {
+       "type": "content_block_delta",
+       "index": 0,
+       "delta": {
+        "type": "text_delta",
+        "text": "foiz.\","
+       }
+      },
+      {
+       "type": "content_block_delta",
+       "index": 0,
+       "delta": {
+        "type": "text_delta",
+        "text": "\"answer"
+       }
+      },
+      {
+       "type": "content_block_delta",
+       "index": 0,
+       "delta": {
+        "type": "text_delta",
+        "text": "ed\":tru"
+       }
+      },
+      {
+       "type": "content_block_delta",
+       "index": 0,
+       "delta": {
+        "type": "text_delta",
+        "text": "e,\"used"
+       }
+      },
+      {
+       "type": "content_block_delta",
+       "index": 0,
+       "delta": {
+        "type": "text_delta",
+        "text": "Excerpt"
+       }
+      },
+      {
+       "type": "content_block_delta",
+       "index": 0,
+       "delta": {
+        "type": "text_delta",
+        "text": "s\":[1]}"
+       }
+      }
+     ],
+     "final": {
+      "usage": {
+       "input_tokens": 300,
+       "output_tokens": 44
+      },
+      "stop_reason": "end_turn",
+      "model": "claude-haiku-5-5"
+     }
+    }
+   ],
+   "requests": [],
+   "claudeCalls": [
+    {
+     "kind": "stream",
+     "params": {
+      "model": "claude-haiku-5-5",
+      "max_tokens": 400,
+      "thinking": {
+       "type": "disabled"
+      },
+      "output_config": {
+       "effort": "low",
+       "format": {
+        "type": "json_schema",
+        "schema": {
+         "type": "object",
+         "properties": {
+          "answer": {
+           "type": "string",
+           "description": "What the assistant says out loud, in the caller’s language."
+          },
+          "answered": {
+           "type": "boolean",
+           "description": "True only if the excerpts fully support the answer."
+          },
+          "usedExcerpts": {
+           "type": "array",
+           "items": {
+            "type": "integer"
+           },
+           "description": "Numbers of the excerpts the answer relies on."
+          }
+         },
+         "required": [
+          "answer",
+          "answered",
+          "usedExcerpts"
+         ],
+         "additionalProperties": false
+        }
+       }
+      },
+      "system": "You are Laylo, the voice assistant answering the phone for this company.\nReply in Uzbek. If the caller switches language mid-call, switch with them.\nYour reply is read aloud by a speech synthesiser, so:\n- Two or three short sentences at most. Never use markdown, lists, or headings.\n- Write numbers, prices and times the way a person says them out loud.\n- Do not include internal or system XML tags in your response.\nROUTING — decide what the question is about:\n- Company questions (this company’s prices, hours, services, policies, staff,\n  addresses): answer ONLY from the knowledge base excerpts supplied in the user\n  turn. Never guess a company price, date, phone number or medical fact that is\n  not in the excerpts. If the excerpts lack the answer, set answered=false and\n  say — in the caller’s language — that you will pass them to a colleague.\n- General-knowledge questions (facts about the world, definitions, simple\n  calculations, anything not specific to this company): answer directly from\n  your own knowledge, set answered=true and usedExcerpts=[]. Do not mention\n  the knowledge base or transfer the caller for these.\nMEMORY — this is one continuous conversation. Remember everything the caller\nhas told you earlier in it (their name, what they asked, details they gave) and\nuse it. Questions about the conversation itself (\"what is my name?\", \"what did\nI ask before?\") are answered from the conversation: answered=true, usedExcerpts=[].",
+      "messages": [
+       {
+        "role": "user",
+        "content": "KNOWLEDGE BASE EXCERPTS\n\n[1] source: Narxlar › Kredit\nKredit foizi yillik 24%. Muddat 36 oygacha.\n\n[2] source: Ish vaqti\nDushanba–juma 09:00–18:00. 😀 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\n[3] source: Manzil › Filial\nToshkent, Amir Temur 1.\n\nCALLER: Salom\nYOU: Assalomu alaykum! Qanday yordam bera olaman?\nCALLER: Kredit foizi qancha?"
+       }
+      ]
+     }
+    }
+   ],
+   "deltas": [
+    "Yil",
+    "lik 24 ",
+    "foiz."
+   ],
+   "result": {
+    "answer": "Yillik 24 foiz.",
+    "intent": "price",
+    "answered": true,
+    "usedHits": [
+     {
+      "chunkId": "chk_a",
+      "documentId": "doc_1",
+      "documentTitle": "Narxlar",
+      "heading": "Kredit",
+      "text": "Kredit foizi yillik 24%. Muddat 36 oygacha.",
+      "snippet": "Kredit foizi…",
+      "score": 0.8123456,
+      "lexicalScore": 0.7,
+      "denseScore": 0.6
+     }
+    ],
+    "engine": "claude:claude-haiku-5-5"
+   },
+   "usage": [
+    {
+     "kind": "llm",
+     "engine": "anthropic",
+     "model": "anthropic:claude-haiku-5-5",
+     "chars": 15,
+     "tokensIn": 300,
+     "tokensOut": 44,
+     "costUsd": 0.000052,
+     "ok": true,
+     "error": null,
+     "firstMs": "set"
+    }
+   ],
+   "leftover": {
+    "fetch": 0,
+    "claude": 0
+   }
+  },
+  {
+   "name": "haiku_default_fails_local",
+   "env": {
+    "GEMINI_API_KEY": "g-key",
+    "ANTHROPIC_API_KEY": "a-key"
+   },
+   "delta": false,
+   "input": {
+    "question": "Kredit foizi qancha?",
+    "hits": [
+     {
+      "chunkId": "chk_a",
+      "documentId": "doc_1",
+      "documentTitle": "Narxlar",
+      "heading": "Kredit",
+      "text": "Kredit foizi yillik 24%. Muddat 36 oygacha.",
+      "snippet": "Kredit foizi…",
+      "score": 0.8123456,
+      "lexicalScore": 0.7,
+      "denseScore": 0.6
+     },
+     {
+      "chunkId": "chk_b",
+      "documentId": "doc_2",
+      "documentTitle": "Ish vaqti",
+      "heading": null,
+      "text": "Dushanba–juma 09:00–18:00. 😀 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "snippet": "Dushanba…",
+      "score": 0.5,
+      "lexicalScore": 0.4,
+      "denseScore": 0.3
+     },
+     {
+      "chunkId": "chk_c",
+      "documentId": "doc_3",
+      "documentTitle": "Manzil",
+      "heading": "Filial",
+      "text": "Toshkent, Amir Temur 1.",
+      "snippet": "Toshkent…",
+      "score": 0.31,
+      "lexicalScore": 0.2,
+      "denseScore": 0.1
+     }
+    ],
+    "confidence": 0.81,
+    "language": "uz",
+    "agentName": "Laylo",
+    "threshold": 0.55,
+    "history": [
+     {
+      "role": "caller",
+      "text": "Salom"
+     },
+     {
+      "role": "agent",
+      "text": "Assalomu alaykum! Qanday yordam bera olaman?"
+     }
+    ]
+   },
+   "fetch": [],
+   "claude": [
+    {
+     "throw": "overloaded"
+    }
+   ],
+   "requests": [],
+   "claudeCalls": [
+    {
+     "kind": "create",
      "params": {
       "model": "claude-haiku-5-5",
       "max_tokens": 400,
@@ -3145,6 +3568,244 @@
    }
   },
   {
+   "name": "loan_named_day_uz",
+   "env": {
+    "GEMINI_API_KEY": "g-key"
+   },
+   "delta": false,
+   "input": {
+    "question": "1 haftadan keyin",
+    "hits": [],
+    "confidence": 0.81,
+    "language": "uz",
+    "agentName": "Laylo",
+    "threshold": 0.55,
+    "history": [
+     {
+      "role": "caller",
+      "text": "Ha, menman"
+     },
+     {
+      "role": "agent",
+      "text": "Rahmat! Tug‘ilgan yilingiz?"
+     },
+     {
+      "role": "caller",
+      "text": "1992"
+     },
+     {
+      "role": "agent",
+      "text": "Rahmat. Qaysi kuni to‘lay olasiz?"
+     }
+    ],
+    "target": {
+     "fullName": "Aziz Karimov",
+     "birthYear": "1992",
+     "loanAmount": "7 800 000 so‘m",
+     "prompt": "Toʻlovni Payme orqali qilish mumkin. Ikki qismga boʻlish mumkin."
+    },
+    "timeZone": "Asia/Tashkent"
+   },
+   "fetch": [
+    {
+     "body": "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{\\\"answer\\\":\\\"Yaxshi, o‘n to‘qqizinchi noyabr, payshanba kuni kutamiz.\\\",\\\"answered\\\":true,\\\"usedExcerpts\\\":[]}\"}]}}],\"usageMetadata\":{\"promptTokenCount\":120,\"candidatesTokenCount\":30,\"thoughtsTokenCount\":5}}"
+    }
+   ],
+   "claude": [],
+   "requests": [
+    {
+     "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent",
+     "method": "POST",
+     "headers": {
+      "content-type": "application/json",
+      "x-goog-api-key": "g-key"
+     },
+     "body": {
+      "text": "{\"systemInstruction\":{\"parts\":[{\"text\":\"You are Laylo, the voice assistant answering the phone for this company.\\nReply in Uzbek. If the caller switches language mid-call, switch with them.\\nYour reply is read aloud by a speech synthesiser, so:\\n- Two or three short sentences at most. Never use markdown, lists, or headings.\\n- Write numbers, prices and times the way a person says them out loud.\\n- Do not include internal or system XML tags in your response.\\nROUTING — decide what the question is about:\\n- Company questions (this company’s prices, hours, services, policies, staff,\\n  addresses): answer ONLY from the knowledge base excerpts supplied in the user\\n  turn. Never guess a company price, date, phone number or medical fact that is\\n  not in the excerpts. If the excerpts lack the answer, set answered=false and\\n  say — in the caller’s language — that you will pass them to a colleague.\\n- General-knowledge questions (facts about the world, definitions, simple\\n  calculations, anything not specific to this company): answer directly from\\n  your own knowledge, set answered=true and usedExcerpts=[]. Do not mention\\n  the knowledge base or transfer the caller for these.\\nMEMORY — this is one continuous conversation. Remember everything the caller\\nhas told you earlier in it (their name, what they asked, details they gave) and\\nuse it. Questions about the conversation itself (\\\"what is my name?\\\", \\\"what did\\nI ask before?\\\") are answered from the conversation: answered=true, usedExcerpts=[].\\n\\nOUTBOUND CALL — you are calling one specific person on behalf of the company.\\nThis flow takes priority over the knowledge-base routing and the tone note above.\\nPerson you are calling: Aziz Karimov\\n\\nOPENING — on their first line (e.g. \\\"Allo\\\"), greet them, say who you are and which company you call from, and ask whether you are speaking with Aziz Karimov. Only that one question; the year of birth comes after they say yes.\\n\\nHOW YOU SOUND — like a kind, experienced bank officer having a real conversation, never like a\\nscript or a form being filled in:\\n- Natural, warm sentences, usually two to four; more when you explain how something works. Calm and\\n  respectful; never threaten, pressure or lecture.\\n- Answer what they actually asked FIRST, fully and concretely: explain the how and the why in plain\\n  words, the way a helpful person would. Never brush a real question off with \\\"a colleague will\\n  tell you\\\" when the answer is in what you know.\\n- Build every reply on what they just said: use their own words, their reasons, their worries.\\n- Vary your wording. Use their name now and then, not in every reply. Not every reply has to end\\n  with a question, and never ask more than one question at a time.\\n- Never repeat a sentence or a question you already said in this call. If you must ask again,\\n  ask differently and move the conversation forward. If they repeat themselves, show you\\n  remember (\\\"Ha, ikki hafta dedingiz — demak...\\\").\\n- Remember everything said earlier in the call and never ask for something they already told you.\\n\\nIDENTITY — CONFIRMED: they said the year of birth on file. Exception: if earlier in this call\\nthey said they are NOT Aziz Karimov (a relative, friend, colleague), discuss nothing; ask when\\nAziz Karimov can be reached and end politely.\\nWHAT YOU KNOW AND MAY TELL THEM (they are confirmed):\\n- Amount they owe: 7 800 000 so‘m. Asked \\\"how much?\\\", say this amount plainly.\\n- How and where to pay, and any options (such as paying in parts), are in the CALL INSTRUCTIONS\\n  below. Asked about them, explain clearly, step by step if useful; for a split, work out each\\n  part yourself and say it.\\n- Only for what is truly not in here (interest, penalties, account numbers) say a colleague\\n  will clarify, and still help with everything you can.\\n\\nPAYMENT DATE — your goal is to agree, kindly and naturally, the day they will pay.\\n- Once confirmed, thank them briefly, say why you are calling and the amount, and ask which day\\n  would suit them.\\n- Work the date out YOURSELF from whatever they say, using the CALENDAR below: \\\"ertaga\\\",\\n  \\\"indinga\\\", a weekday, \\\"next week Tuesday\\\", a day of the month, and relative periods too —\\n  \\\"in two weeks\\\" / \\\"ikki haftadan keyin\\\" / \\\"через две недели\\\", \\\"in 10 days\\\", \\\"in a week\\\",\\n  \\\"at the end of the month\\\", \\\"when my salary comes in two weeks\\\". Never ask for \\\"the exact\\n  date\\\" when what they said already points to one: compute it and say it back.\\n- Only truly open answers (\\\"keyinroq\\\", \\\"tez orada\\\", \\\"pul bo'lganda\\\", \\\"потом\\\", \\\"I don't know\\\")\\n  leave it open. Then do not interrogate. Show understanding and help them get to a day: ask\\n  one gentle, useful question (when does their salary come? would paying in parts help?), or\\n  suggest a concrete day yourself that fits what they told you (\\\"Unda yigirmanchi oktabr,\\n  seshanba kuni qulaymi?\\\"). If they agree (\\\"xo'p\\\", \\\"mayli\\\", \\\"ok\\\", \\\"да\\\"), that day is agreed.\\n- Say the agreed day back warmly, as a statement with its weekday, not as a question\\n  (\\\"Yaxshi, unda yigirmanchi oktabr, seshanba kuni kutamiz.\\\"). From that moment the topic is\\n  CLOSED; reopen it only if they object to that day.\\n- Questions about the loan or the payment itself (how much, how, where, why, can I split it,\\n  what happens if I am late) are part of agreeing the date: answer them fully first.\\n- Never ask about the day in two replies in a row. If your previous reply already asked and they\\n  answered with a question instead, just answer it well and stop there — they are still talking\\n  it through. Ask again only in a later reply, and in different words each time (for example:\\n  \\\"Qachon qulay bo'ladi sizga?\\\", \\\"Unda qaysi kunni belgilab qo'yaylik?\\\", \\\"Oylik qachon tushadi?\\\").\\n- While it is OPEN and they ask for something unrelated (a story, a joke, a riddle, general\\n  questions, small talk), do not do it yet: in one or two friendly sentences, ask which day\\n  suits them for the payment and promise to do it as soon as they answer.\\n- In the reply that closes the topic, keep EVERY promise you made while it was open, in the\\n  order they asked: tell each story, joke or riddle and answer each question right there.\\n  Never say \\\"as I promised\\\" without delivering it.\\n- Once CLOSED, never bring up payment again (not the date, the amount or a split), even if they\\n  mention money troubles: then just sympathise. Answer anything they ask fully and warmly,\\n  like a normal conversation. A story may be longer than usual: about six to eight short sentences.\\n- Offer the options from the call instructions (e.g. paying in parts) at most once, when they\\n  say they cannot pay in full. Never read the call instructions out word for word.\\n- If they cannot talk now, do not push: ask when you may call back, and end politely.\\n\\n- THE DAY THEY JUST NAMED, worked out by the system: Thursday (payshanba / четверг) 19 November 2026. If they mean it as the payment day, that day is agreed: say it back exactly as \\\"o‘n to‘qqizinchi noyabr, payshanba\\\" — never another date or weekday.\\n\\nCALENDAR — look every date up here; never work out a weekday or a date yourself:\\n- today: Thursday (payshanba / четверг) 12 November 2026\\n- tomorrow (ertaga / завтра): Friday (juma / пятница) 13 November\\n- the day after tomorrow (indinga / послезавтра): Saturday (shanba / суббота) 14 November\\n- rest of this week: Sunday (yakshanba / воскресенье) 15 November\\n- next week (kelasi hafta / на следующей неделе): Monday (dushanba / понедельник) 16 November; Tuesday (seshanba / вторник) 17 November; Wednesday (chorshanba / среда) 18 November; Thursday (payshanba / четверг) 19 November; Friday (juma / пятница) 20 November; Saturday (shanba / суббота) 21 November; Sunday (yakshanba / воскресенье) 22 November\\n- the week after: Monday (dushanba / понедельник) 23 November; Tuesday (seshanba / вторник) 24 November; Wednesday (chorshanba / среда) 25 November; Thursday (payshanba / четверг) 26 November; Friday (juma / пятница) 27 November; Saturday (shanba / суббота) 28 November; Sunday (yakshanba / воскресенье) 29 November\\n- in 3 days (3 kundan keyin / через три дня): Sunday (yakshanba / воскресенье) 15 November\\n- in a week (bir haftadan keyin / через неделю): Thursday (payshanba / четверг) 19 November\\n- in 10 days (10 kundan keyin / через десять дней): Sunday (yakshanba / воскресенье) 22 November\\n- in two weeks (ikki haftadan keyin / через две недели): Thursday (payshanba / четверг) 26 November\\n- in three weeks (uch haftadan keyin / через три недели): Thursday (payshanba / четверг) 3 December\\n- in a month (bir oydan keyin / через месяц): Saturday (shanba / суббота) 12 December\\n- end of this month (oy oxirida / в конце месяца): Monday (dushanba / понедельник) 30 November\\n- start of next month (keyingi oy boshida / в начале следующего месяца): Tuesday (seshanba / вторник) 1 December\\nA weekday on its own (\\\"juma kuni\\\", \\\"kelasi juma\\\", \\\"в пятницу\\\") means its nearest date\\nafter today in this list. \\\"Next week\\\" plus a weekday means that weekday under \\\"next\\nweek\\\". A day of the month on its own (\\\"25-chi\\\", \\\"третьего числа\\\") means this month if\\nit is still ahead, otherwise next month. Any other period (\\\"in 5 days\\\", \\\"in two months\\\")\\nis counted from today the same way. Never agree to a date that has passed.\\n\\nALWAYS:\\n- There is no live transfer in this call. If they ask for a person or an operator, say a\\n  colleague will contact them later, then carry on.\\n- Never invent facts about the company; say a colleague can tell them later.\\n- In Russian, say dates as ordinals in the genitive (двадцатого октября).\\nEvery reply in this flow is answered=true, usedExcerpts=[] unless you quote an excerpt.\\n\\nCALL INSTRUCTIONS — set by the company, background for you (do not read them out):\\nToʻlovni Payme orqali qilish mumkin. Ikki qismga boʻlish mumkin.\"}]},\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"KNOWLEDGE BASE EXCERPTS: (none matched this question)\\n\\nCALLER: Ha, menman\\nYOU: Rahmat! Tug‘ilgan yilingiz?\\nCALLER: 1992\\nYOU: Rahmat. Qaysi kuni to‘lay olasiz?\\nCALLER: 1 haftadan keyin\"}]}],\"generationConfig\":{\"responseMimeType\":\"application/json\",\"responseSchema\":{\"type\":\"OBJECT\",\"properties\":{\"answer\":{\"type\":\"STRING\"},\"answered\":{\"type\":\"BOOLEAN\"},\"usedExcerpts\":{\"type\":\"ARRAY\",\"items\":{\"type\":\"INTEGER\"}}},\"required\":[\"answer\",\"answered\",\"usedExcerpts\"],\"propertyOrdering\":[\"answer\",\"answered\",\"usedExcerpts\"]},\"temperature\":0.2,\"maxOutputTokens\":500}}"
+     }
+    }
+   ],
+   "claudeCalls": [],
+   "deltas": [],
+   "result": {
+    "answer": "Yaxshi, o‘n to‘qqizinchi noyabr, payshanba kuni kutamiz.",
+    "intent": "general",
+    "answered": true,
+    "usedHits": [],
+    "engine": "gemini:gemini-flash-lite-latest"
+   },
+   "usage": [
+    {
+     "kind": "llm",
+     "engine": "gemini",
+     "model": "gemini:gemini-flash-lite-latest",
+     "chars": 56,
+     "tokensIn": 120,
+     "tokensOut": 35,
+     "costUsd": null,
+     "ok": true,
+     "error": null,
+     "firstMs": null
+    }
+   ],
+   "leftover": {
+    "fetch": 0,
+    "claude": 0
+   }
+  },
+  {
+   "name": "loan_named_day_ru_unchecked",
+   "env": {
+    "GEMINI_API_KEY": "g-key"
+   },
+   "delta": false,
+   "input": {
+    "question": "Через неделю, наверное",
+    "hits": [],
+    "confidence": 0.81,
+    "language": "ru",
+    "agentName": "Laylo",
+    "threshold": 0.55,
+    "history": [
+     {
+      "role": "caller",
+      "text": "Salom"
+     },
+     {
+      "role": "agent",
+      "text": "Assalomu alaykum! Qanday yordam bera olaman?"
+     }
+    ],
+    "target": {
+     "fullName": "Aziz Karimov",
+     "birthYear": "",
+     "loanAmount": "7 800 000 so‘m",
+     "prompt": "Toʻlovni Payme orqali qilish mumkin. Ikki qismga boʻlish mumkin."
+    },
+    "timeZone": "Europe/Moscow"
+   },
+   "fetch": [
+    {
+     "body": "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{\\\"answer\\\":\\\"Хорошо, ждём девятнадцатого ноября.\\\",\\\"answered\\\":true,\\\"usedExcerpts\\\":[]}\"}]}}],\"usageMetadata\":{\"promptTokenCount\":120,\"candidatesTokenCount\":30,\"thoughtsTokenCount\":5}}"
+    }
+   ],
+   "claude": [],
+   "requests": [
+    {
+     "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent",
+     "method": "POST",
+     "headers": {
+      "content-type": "application/json",
+      "x-goog-api-key": "g-key"
+     },
+     "body": {
+      "text": "{\"systemInstruction\":{\"parts\":[{\"text\":\"You are Laylo, the voice assistant answering the phone for this company.\\nReply in Russian. If the caller switches language mid-call, switch with them.\\nYour reply is read aloud by a speech synthesiser, so:\\n- Two or three short sentences at most. Never use markdown, lists, or headings.\\n- Write numbers, prices and times the way a person says them out loud.\\n- Do not include internal or system XML tags in your response.\\nROUTING — decide what the question is about:\\n- Company questions (this company’s prices, hours, services, policies, staff,\\n  addresses): answer ONLY from the knowledge base excerpts supplied in the user\\n  turn. Never guess a company price, date, phone number or medical fact that is\\n  not in the excerpts. If the excerpts lack the answer, set answered=false and\\n  say — in the caller’s language — that you will pass them to a colleague.\\n- General-knowledge questions (facts about the world, definitions, simple\\n  calculations, anything not specific to this company): answer directly from\\n  your own knowledge, set answered=true and usedExcerpts=[]. Do not mention\\n  the knowledge base or transfer the caller for these.\\nMEMORY — this is one continuous conversation. Remember everything the caller\\nhas told you earlier in it (their name, what they asked, details they gave) and\\nuse it. Questions about the conversation itself (\\\"what is my name?\\\", \\\"what did\\nI ask before?\\\") are answered from the conversation: answered=true, usedExcerpts=[].\\n\\nOUTBOUND CALL — you are calling one specific person on behalf of the company.\\nThis flow takes priority over the knowledge-base routing and the tone note above.\\nPerson you are calling: Aziz Karimov\\n\\nOPENING — on their first line (e.g. \\\"Allo\\\"), greet them, say who you are and which company you call from, and ask whether you are speaking with Aziz Karimov. Only that one question; the year of birth comes after they say yes.\\n\\nHOW YOU SOUND — like a kind, experienced bank officer having a real conversation, never like a\\nscript or a form being filled in:\\n- Natural, warm sentences, usually two to four; more when you explain how something works. Calm and\\n  respectful; never threaten, pressure or lecture.\\n- Answer what they actually asked FIRST, fully and concretely: explain the how and the why in plain\\n  words, the way a helpful person would. Never brush a real question off with \\\"a colleague will\\n  tell you\\\" when the answer is in what you know.\\n- Build every reply on what they just said: use their own words, their reasons, their worries.\\n- Vary your wording. Use their name now and then, not in every reply. Not every reply has to end\\n  with a question, and never ask more than one question at a time.\\n- Never repeat a sentence or a question you already said in this call. If you must ask again,\\n  ask differently and move the conversation forward. If they repeat themselves, show you\\n  remember (\\\"Ha, ikki hafta dedingiz — demak...\\\").\\n- Remember everything said earlier in the call and never ask for something they already told you.\\n\\nIDENTITY — ask whether you are speaking with Aziz Karimov; a clear \\\"yes, it is me\\\" confirms it.\\nWHAT YOU KNOW AND MAY TELL THEM (they are confirmed):\\n- Amount they owe: 7 800 000 so‘m. Asked \\\"how much?\\\", say this amount plainly.\\n- How and where to pay, and any options (such as paying in parts), are in the CALL INSTRUCTIONS\\n  below. Asked about them, explain clearly, step by step if useful; for a split, work out each\\n  part yourself and say it.\\n- Only for what is truly not in here (interest, penalties, account numbers) say a colleague\\n  will clarify, and still help with everything you can.\\n\\nPAYMENT DATE — your goal is to agree, kindly and naturally, the day they will pay.\\n- Once confirmed, thank them briefly, say why you are calling and the amount, and ask which day\\n  would suit them.\\n- Work the date out YOURSELF from whatever they say, using the CALENDAR below: \\\"ertaga\\\",\\n  \\\"indinga\\\", a weekday, \\\"next week Tuesday\\\", a day of the month, and relative periods too —\\n  \\\"in two weeks\\\" / \\\"ikki haftadan keyin\\\" / \\\"через две недели\\\", \\\"in 10 days\\\", \\\"in a week\\\",\\n  \\\"at the end of the month\\\", \\\"when my salary comes in two weeks\\\". Never ask for \\\"the exact\\n  date\\\" when what they said already points to one: compute it and say it back.\\n- Only truly open answers (\\\"keyinroq\\\", \\\"tez orada\\\", \\\"pul bo'lganda\\\", \\\"потом\\\", \\\"I don't know\\\")\\n  leave it open. Then do not interrogate. Show understanding and help them get to a day: ask\\n  one gentle, useful question (when does their salary come? would paying in parts help?), or\\n  suggest a concrete day yourself that fits what they told you (\\\"Unda yigirmanchi oktabr,\\n  seshanba kuni qulaymi?\\\"). If they agree (\\\"xo'p\\\", \\\"mayli\\\", \\\"ok\\\", \\\"да\\\"), that day is agreed.\\n- Say the agreed day back warmly, as a statement with its weekday, not as a question\\n  (\\\"Yaxshi, unda yigirmanchi oktabr, seshanba kuni kutamiz.\\\"). From that moment the topic is\\n  CLOSED; reopen it only if they object to that day.\\n- Questions about the loan or the payment itself (how much, how, where, why, can I split it,\\n  what happens if I am late) are part of agreeing the date: answer them fully first.\\n- Never ask about the day in two replies in a row. If your previous reply already asked and they\\n  answered with a question instead, just answer it well and stop there — they are still talking\\n  it through. Ask again only in a later reply, and in different words each time (for example:\\n  \\\"Qachon qulay bo'ladi sizga?\\\", \\\"Unda qaysi kunni belgilab qo'yaylik?\\\", \\\"Oylik qachon tushadi?\\\").\\n- While it is OPEN and they ask for something unrelated (a story, a joke, a riddle, general\\n  questions, small talk), do not do it yet: in one or two friendly sentences, ask which day\\n  suits them for the payment and promise to do it as soon as they answer.\\n- In the reply that closes the topic, keep EVERY promise you made while it was open, in the\\n  order they asked: tell each story, joke or riddle and answer each question right there.\\n  Never say \\\"as I promised\\\" without delivering it.\\n- Once CLOSED, never bring up payment again (not the date, the amount or a split), even if they\\n  mention money troubles: then just sympathise. Answer anything they ask fully and warmly,\\n  like a normal conversation. A story may be longer than usual: about six to eight short sentences.\\n- Offer the options from the call instructions (e.g. paying in parts) at most once, when they\\n  say they cannot pay in full. Never read the call instructions out word for word.\\n- If they cannot talk now, do not push: ask when you may call back, and end politely.\\n\\n- THE DAY THEY JUST NAMED, worked out by the system: Thursday (payshanba / четверг) 19 November 2026. If they mean it as the payment day, that day is agreed: say it back exactly as \\\"девятнадцатого ноября, четверг\\\" — never another date or weekday.\\n\\nCALENDAR — look every date up here; never work out a weekday or a date yourself:\\n- today: Thursday (payshanba / четверг) 12 November 2026\\n- tomorrow (ertaga / завтра): Friday (juma / пятница) 13 November\\n- the day after tomorrow (indinga / послезавтра): Saturday (shanba / суббота) 14 November\\n- rest of this week: Sunday (yakshanba / воскресенье) 15 November\\n- next week (kelasi hafta / на следующей неделе): Monday (dushanba / понедельник) 16 November; Tuesday (seshanba / вторник) 17 November; Wednesday (chorshanba / среда) 18 November; Thursday (payshanba / четверг) 19 November; Friday (juma / пятница) 20 November; Saturday (shanba / суббота) 21 November; Sunday (yakshanba / воскресенье) 22 November\\n- the week after: Monday (dushanba / понедельник) 23 November; Tuesday (seshanba / вторник) 24 November; Wednesday (chorshanba / среда) 25 November; Thursday (payshanba / четверг) 26 November; Friday (juma / пятница) 27 November; Saturday (shanba / суббота) 28 November; Sunday (yakshanba / воскресенье) 29 November\\n- in 3 days (3 kundan keyin / через три дня): Sunday (yakshanba / воскресенье) 15 November\\n- in a week (bir haftadan keyin / через неделю): Thursday (payshanba / четверг) 19 November\\n- in 10 days (10 kundan keyin / через десять дней): Sunday (yakshanba / воскресенье) 22 November\\n- in two weeks (ikki haftadan keyin / через две недели): Thursday (payshanba / четверг) 26 November\\n- in three weeks (uch haftadan keyin / через три недели): Thursday (payshanba / четверг) 3 December\\n- in a month (bir oydan keyin / через месяц): Saturday (shanba / суббота) 12 December\\n- end of this month (oy oxirida / в конце месяца): Monday (dushanba / понедельник) 30 November\\n- start of next month (keyingi oy boshida / в начале следующего месяца): Tuesday (seshanba / вторник) 1 December\\nA weekday on its own (\\\"juma kuni\\\", \\\"kelasi juma\\\", \\\"в пятницу\\\") means its nearest date\\nafter today in this list. \\\"Next week\\\" plus a weekday means that weekday under \\\"next\\nweek\\\". A day of the month on its own (\\\"25-chi\\\", \\\"третьего числа\\\") means this month if\\nit is still ahead, otherwise next month. Any other period (\\\"in 5 days\\\", \\\"in two months\\\")\\nis counted from today the same way. Never agree to a date that has passed.\\n\\nALWAYS:\\n- There is no live transfer in this call. If they ask for a person or an operator, say a\\n  colleague will contact them later, then carry on.\\n- Never invent facts about the company; say a colleague can tell them later.\\n- In Russian, say dates as ordinals in the genitive (двадцатого октября).\\nEvery reply in this flow is answered=true, usedExcerpts=[] unless you quote an excerpt.\\n\\nCALL INSTRUCTIONS — set by the company, background for you (do not read them out):\\nToʻlovni Payme orqali qilish mumkin. Ikki qismga boʻlish mumkin.\"}]},\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"KNOWLEDGE BASE EXCERPTS: (none matched this question)\\n\\nCALLER: Salom\\nYOU: Assalomu alaykum! Qanday yordam bera olaman?\\nCALLER: Через неделю, наверное\"}]}],\"generationConfig\":{\"responseMimeType\":\"application/json\",\"responseSchema\":{\"type\":\"OBJECT\",\"properties\":{\"answer\":{\"type\":\"STRING\"},\"answered\":{\"type\":\"BOOLEAN\"},\"usedExcerpts\":{\"type\":\"ARRAY\",\"items\":{\"type\":\"INTEGER\"}}},\"required\":[\"answer\",\"answered\",\"usedExcerpts\"],\"propertyOrdering\":[\"answer\",\"answered\",\"usedExcerpts\"]},\"temperature\":0.2,\"maxOutputTokens\":500}}"
+     }
+    }
+   ],
+   "claudeCalls": [],
+   "deltas": [],
+   "result": {
+    "answer": "Хорошо, ждём девятнадцатого ноября.",
+    "intent": "general",
+    "answered": true,
+    "usedHits": [],
+    "engine": "gemini:gemini-flash-lite-latest"
+   },
+   "usage": [
+    {
+     "kind": "llm",
+     "engine": "gemini",
+     "model": "gemini:gemini-flash-lite-latest",
+     "chars": 35,
+     "tokensIn": 120,
+     "tokensOut": 35,
+     "costUsd": null,
+     "ok": true,
+     "error": null,
+     "firstMs": null
+    }
+   ],
+   "leftover": {
+    "fetch": 0,
+    "claude": 0
+   }
+  },
+  {
+   "name": "loan_named_day_before_identity",
+   "env": {
+    "GEMINI_API_KEY": "g-key"
+   },
+   "delta": false,
+   "input": {
+    "question": "ertaga gaplashamiz",
+    "hits": [],
+    "confidence": 0.81,
+    "language": "uz",
+    "agentName": "Laylo",
+    "threshold": 0.55,
+    "history": [
+     {
+      "role": "caller",
+      "text": "Ha"
+     }
+    ],
+    "target": {
+     "fullName": "Aziz Karimov",
+     "birthYear": "1992",
+     "loanAmount": "7 800 000 so‘m",
+     "prompt": "Toʻlovni Payme orqali qilish mumkin. Ikki qismga boʻlish mumkin."
+    },
+    "timeZone": "Asia/Tashkent"
+   },
+   "fetch": [
+    {
+     "body": "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{\\\"answer\\\":\\\"Tug‘ilgan yilingizni ayting.\\\",\\\"answered\\\":true,\\\"usedExcerpts\\\":[]}\"}]}}],\"usageMetadata\":{\"promptTokenCount\":120,\"candidatesTokenCount\":30,\"thoughtsTokenCount\":5}}"
+    }
+   ],
+   "claude": [],
+   "requests": [
+    {
+     "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent",
+     "method": "POST",
+     "headers": {
+      "content-type": "application/json",
+      "x-goog-api-key": "g-key"
+     },
+     "body": {
+      "text": "{\"systemInstruction\":{\"parts\":[{\"text\":\"You are Laylo, the voice assistant answering the phone for this company.\\nReply in Uzbek. If the caller switches language mid-call, switch with them.\\nYour reply is read aloud by a speech synthesiser, so:\\n- Two or three short sentences at most. Never use markdown, lists, or headings.\\n- Write numbers, prices and times the way a person says them out loud.\\n- Do not include internal or system XML tags in your response.\\nROUTING — decide what the question is about:\\n- Company questions (this company’s prices, hours, services, policies, staff,\\n  addresses): answer ONLY from the knowledge base excerpts supplied in the user\\n  turn. Never guess a company price, date, phone number or medical fact that is\\n  not in the excerpts. If the excerpts lack the answer, set answered=false and\\n  say — in the caller’s language — that you will pass them to a colleague.\\n- General-knowledge questions (facts about the world, definitions, simple\\n  calculations, anything not specific to this company): answer directly from\\n  your own knowledge, set answered=true and usedExcerpts=[]. Do not mention\\n  the knowledge base or transfer the caller for these.\\nMEMORY — this is one continuous conversation. Remember everything the caller\\nhas told you earlier in it (their name, what they asked, details they gave) and\\nuse it. Questions about the conversation itself (\\\"what is my name?\\\", \\\"what did\\nI ask before?\\\") are answered from the conversation: answered=true, usedExcerpts=[].\\n\\nOUTBOUND CALL — you are calling one specific person on behalf of the company.\\nThis flow takes priority over the knowledge-base routing and the tone note above.\\nPerson you are calling: Aziz Karimov\\n\\nOPENING — on their first line (e.g. \\\"Allo\\\"), greet them, say who you are and which company you call from, and ask whether you are speaking with Aziz Karimov. Only that one question; the year of birth comes after they say yes.\\n\\nHOW YOU SOUND — like a kind, experienced bank officer having a real conversation, never like a\\nscript or a form being filled in:\\n- Natural, warm sentences, usually two to four; more when you explain how something works. Calm and\\n  respectful; never threaten, pressure or lecture.\\n- Answer what they actually asked FIRST, fully and concretely: explain the how and the why in plain\\n  words, the way a helpful person would. Never brush a real question off with \\\"a colleague will\\n  tell you\\\" when the answer is in what you know.\\n- Build every reply on what they just said: use their own words, their reasons, their worries.\\n- Vary your wording. Use their name now and then, not in every reply. Not every reply has to end\\n  with a question, and never ask more than one question at a time.\\n- Never repeat a sentence or a question you already said in this call. If you must ask again,\\n  ask differently and move the conversation forward. If they repeat themselves, show you\\n  remember (\\\"Ha, ikki hafta dedingiz — demak...\\\").\\n- Remember everything said earlier in the call and never ask for something they already told you.\\n\\nIDENTITY — NOT CONFIRMED YET. Two steps, one at a time:\\n  1. First make sure you are speaking with Aziz Karimov: ask \\\"Am I speaking with Aziz Karimov?\\\" and wait.\\n     Do not ask for the year of birth in the same breath.\\n  2. Once they say yes, it is them, thank them and ask for their year of birth, briefly saying why\\n     (to make sure you are talking to the right person). The system checks the year for you;\\n     you do not know it and must never guess, hint at or comment on it.\\n- A year only counts when the system confirms it. Whatever year they said, you do NOT know whether it\\n  is right; never say \\\"thank you\\\" for it or carry on as if they were confirmed.\\n- Only the year itself counts. An age (\\\"34 yoshdaman\\\"), a decade or a guess does not: ask for\\n  the exact year, without saying whether it was close.\\n- You do not yet know why the bank is calling, so never mention a loan, debt, payment, amount\\n  or the bank's reason. If they ask why you are calling, say it is a personal matter for Aziz Karimov\\n  and you can explain once they confirm their year of birth.\\n- If they say they are someone else (a relative, friend, colleague), do not ask them for a year:\\n  ask kindly when Aziz Karimov can be reached, and end politely.\\n- If they ask for anything else now, ask for the year of birth first and promise to help right after.\\n\\nALWAYS:\\n- There is no live transfer in this call. If they ask for a person or an operator, say a\\n  colleague will contact them later, then carry on.\\n- Never invent facts about the company; say a colleague can tell them later.\\n- In Russian, say dates as ordinals in the genitive (двадцатого октября).\\nEvery reply in this flow is answered=true, usedExcerpts=[] unless you quote an excerpt.\\n\"}]},\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"KNOWLEDGE BASE EXCERPTS: (none matched this question)\\n\\nCALLER: Ha\\nCALLER: ertaga gaplashamiz\"}]}],\"generationConfig\":{\"responseMimeType\":\"application/json\",\"responseSchema\":{\"type\":\"OBJECT\",\"properties\":{\"answer\":{\"type\":\"STRING\"},\"answered\":{\"type\":\"BOOLEAN\"},\"usedExcerpts\":{\"type\":\"ARRAY\",\"items\":{\"type\":\"INTEGER\"}}},\"required\":[\"answer\",\"answered\",\"usedExcerpts\"],\"propertyOrdering\":[\"answer\",\"answered\",\"usedExcerpts\"]},\"temperature\":0.2,\"maxOutputTokens\":500}}"
+     }
+    }
+   ],
+   "claudeCalls": [],
+   "deltas": [],
+   "result": {
+    "answer": "Tug‘ilgan yilingizni ayting.",
+    "intent": "general",
+    "answered": true,
+    "usedHits": [],
+    "engine": "gemini:gemini-flash-lite-latest"
+   },
+   "usage": [
+    {
+     "kind": "llm",
+     "engine": "gemini",
+     "model": "gemini:gemini-flash-lite-latest",
+     "chars": 28,
+     "tokensIn": 120,
+     "tokensOut": 35,
+     "costUsd": null,
+     "ok": true,
+     "error": null,
+     "firstMs": null
+    }
+   ],
+   "leftover": {
+    "fetch": 0,
+    "claude": 0
+   }
+  },
+  {
    "name": "lookup_facts_and_note_long_history",
    "env": {
     "GEMINI_API_KEY": "g-key"
@@ -3431,7 +4092,8 @@
    "name": "gemini_empty_answer_local_floor",
    "env": {
     "GEMINI_API_KEY": "g-key",
-    "ANTHROPIC_API_KEY": "a-key"
+    "ANTHROPIC_API_KEY": "a-key",
+    "LLM_PROVIDER": "gemini"
    },
    "delta": false,
    "input": {
@@ -4030,16 +4692,142 @@
   },
   {
    "env": {
+    "GEMINI_API_KEY": "g",
+    "ANTHROPIC_API_KEY": "a"
+   },
+   "choice": null,
+   "resolved": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5"
+   },
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
+   "hosted": true
+  },
+  {
+   "env": {
+    "GEMINI_API_KEY": "g",
+    "ANTHROPIC_API_KEY": "a"
+   },
+   "choice": "gemini:gemini-3.8-flash",
+   "resolved": {
+    "provider": "gemini",
+    "model": "gemini-3.8-flash"
+   },
+   "name": "gemini:gemini-3.8-flash",
+   "label": "Gemini gemini-3.8-flash",
+   "hosted": true
+  },
+  {
+   "env": {
+    "GEMINI_API_KEY": "g",
+    "ANTHROPIC_API_KEY": "a"
+   },
+   "choice": "openai:gpt-5.5",
+   "resolved": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5"
+   },
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
+   "hosted": true
+  },
+  {
+   "env": {
+    "GEMINI_API_KEY": "g",
+    "ANTHROPIC_API_KEY": "a"
+   },
+   "choice": "anthropic:claude-haiku-5-5",
+   "resolved": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5"
+   },
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
+   "hosted": true
+  },
+  {
+   "env": {
+    "GEMINI_API_KEY": "g",
+    "ANTHROPIC_API_KEY": "a"
+   },
+   "choice": "ollama:gemma4:31b",
+   "resolved": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5"
+   },
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
+   "hosted": true
+  },
+  {
+   "env": {
+    "GEMINI_API_KEY": "g",
+    "ANTHROPIC_API_KEY": "a"
+   },
+   "choice": "bogus",
+   "resolved": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5"
+   },
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
+   "hosted": true
+  },
+  {
+   "env": {
+    "GEMINI_API_KEY": "g",
+    "ANTHROPIC_API_KEY": "a"
+   },
+   "choice": ":x",
+   "resolved": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5"
+   },
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
+   "hosted": true
+  },
+  {
+   "env": {
+    "GEMINI_API_KEY": "g",
+    "ANTHROPIC_API_KEY": "a"
+   },
+   "choice": "gemini: ",
+   "resolved": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5"
+   },
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
+   "hosted": true
+  },
+  {
+   "env": {
+    "GEMINI_API_KEY": "g",
+    "ANTHROPIC_API_KEY": "a"
+   },
+   "choice": "gemini",
+   "resolved": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5"
+   },
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
+   "hosted": true
+  },
+  {
+   "env": {
     "ANTHROPIC_API_KEY": "a",
     "OPENAI_API_KEY": "o"
    },
    "choice": null,
    "resolved": {
     "provider": "anthropic",
-    "model": "claude-opus-5"
+    "model": "claude-haiku-5-5"
    },
-   "name": "claude:claude-opus-5",
-   "label": "Claude claude-opus-5",
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
    "hosted": true
   },
   {
@@ -4050,10 +4838,10 @@
    "choice": "gemini:gemini-3.8-flash",
    "resolved": {
     "provider": "anthropic",
-    "model": "claude-opus-5"
+    "model": "claude-haiku-5-5"
    },
-   "name": "claude:claude-opus-5",
-   "label": "Claude claude-opus-5",
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
    "hosted": true
   },
   {
@@ -4092,10 +4880,10 @@
    "choice": "ollama:gemma4:31b",
    "resolved": {
     "provider": "anthropic",
-    "model": "claude-opus-5"
+    "model": "claude-haiku-5-5"
    },
-   "name": "claude:claude-opus-5",
-   "label": "Claude claude-opus-5",
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
    "hosted": true
   },
   {
@@ -4106,10 +4894,10 @@
    "choice": "bogus",
    "resolved": {
     "provider": "anthropic",
-    "model": "claude-opus-5"
+    "model": "claude-haiku-5-5"
    },
-   "name": "claude:claude-opus-5",
-   "label": "Claude claude-opus-5",
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
    "hosted": true
   },
   {
@@ -4120,10 +4908,10 @@
    "choice": ":x",
    "resolved": {
     "provider": "anthropic",
-    "model": "claude-opus-5"
+    "model": "claude-haiku-5-5"
    },
-   "name": "claude:claude-opus-5",
-   "label": "Claude claude-opus-5",
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
    "hosted": true
   },
   {
@@ -4134,10 +4922,10 @@
    "choice": "gemini: ",
    "resolved": {
     "provider": "anthropic",
-    "model": "claude-opus-5"
+    "model": "claude-haiku-5-5"
    },
-   "name": "claude:claude-opus-5",
-   "label": "Claude claude-opus-5",
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
    "hosted": true
   },
   {
@@ -4148,10 +4936,10 @@
    "choice": "gemini",
    "resolved": {
     "provider": "anthropic",
-    "model": "claude-opus-5"
+    "model": "claude-haiku-5-5"
    },
-   "name": "claude:claude-opus-5",
-   "label": "Claude claude-opus-5",
+   "name": "claude:claude-haiku-5-5",
+   "label": "Claude claude-haiku-5-5",
    "hosted": true
   },
   {

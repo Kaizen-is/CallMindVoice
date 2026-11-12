@@ -27,7 +27,7 @@ import { hasGemini, geminiJson, geminiJsonStream, geminiText, geminiModel } from
 import { answerExtractor } from './json-stream';
 import { hasOpenAI, openaiJsonStream, openaiModel, openaiText } from './openai';
 import { hasOllama, ollamaJson, ollamaJsonStream, ollamaText, ollamaModel } from './ollama';
-import { calendarBlock, identityCheck, type IdentityStatus } from './loan-call';
+import { calendarBlock, identityCheck, namedDay, type IdentityStatus } from './loan-call';
 import type { RetrievalHit } from '@/lib/rag/retrieve';
 import type { CallTarget, Locale } from '@/lib/types';
 import { recordUsage } from '@/lib/usage-log';
@@ -123,6 +123,8 @@ function targetBlock(
   const { status, justWrong, wrongTries } = identityCheck(target, callerLines);
   const name = target.fullName;
   const confirmed = status === 'confirmed' || status === 'unchecked';
+  // A day the person names is worked out in code, like their identity (see ./loan-call).
+  const dayNamed = confirmed ? namedDay(callerLines[callerLines.length - 1] ?? '', timeZone) : null;
 
   const identity: Record<IdentityStatus, string[]> = {
     unchecked: [`IDENTITY — ask whether you are speaking with ${name}; a clear "yes, it is me" confirms it.`],
@@ -251,6 +253,11 @@ function targetBlock(
               'question. Do NOT ask about the day, the date or when they can pay in this reply: answer their ' +
               'question well and stop.'
             : '',
+          dayNamed
+            ? `- THE DAY THEY JUST NAMED, worked out by the system: ${dayNamed.label}. If they mean it as the ` +
+              `payment day, that day is agreed: say it back exactly as "${language === 'Russian' ? dayNamed.say.ru : language === 'Uzbek' ? dayNamed.say.uz : dayNamed.say.en}"` +
+              ' — never another date or weekday.'
+            : '',
           '',
           calendarBlock(timeZone),
         ]
@@ -330,7 +337,8 @@ function anthropic(): Anthropic | null {
   return client;
 }
 
-const MODEL = () => process.env.ANTHROPIC_MODEL || 'claude-opus-5';
+/** Haiku by default: the fastest Claude, and steadier on voice turns than Gemini flash-lite was. */
+const MODEL = () => process.env.ANTHROPIC_MODEL || 'claude-haiku-5-5';
 
 /**
  * Thinking off for voice turns, in the form each Claude model accepts: Opus 5.5
@@ -398,9 +406,10 @@ function nameOf(sel: LlmSelection): string {
 
 /**
  * Which answer engine is active. Set LLM_PROVIDER to force one explicitly;
- * otherwise the first configured provider wins (Ollama, then Gemini, then
- * Claude, then OpenAI — last, so adding an OpenAI key never changes a deployment
- * that already uses another), and the local synthesiser is the floor.
+ * otherwise the first configured provider wins (Claude — Haiku unless
+ * ANTHROPIC_MODEL says otherwise — then Ollama, then Gemini, then OpenAI — last,
+ * so adding an OpenAI key never changes a deployment that already uses
+ * another), and the local synthesiser is the floor.
  */
 function provider(): Provider {
   const pref = process.env.LLM_PROVIDER?.toLowerCase();
@@ -409,9 +418,9 @@ function provider(): Provider {
   if (pref === 'anthropic' || pref === 'claude') return anthropic() ? 'anthropic' : 'local';
   if (pref === 'openai') return hasOpenAI() ? 'openai' : 'local';
   if (pref === 'local') return 'local';
+  if (anthropic()) return 'anthropic';
   if (hasOllama()) return 'ollama';
   if (hasGemini()) return 'gemini';
-  if (anthropic()) return 'anthropic';
   if (hasOpenAI()) return 'openai';
   return 'local';
 }

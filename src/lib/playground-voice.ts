@@ -21,6 +21,8 @@ import { ELEVEN_VOICES } from '@/lib/speech/speko';
 import {
   cachedPcm,
   isTtsEngine,
+  outputRate,
+  SAMPLE_RATE,
   synthesizePcm,
   synthesizeStream,
   ttsConfigured,
@@ -118,6 +120,13 @@ export function sttPick(value: unknown): SttEngine {
   return isSttEngine(value) ? value : 'auto';
 }
 
+/**
+ * The Playground call plays in a browser, not down a phone line: models that
+ * render more than 8 kHz (BRB, ElevenLabs) are asked for 24 kHz, which keeps
+ * s, sh, f and t clear. Our own TTS server only makes 8 kHz and ignores this.
+ */
+const WEB_RATE = 24000;
+
 function synthOptions(agent: Agent, lang: Locale, pick: VoicePick, quickStart = false): SynthOptions {
   // Cached, like the demo: scripted calls repeat sentences, and a hit is a file read.
   return {
@@ -127,8 +136,15 @@ function synthOptions(agent: Agent, lang: Locale, pick: VoicePick, quickStart = 
     tag: 'pg_call',
     cache: true,
     engine: pick.engine,
+    sampleRate: WEB_RATE,
     quickStart,
   };
+}
+
+/** The `rate` an audio event carries: only when it is not the phone's 8 kHz, which the page assumes. */
+function rateOf(opts: SynthOptions): { rate?: number } {
+  const rate = outputRate(opts);
+  return rate === SAMPLE_RATE ? {} : { rate };
 }
 
 function canSpeak(pick: VoicePick): boolean {
@@ -167,11 +183,12 @@ export async function speak(agent: Agent, text: string, lang: Locale, pick: Voic
     send({ t: 'voice', ok: false });
     return;
   }
+  const opts = synthOptions(agent, lang, pick);
   let sent = 0;
   try {
-    for await (const pcm of synthesizeStream(text, synthOptions(agent, lang, pick))) {
+    for await (const pcm of synthesizeStream(text, opts)) {
       if (signal.aborted) break;
-      send({ t: 'audio', pcm: pcm.toString('base64') });
+      send({ t: 'audio', pcm: pcm.toString('base64'), ...rateOf(opts) });
       sent += 1;
     }
   } catch (err) {
@@ -345,7 +362,7 @@ export function speakAsWritten(
       try {
         for await (const pcm of current.chunks()) {
           if (signal.aborted) break;
-          send({ t: 'audio', pcm: pcm.toString('base64') });
+          send({ t: 'audio', pcm: pcm.toString('base64'), ...rateOf(opts) });
           if (sent === 0) options.onFirstAudio?.();
           sent += 1;
           // Render the next sentence while this one plays.
@@ -396,17 +413,26 @@ export function warmFillers(agent: Agent, lang: Locale, pick: VoicePick) {
   })();
 }
 
-/** A cached filler for this turn, or null — never rendered now, to keep the line free for the answer. */
-export function fillerFor(agent: Agent, callId: string, said: string, pick: VoicePick): string | null {
+/**
+ * A cached filler for this turn, as the `filler` event's fields, or null —
+ * never rendered now, to keep the line free for the answer.
+ */
+export function fillerFor(
+  agent: Agent,
+  callId: string,
+  said: string,
+  pick: VoicePick,
+): { pcm: string; rate?: number } | null {
   if (!canSpeak(pick) || NO_FILLER.has(classifyIntent(said))) return null;
   const language = detectLanguage(said) as Locale;
   const lines = fillerLines(language);
   const turn = fillers.get(callId) ?? 0;
-  const pcm = cachedPcm(lines[turn % lines.length], synthOptions(agent, language, pick));
+  const opts = synthOptions(agent, language, pick);
+  const pcm = cachedPcm(lines[turn % lines.length], opts);
   if (!pcm) return null;
   fillers.set(callId, turn + 1);
   if (fillers.size > 2000) fillers.clear();
-  return pcm.toString('base64');
+  return { pcm: pcm.toString('base64'), ...rateOf(opts) };
 }
 
 /* ── transcribing during the pause ───────────────────────────── */

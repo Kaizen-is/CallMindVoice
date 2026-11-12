@@ -4,8 +4,9 @@ port of src/lib/llm/loan-call.ts.
 
 - Identity: the caller's own words are checked against the year of birth; the
   prompt only learns the outcome (the model never sees the year).
-- Dates: the next three weeks are written out, so a spoken day is looked up,
-  never worked out.
+- Dates: the next three weeks are written out, and a day the person names
+  ("1 haftadan keyin", "juma kuni", "через неделю") is worked out here, with the
+  words to say it back with (`named_day`).
 """
 
 from dataclasses import dataclass
@@ -142,3 +143,179 @@ def calendar_block(time_zone: str = "Asia/Tashkent", now: datetime | None = None
         "is counted from today the same way. Never agree to a date that has passed.",
     ]
     return "\n".join(line for line in lines if line)
+
+
+# ── the day they just named ─────────────────────────────────────────
+# Even with the calendar written out, a small model picked the wrong line for "1 haftadan keyin"
+# four times in five. So a day the person names is worked out here, as identity is, and the model
+# is handed the date and the exact words to say it back with.
+
+MONTH_UZ = ["yanvar", "fevral", "mart", "aprel", "may", "iyun",
+            "iyul", "avgust", "sentyabr", "oktabr", "noyabr", "dekabr"]  # fmt: skip
+MONTH_RU_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня",
+                "июля", "августа", "сентября", "октября", "ноября", "декабря"]  # fmt: skip
+UNIT_UZ = ["bir", "ikki", "uch", "to'rt", "besh", "olti", "yetti", "sakkiz", "to'qqiz"]
+ORD_UZ = ["birinchi", "ikkinchi", "uchinchi", "to'rtinchi", "beshinchi",
+          "oltinchi", "yettinchi", "sakkizinchi", "to'qqizinchi"]  # fmt: skip
+TENS_UZ = {"o'n": 10, "yigirma": 20, "o'ttiz": 30}
+ORD_TENS_UZ = {"o'ninchi": 10, "yigirmanchi": 20, "o'ttizinchi": 30}
+NUM_RU = {"один": 1, "одну": 1, "одна": 1, "два": 2, "две": 2, "три": 3, "четыре": 4, "пять": 5,
+          "шесть": 6, "семь": 7, "восемь": 8, "девять": 9, "десять": 10, "пятнадцать": 15}  # fmt: skip
+ORD_RU_GEN = ["первого", "второго", "третьего", "четвёртого", "пятого", "шестого", "седьмого", "восьмого", "девятого",
+              "десятого", "одиннадцатого", "двенадцатого", "тринадцатого", "четырнадцатого", "пятнадцатого",
+              "шестнадцатого", "семнадцатого", "восемнадцатого", "девятнадцатого"]  # fmt: skip
+WEEKDAY_UZ = ["yakshanba", "dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba"]
+# Whole words: "сред" alone would also catch "средства" (funds) and "среди".
+WEEKDAY_RU = ["воскресенье|воскресенья", "понедельник|понедельника", "вторник|вторника", "среда|среду|среды",
+              "четверг|четверга", "пятница|пятницу|пятницы", "суббота|субботу|субботы"]  # fmt: skip
+
+_S = f"[{JS_S}]"
+# A word starts or ends here (letters and the Uzbek apostrophe belong to words).
+_B = r"(?<![\p{L}'])"
+_E = r"(?![\p{L}'])"
+_ORD_RU_MATCH = [w.replace("ё", "е") for w in ORD_RU_GEN]
+
+
+def _alt(words) -> str:  # noqa: ANN001
+    return "|".join(words)
+
+
+def _digits_for(text: str) -> str:
+    """Number words as digits: "ikki", "o'n besh", "две"; ordinals as "5-chi" / "25-го"."""
+    t = re.sub(
+        f"{_B}(?:({_alt(TENS_UZ)}){_S}+)?({_alt(ORD_UZ)}){_E}",
+        lambda m: f"{(TENS_UZ[m[1]] if m[1] else 0) + ORD_UZ.index(m[2]) + 1}-chi",
+        text,
+    )
+    t = re.sub(f"{_B}({_alt(ORD_TENS_UZ)}){_E}", lambda m: f"{ORD_TENS_UZ[m[1]]}-chi", t)
+    t = re.sub(
+        f"{_B}({_alt(TENS_UZ)})(?:{_S}+({_alt(UNIT_UZ)}))?{_E}",
+        lambda m: str(TENS_UZ[m[1]] + (UNIT_UZ.index(m[2]) + 1 if m[2] else 0)),
+        t,
+    )
+    t = re.sub(f"{_B}({_alt(UNIT_UZ)}){_E}", lambda m: str(UNIT_UZ.index(m[1]) + 1), t)
+    t = re.sub(
+        f"{_B}(?:(двадцать|тридцать){_S}+)?({_alt(_ORD_RU_MATCH)}){_E}",
+        lambda m: f"{(20 if m[1] == 'двадцать' else 30 if m[1] else 0) + _ORD_RU_MATCH.index(m[2]) + 1}-го",
+        t,
+    )
+    t = re.sub(f"{_B}(двадцатого|тридцатого){_E}", lambda m: "20-го" if m[1] == "двадцатого" else "30-го", t)
+    t = re.sub(
+        f"{_B}(?:(двадцать|тридцать){_S}+)?({_alt(NUM_RU)}){_E}",
+        lambda m: str((20 if m[1] == "двадцать" else 30 if m[1] else 0) + NUM_RU[m[2]]),
+        t,
+    )
+    return re.sub(f"{_B}(двадцать|тридцать){_E}", lambda m: "20" if m[1] == "двадцать" else "30", t)
+
+
+def _ordinal_uz(n: int) -> str:
+    tens, unit = n // 10 * 10, n % 10
+    if not unit:
+        return next(w for w, v in ORD_TENS_UZ.items() if v == tens)
+    tens_word = next((w for w, v in TENS_UZ.items() if v == tens), None)
+    return f"{tens_word} {ORD_UZ[unit - 1]}" if tens_word else ORD_UZ[unit - 1]
+
+
+def _ordinal_ru(n: int) -> str:
+    if n < 20:
+        return ORD_RU_GEN[n - 1]
+    if n == 20:
+        return "двадцатого"
+    if n == 30:
+        return "тридцатого"
+    return f"{'двадцать' if n < 30 else 'тридцать'} {ORD_RU_GEN[n % 10 - 1]}"
+
+
+def _named(d: date) -> dict:
+    w = _js_weekday(d)
+    return {
+        "date": d.isoformat(),
+        "label": f"{_label(d)} {d.year}",
+        "say": {
+            "uz": f"{_ordinal_uz(d.day)} {MONTH_UZ[d.month - 1]}, {DAY_UZ[w]}".replace("'", "‘"),
+            "ru": f"{_ordinal_ru(d.day)} {MONTH_RU_GEN[d.month - 1]}, {DAY_RU[w]}",
+            "en": f"{DAY_EN[w]}, {d.day} {MONTH_EN[d.month - 1]}",
+        },
+    }
+
+
+def _day_of(year: int, month0: int, day: int) -> date | None:
+    """That day of a 0-based month (which may run past December), or None when it has no such day."""
+    y, m0 = _month_shift(year, month0, 0)
+    return date(y, m0 + 1, day) if 1 <= day <= _last_day(y, m0) else None
+
+
+def named_day(line: str, time_zone: str = "Asia/Tashkent", now: datetime | None = None) -> dict | None:
+    """
+    The day one line names ("ertaga", "1 haftadan keyin", "juma kuni", "kelasi hafta seshanba",
+    "25-noyabr", "oy oxirida", "через неделю", "в пятницу") as {date, label, say: {uz, ru, en}},
+    worked out from today in the tenant's time zone; None when it names none or unclearly
+    (a negation such as "ertaga emas" is left to the model).
+    """
+    t = _digits_for(re.sub("[‘ʻʼ’`]", "'", uzbek_numbers_to_digits(line).lower()).replace("ё", "е"))
+    if re.search(f"{_B}(?:emas|не){_E}", t):
+        return None
+    today = (now or datetime.now(UTC)).astimezone(ZoneInfo(time_zone)).date()
+
+    def at(n: int) -> dict:
+        return _named(today + timedelta(days=n))
+
+    def months_later(n: int) -> dict:
+        y, m0 = _month_shift(today.year, today.month - 1, n)
+        return _named(date(y, m0 + 1, min(today.day, _last_day(y, m0))))
+
+    m = re.search(
+        f"(?<![0-9])([0-9]{{1,2}}){_S}*-?{_S}*(kun|hafta|oy)(?:lar)?(?:dan)?{_S}+(?:keyin|so'ng|o'tib|o'tgach){_E}", t
+    )
+    if m:
+        n = int(m[1])
+        return months_later(n) if m[2] == "oy" else at(n if m[2] == "kun" else n * 7)
+    m = re.search(
+        f"{_B}через{_S}+(?:([0-9]{{1,2}}){_S}+)?(день|дня|дней|неделю|недели|недель|месяц|месяца|месяцев){_E}", t
+    )
+    if m:
+        n = int(m[1]) if m[1] else 1
+        return months_later(n) if m[2].startswith("месяц") else at(n * 7 if m[2].startswith("нед") else n)
+    if re.search(f"{_B}(?:indinga|послезавтра){_E}", t):
+        return at(2)
+    if re.search(f"{_B}(?:ertaga|завтра){_E}", t):
+        return at(1)
+    if re.search(f"{_B}(?:bugun|сегодня){_E}", t):
+        return at(0)
+    if re.search(f"oy{_S}+oxir|конц[еау]{_S}+месяца", t):
+        return _named(date(today.year, today.month, _last_day(today.year, today.month - 1)))
+    if re.search(f"(?:keyingi|kelasi){_S}+oy{_S}+bosh|начал[еоа]{_S}+следующего{_S}+месяца", t):
+        y, m0 = _month_shift(today.year, today.month - 1, 1)
+        return _named(date(y, m0 + 1, 1))
+    # A whole month word: "1 marta" (once) is not March.
+    m = re.search(
+        f"(?<![0-9])([0-9]{{1,2}}){_S}*-?{_S}*(?:chi{_S}+|го{_S}+|е{_S}+)?"
+        f"(?:({_alt(MONTH_UZ)})(?:da|ga|dan|gacha|ning|si)?|({_alt(MONTH_RU_GEN)})){_E}",
+        t,
+    )
+    if m:
+        month0 = MONTH_UZ.index(m[2]) if m[2] else MONTH_RU_GEN.index(m[3])
+        d = _day_of(today.year, month0, int(m[1]))
+        if d and d < today:
+            d = _day_of(today.year + 1, month0, int(m[1]))
+        return _named(d) if d else None
+    # An ordinal counts only at the end of the line or before kun/sana: "birinchi to'lov" is not a day.
+    m = re.search(
+        f"(?<![0-9])([0-9]{{1,2}}){_S}*-?{_S}*(?:(?:chi|inchi|nchi)(?:si)?"
+        rf"(?={_S}*[.,!?]*{_S}*(?![\s\S])|{_S}+(?:kun|sana))|sana|го{_S}+числа|числа)",
+        t,
+    )
+    if m:
+        n = int(m[1])
+        d = _day_of(today.year, today.month - 1, n) if n >= today.day else None
+        d = d or _day_of(today.year, today.month, n)
+        return _named(d) if d else None
+    weekday = next((i for i, w in enumerate(WEEKDAY_UZ) if re.search(f"{_B}{w}", t)), -1)
+    if weekday < 0:
+        weekday = next((i for i, w in enumerate(WEEKDAY_RU) if re.search(f"{_B}(?:{w}){_E}", t)), -1)
+    if weekday >= 0:
+        today_w = _js_weekday(today)
+        if re.search(f"(?:kelasi|keyingi){_S}+hafta|следующ", t):
+            return at((7 - today_w) % 7 + 1 + (weekday + 6) % 7)
+        return at((weekday - today_w + 7) % 7 or 7)
+    return None

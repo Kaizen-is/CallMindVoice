@@ -33,6 +33,7 @@
     "../../../src/lib/llm/provider.ts",
     "../../../src/lib/speech/tts.ts",
     "../../../src/lib/speech/stt.ts",
+    "../../../src/lib/speech/brb-stt.ts",
     "../../../src/lib/engine/conversation.ts",
     "../../../src/lib/engine/calls.ts",
     "../../../src/lib/db.ts"

@@ -102,7 +102,7 @@ export async function POST(request: Request): Promise<Response> {
       send({ t: 'heard', text: heard.text });
       if (heard.text) {
         const filler = fillerFor(agent, callId, heard.text, pick);
-        if (filler) send({ t: 'filler', pcm: filler });
+        if (filler) send({ t: 'filler', ...filler });
         const speaker = speakAsWritten(agent, detectLanguage(heard.text) as Locale, pick, send, signal, {
           fast,
           onFirstSegment: () => mark('firstSegment'),

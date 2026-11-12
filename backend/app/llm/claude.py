@@ -37,7 +37,7 @@ def client() -> anthropic.AsyncAnthropic | None:
 
 
 def default_model() -> str:
-    return env("ANTHROPIC_MODEL", "claude-opus-5")
+    return env("ANTHROPIC_MODEL", "claude-haiku-5-5")
 
 
 def thinking_for(model: str) -> dict[str, Any]:

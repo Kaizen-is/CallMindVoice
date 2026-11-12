@@ -8,7 +8,7 @@ Uzbek-primary agent and the better transcript wins — the caller waits for the
 slower one, never both. Without Whisper, Gemini covers the non-Uzbek side and
 stands in when Kotib is down. By name: GAPI (`gapi`), Zipformer in-process
 (`local`), gemini-3.5 via Speko (`gemini`), ElevenLabs Scribe via Speko
-(`scribe`).
+(`scribe`), BRB Whisper on Triton over gRPC (`brb`).
 """
 
 import asyncio
@@ -23,6 +23,7 @@ from app.env import env
 from app.jscompat import JS_B, js_trim, utf16_len
 from app.llm.gemini import gemini_transcribe, has_gemini
 from app.speech import zipformer
+from app.speech.brb_stt import brb_stt_configured, brb_stt_model, brb_transcribe
 from app.speech.denoise import denoise
 from app.speech.gapi import gapi_configured, gapi_transcribe
 from app.speech.numbers import uzbek_numbers_to_digits
@@ -41,7 +42,7 @@ log = logging.getLogger("callmind.stt")
 
 Transcript = dict  # {text, engine, language}
 
-STT_ENGINES = ("auto", "gapi", "local", "gemini", "scribe")
+STT_ENGINES = ("auto", "gapi", "local", "gemini", "scribe", "brb")
 
 
 class SttError(Exception):
@@ -69,6 +70,7 @@ def stt_engines() -> dict[str, bool]:
         "local": zipformer.zipformer_available(),
         "gemini": speko_configured(),
         "scribe": speko_configured(),
+        "brb": brb_stt_configured(),
     }
 
 
@@ -86,6 +88,7 @@ def stt_engine_ids() -> dict[str, bool]:
         "speko": speko_configured(),
         "gemini": has_gemini(),
         "scribe": speko_configured(),
+        "brb": brb_stt_configured(),
     }
 
 
@@ -110,6 +113,8 @@ async def transcribe_one(engine: str, audio: bytes, language: str | None = None)
         return await _speko_gemini(audio, language)
     if engine == "scribe":
         return await _speko_scribe(audio, language)
+    if engine == "brb":
+        return await _brb_whisper(audio, language)
     heard = await _gemini(audio, language or "uz")
     if heard is None:
         raise SttError("gemini_failed")
@@ -223,6 +228,21 @@ async def _speko_scribe(audio: bytes, language: str | None = None) -> Transcript
         return {"text": uzbek_numbers_to_digits(text), "engine": "scribe", "language": language or "uz"}
 
     return await _logged("scribe", SPEKO_SCRIBE_MODEL, audio, work)
+
+
+async def _brb_whisper(audio: bytes, language: str | None = None) -> Transcript:
+    """BRB Whisper (our own model on Triton); numbers as digits, like the other engines."""
+
+    async def work() -> Transcript:
+        try:
+            text = await brb_transcribe(wav_to_pcm16k(audio), language)
+        except Exception as err:
+            raise SttError(f"brb: {err or 'failed'}") from err
+        if not text or _is_hallucination(text):
+            return _empty()
+        return {"text": uzbek_numbers_to_digits(text), "engine": "brb", "language": language or "uz"}
+
+    return await _logged("brb", brb_stt_model(), audio, work)
 
 
 async def _whisper(audio: bytes, language: str | None = None) -> Transcript:
@@ -355,6 +375,8 @@ async def transcribe(
             return await _speko_gemini(await denoise(audio) if clean else audio, language)
         if engine == "scribe":
             return await _speko_scribe(await denoise(audio) if clean else audio, language)
+        if engine == "brb":
+            return await _brb_whisper(await denoise(audio) if clean else audio, language)
         return await _gapi_one(audio, language, clean)
 
     has_kotib = bool(env("STT_TRANSCRIBE_URL"))

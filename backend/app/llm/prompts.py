@@ -13,7 +13,7 @@ from typing import Any
 import regex as re
 
 from app.jscompat import JS_S, js_trim, utf16_slice
-from app.llm.loan_call import calendar_block, identity_check
+from app.llm.loan_call import calendar_block, identity_check, named_day
 
 LANGUAGE_NAME = {"uz": "Uzbek", "ru": "Russian", "en": "English"}
 
@@ -130,6 +130,8 @@ def target_block(
     status, just_wrong, wrong_tries = check.status, check.just_wrong, check.wrong_tries
     name = target.get("fullName", "")
     confirmed = status in ("confirmed", "unchecked")
+    # A day the person names is worked out in code, like their identity (see loan_call).
+    day_named = named_day(caller_lines[-1] if caller_lines else "", time_zone, now) if confirmed else None
 
     awaiting = [
         "IDENTITY — NOT CONFIRMED YET. Two steps, one at a time:",
@@ -232,6 +234,13 @@ def target_block(
                 "question well and stop."
             )
             if last_reply and asked_for_day(last_reply) and is_question(caller_lines[-1] if caller_lines else "")
+            else "",
+            (
+                f"- THE DAY THEY JUST NAMED, worked out by the system: {day_named['label']}. If they mean it as the "
+                f'payment day, that day is agreed: say it back exactly as "{day_named["say"]["ru" if language == "Russian" else "uz" if language == "Uzbek" else "en"]}"'
+                " — never another date or weekday."
+            )
+            if day_named
             else "",
             "",
             calendar_block(time_zone, now),

@@ -23,10 +23,13 @@ export type DemoEvent =
   | { t: 'more'; text: string }
   /** The turn is complete: the whole reply, and whether the call ends with it. */
   | { t: 'final'; text: string; end: 'transfer' | null; ms?: Record<string, number> }
-  /** 8 kHz mono 16-bit PCM, base64. */
-  | { t: 'audio'; pcm: string }
+  /**
+   * Mono 16-bit PCM, base64: 8 kHz, or `rate` when the Playground voices a call
+   * with a model that renders more (BRB, ElevenLabs: 24 kHz).
+   */
+  | { t: 'audio'; pcm: string; rate?: number }
   /** A pre-rendered "one moment" to fill the silence while the agent thinks. Same format. */
-  | { t: 'filler'; pcm: string }
+  | { t: 'filler'; pcm: string; rate?: number }
   /** No voice could be rendered: the browser should speak the line itself. */
   | { t: 'voice'; ok: false }
   | { t: 'error'; code: string }

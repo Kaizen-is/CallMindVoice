@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ModelOption } from '@/components/ui/model-menu';
 
-export type SttChoice = 'auto' | 'gapi' | 'local' | 'gemini' | 'scribe';
+export type SttChoice = 'auto' | 'gapi' | 'local' | 'gemini' | 'scribe' | 'brb';
 export type TtsChoice = 'default' | 'brb' | 'eleven_v3_conversational' | 'eleven_v4_turbo';
 
 export const STT_MODELS: Array<{ id: SttChoice; name: string; detail: string; setup: string }> = [
@@ -18,6 +18,8 @@ export const STT_MODELS: Array<{ id: SttChoice; name: string; detail: string; se
   { id: 'local', name: 'Zipformer', detail: 'in-app · live', setup: 'models/uzbek-zipformer' },
   { id: 'gemini', name: 'gemini-3.5', detail: 'Google · Speko', setup: 'SPEKO_API_KEY' },
   { id: 'scribe', name: 'ElevenLabs Scribe', detail: 'ElevenLabs · Speko', setup: 'SPEKO_API_KEY' },
+  // Last, like BRB TTS: reachable only over the VPN.
+  { id: 'brb', name: 'BRB Whisper', detail: 'own model · VPN', setup: 'BRB_STT_URL' },
 ];
 
 export const TTS_MODELS: Array<{ id: TtsChoice; name: string; detail: string; setup: string }> = [

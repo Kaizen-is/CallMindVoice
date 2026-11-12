@@ -6598,6 +6598,4528 @@
    }
   }
  ],
+ "namedDay": [
+  {
+   "line": "1 haftadan keyin",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-19",
+    "label": "Thursday (payshanba / четверг) 19 November 2026",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, payshanba",
+     "ru": "девятнадцатого ноября, четверг",
+     "en": "Thursday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "bir haftadan keyin",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-19",
+    "label": "Thursday (payshanba / четверг) 19 November 2026",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, payshanba",
+     "ru": "девятнадцатого ноября, четверг",
+     "en": "Thursday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "ikki haftadan soʻng",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-26",
+    "label": "Thursday (payshanba / четверг) 26 November 2026",
+    "say": {
+     "uz": "yigirma oltinchi noyabr, payshanba",
+     "ru": "двадцать шестого ноября, четверг",
+     "en": "Thursday, 26 November"
+    }
+   }
+  },
+  {
+   "line": "uch haftadan so'ng",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-03",
+    "label": "Thursday (payshanba / четверг) 3 December 2026",
+    "say": {
+     "uz": "uchinchi dekabr, payshanba",
+     "ru": "третьего декабря, четверг",
+     "en": "Thursday, 3 December"
+    }
+   }
+  },
+  {
+   "line": "3 kundan keyin",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-15",
+    "label": "Sunday (yakshanba / воскресенье) 15 November 2026",
+    "say": {
+     "uz": "o‘n beshinchi noyabr, yakshanba",
+     "ru": "пятнадцатого ноября, воскресенье",
+     "en": "Sunday, 15 November"
+    }
+   }
+  },
+  {
+   "line": "o'n kundan keyin",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-22",
+    "label": "Sunday (yakshanba / воскресенье) 22 November 2026",
+    "say": {
+     "uz": "yigirma ikkinchi noyabr, yakshanba",
+     "ru": "двадцать второго ноября, воскресенье",
+     "en": "Sunday, 22 November"
+    }
+   }
+  },
+  {
+   "line": "oʻn besh kundan keyin",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-27",
+    "label": "Friday (juma / пятница) 27 November 2026",
+    "say": {
+     "uz": "yigirma yettinchi noyabr, juma",
+     "ru": "двадцать седьмого ноября, пятница",
+     "en": "Friday, 27 November"
+    }
+   }
+  },
+  {
+   "line": "bir oydan keyin",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-12",
+    "label": "Saturday (shanba / суббота) 12 December 2026",
+    "say": {
+     "uz": "o‘n ikkinchi dekabr, shanba",
+     "ru": "двенадцатого декабря, суббота",
+     "en": "Saturday, 12 December"
+    }
+   }
+  },
+  {
+   "line": "2 oydan keyin",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-12",
+    "label": "Tuesday (seshanba / вторник) 12 January 2027",
+    "say": {
+     "uz": "o‘n ikkinchi yanvar, seshanba",
+     "ru": "двенадцатого января, вторник",
+     "en": "Tuesday, 12 January"
+    }
+   }
+  },
+  {
+   "line": "ertaga",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-13",
+    "label": "Friday (juma / пятница) 13 November 2026",
+    "say": {
+     "uz": "o‘n uchinchi noyabr, juma",
+     "ru": "тринадцатого ноября, пятница",
+     "en": "Friday, 13 November"
+    }
+   }
+  },
+  {
+   "line": "Ertaga toʻlayman",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-13",
+    "label": "Friday (juma / пятница) 13 November 2026",
+    "say": {
+     "uz": "o‘n uchinchi noyabr, juma",
+     "ru": "тринадцатого ноября, пятница",
+     "en": "Friday, 13 November"
+    }
+   }
+  },
+  {
+   "line": "indinga",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-14",
+    "label": "Saturday (shanba / суббота) 14 November 2026",
+    "say": {
+     "uz": "o‘n to‘rtinchi noyabr, shanba",
+     "ru": "четырнадцатого ноября, суббота",
+     "en": "Saturday, 14 November"
+    }
+   }
+  },
+  {
+   "line": "bugun",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-12",
+    "label": "Thursday (payshanba / четверг) 12 November 2026",
+    "say": {
+     "uz": "o‘n ikkinchi noyabr, payshanba",
+     "ru": "двенадцатого ноября, четверг",
+     "en": "Thursday, 12 November"
+    }
+   }
+  },
+  {
+   "line": "ertagacha",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "juma kuni",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-13",
+    "label": "Friday (juma / пятница) 13 November 2026",
+    "say": {
+     "uz": "o‘n uchinchi noyabr, juma",
+     "ru": "тринадцатого ноября, пятница",
+     "en": "Friday, 13 November"
+    }
+   }
+  },
+  {
+   "line": "Payshanba",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-19",
+    "label": "Thursday (payshanba / четверг) 19 November 2026",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, payshanba",
+     "ru": "девятнадцатого ноября, четверг",
+     "en": "Thursday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "shanbada",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-14",
+    "label": "Saturday (shanba / суббота) 14 November 2026",
+    "say": {
+     "uz": "o‘n to‘rtinchi noyabr, shanba",
+     "ru": "четырнадцатого ноября, суббота",
+     "en": "Saturday, 14 November"
+    }
+   }
+  },
+  {
+   "line": "yakshanbaga",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-15",
+    "label": "Sunday (yakshanba / воскресенье) 15 November 2026",
+    "say": {
+     "uz": "o‘n beshinchi noyabr, yakshanba",
+     "ru": "пятнадцатого ноября, воскресенье",
+     "en": "Sunday, 15 November"
+    }
+   }
+  },
+  {
+   "line": "dushanba kuni",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-16",
+    "label": "Monday (dushanba / понедельник) 16 November 2026",
+    "say": {
+     "uz": "o‘n oltinchi noyabr, dushanba",
+     "ru": "шестнадцатого ноября, понедельник",
+     "en": "Monday, 16 November"
+    }
+   }
+  },
+  {
+   "line": "kelasi hafta seshanba",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-17",
+    "label": "Tuesday (seshanba / вторник) 17 November 2026",
+    "say": {
+     "uz": "o‘n yettinchi noyabr, seshanba",
+     "ru": "семнадцатого ноября, вторник",
+     "en": "Tuesday, 17 November"
+    }
+   }
+  },
+  {
+   "line": "keyingi hafta jumada",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-20",
+    "label": "Friday (juma / пятница) 20 November 2026",
+    "say": {
+     "uz": "yigirmanchi noyabr, juma",
+     "ru": "двадцатого ноября, пятница",
+     "en": "Friday, 20 November"
+    }
+   }
+  },
+  {
+   "line": "25-noyabr",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "25 noyabrda",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "yigirma beshinchi",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "beshinchi kuni",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "5-chi",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "31-chi",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-31",
+    "label": "Thursday (payshanba / четверг) 31 December 2026",
+    "say": {
+     "uz": "o‘ttiz birinchi dekabr, payshanba",
+     "ru": "тридцать первого декабря, четверг",
+     "en": "Thursday, 31 December"
+    }
+   }
+  },
+  {
+   "line": "30-sanada",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-30",
+    "label": "Monday (dushanba / понедельник) 30 November 2026",
+    "say": {
+     "uz": "o‘ttizinchi noyabr, dushanba",
+     "ru": "тридцатого ноября, понедельник",
+     "en": "Monday, 30 November"
+    }
+   }
+  },
+  {
+   "line": "oʻn toʻqqizinchi noyabr",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-19",
+    "label": "Thursday (payshanba / четверг) 19 November 2026",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, payshanba",
+     "ru": "девятнадцатого ноября, четверг",
+     "en": "Thursday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "5 yanvar",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-05",
+    "label": "Tuesday (seshanba / вторник) 5 January 2027",
+    "say": {
+     "uz": "beshinchi yanvar, seshanba",
+     "ru": "пятого января, вторник",
+     "en": "Tuesday, 5 January"
+    }
+   }
+  },
+  {
+   "line": "29-fevral",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "oy oxirida",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-30",
+    "label": "Monday (dushanba / понедельник) 30 November 2026",
+    "say": {
+     "uz": "o‘ttizinchi noyabr, dushanba",
+     "ru": "тридцатого ноября, понедельник",
+     "en": "Monday, 30 November"
+    }
+   }
+  },
+  {
+   "line": "keyingi oy boshida",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-01",
+    "label": "Tuesday (seshanba / вторник) 1 December 2026",
+    "say": {
+     "uz": "birinchi dekabr, seshanba",
+     "ru": "первого декабря, вторник",
+     "en": "Tuesday, 1 December"
+    }
+   }
+  },
+  {
+   "line": "через неделю",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-19",
+    "label": "Thursday (payshanba / четверг) 19 November 2026",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, payshanba",
+     "ru": "девятнадцатого ноября, четверг",
+     "en": "Thursday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "через две недели",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-26",
+    "label": "Thursday (payshanba / четверг) 26 November 2026",
+    "say": {
+     "uz": "yigirma oltinchi noyabr, payshanba",
+     "ru": "двадцать шестого ноября, четверг",
+     "en": "Thursday, 26 November"
+    }
+   }
+  },
+  {
+   "line": "через 3 дня",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-15",
+    "label": "Sunday (yakshanba / воскресенье) 15 November 2026",
+    "say": {
+     "uz": "o‘n beshinchi noyabr, yakshanba",
+     "ru": "пятнадцатого ноября, воскресенье",
+     "en": "Sunday, 15 November"
+    }
+   }
+  },
+  {
+   "line": "через месяц",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-12",
+    "label": "Saturday (shanba / суббота) 12 December 2026",
+    "say": {
+     "uz": "o‘n ikkinchi dekabr, shanba",
+     "ru": "двенадцатого декабря, суббота",
+     "en": "Saturday, 12 December"
+    }
+   }
+  },
+  {
+   "line": "через пятнадцать дней",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-27",
+    "label": "Friday (juma / пятница) 27 November 2026",
+    "say": {
+     "uz": "yigirma yettinchi noyabr, juma",
+     "ru": "двадцать седьмого ноября, пятница",
+     "en": "Friday, 27 November"
+    }
+   }
+  },
+  {
+   "line": "завтра",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-13",
+    "label": "Friday (juma / пятница) 13 November 2026",
+    "say": {
+     "uz": "o‘n uchinchi noyabr, juma",
+     "ru": "тринадцатого ноября, пятница",
+     "en": "Friday, 13 November"
+    }
+   }
+  },
+  {
+   "line": "послезавтра",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-14",
+    "label": "Saturday (shanba / суббота) 14 November 2026",
+    "say": {
+     "uz": "o‘n to‘rtinchi noyabr, shanba",
+     "ru": "четырнадцатого ноября, суббота",
+     "en": "Saturday, 14 November"
+    }
+   }
+  },
+  {
+   "line": "сегодня",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-12",
+    "label": "Thursday (payshanba / четверг) 12 November 2026",
+    "say": {
+     "uz": "o‘n ikkinchi noyabr, payshanba",
+     "ru": "двенадцатого ноября, четверг",
+     "en": "Thursday, 12 November"
+    }
+   }
+  },
+  {
+   "line": "в пятницу",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-13",
+    "label": "Friday (juma / пятница) 13 November 2026",
+    "say": {
+     "uz": "o‘n uchinchi noyabr, juma",
+     "ru": "тринадцатого ноября, пятница",
+     "en": "Friday, 13 November"
+    }
+   }
+  },
+  {
+   "line": "в среду",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-18",
+    "label": "Wednesday (chorshanba / среда) 18 November 2026",
+    "say": {
+     "uz": "o‘n sakkizinchi noyabr, chorshanba",
+     "ru": "восемнадцатого ноября, среда",
+     "en": "Wednesday, 18 November"
+    }
+   }
+  },
+  {
+   "line": "в следующий вторник",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-17",
+    "label": "Tuesday (seshanba / вторник) 17 November 2026",
+    "say": {
+     "uz": "o‘n yettinchi noyabr, seshanba",
+     "ru": "семнадцатого ноября, вторник",
+     "en": "Tuesday, 17 November"
+    }
+   }
+  },
+  {
+   "line": "двадцать пятого ноября",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "25-го ноября",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "третьего числа",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-03",
+    "label": "Thursday (payshanba / четверг) 3 December 2026",
+    "say": {
+     "uz": "uchinchi dekabr, payshanba",
+     "ru": "третьего декабря, четверг",
+     "en": "Thursday, 3 December"
+    }
+   }
+  },
+  {
+   "line": "четвёртого декабря",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-04",
+    "label": "Friday (juma / пятница) 4 December 2026",
+    "say": {
+     "uz": "to‘rtinchi dekabr, juma",
+     "ru": "четвёртого декабря, пятница",
+     "en": "Friday, 4 December"
+    }
+   }
+  },
+  {
+   "line": "тридцатого",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "в конце месяца",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-30",
+    "label": "Monday (dushanba / понедельник) 30 November 2026",
+    "say": {
+     "uz": "o‘ttizinchi noyabr, dushanba",
+     "ru": "тридцатого ноября, понедельник",
+     "en": "Monday, 30 November"
+    }
+   }
+  },
+  {
+   "line": "в начале следующего месяца",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-01",
+    "label": "Tuesday (seshanba / вторник) 1 December 2026",
+    "say": {
+     "uz": "birinchi dekabr, seshanba",
+     "ru": "первого декабря, вторник",
+     "en": "Tuesday, 1 December"
+    }
+   }
+  },
+  {
+   "line": "ertaga emas",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "не завтра",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "1992",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "92-yil",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "nech pul?",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "keyinroq",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "pul boʻlganda",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "mayli",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "Ha, ertaga 5 da",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-13",
+    "label": "Friday (juma / пятница) 13 November 2026",
+    "say": {
+     "uz": "o‘n uchinchi noyabr, juma",
+     "ru": "тринадцатого ноября, пятница",
+     "en": "Friday, 13 November"
+    }
+   }
+  },
+  {
+   "line": "",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "12 000 soʻm",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "bir marta to'layman",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "3 marta",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "1 mayli",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "birinchi toʻlovni qachon qilaman?",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "ikkinchi qismini",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "5-chi kuni toʻlayman",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "25-chi.",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "у меня нет средств",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "среди недели",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "в среду утром",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-18",
+    "label": "Wednesday (chorshanba / среда) 18 November 2026",
+    "say": {
+     "uz": "o‘n sakkizinchi noyabr, chorshanba",
+     "ru": "восемнадцатого ноября, среда",
+     "en": "Wednesday, 18 November"
+    }
+   }
+  },
+  {
+   "line": "до пятницы",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-13",
+    "label": "Friday (juma / пятница) 13 November 2026",
+    "say": {
+     "uz": "o‘n uchinchi noyabr, juma",
+     "ru": "тринадцатого ноября, пятница",
+     "en": "Friday, 13 November"
+    }
+   }
+  },
+  {
+   "line": "в субботу",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-14",
+    "label": "Saturday (shanba / суббота) 14 November 2026",
+    "say": {
+     "uz": "o‘n to‘rtinchi noyabr, shanba",
+     "ru": "четырнадцатого ноября, суббота",
+     "en": "Saturday, 14 November"
+    }
+   }
+  },
+  {
+   "line": "12 martda",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-03-12",
+    "label": "Friday (juma / пятница) 12 March 2027",
+    "say": {
+     "uz": "o‘n ikkinchi mart, juma",
+     "ru": "двенадцатого марта, пятница",
+     "en": "Friday, 12 March"
+    }
+   }
+  },
+  {
+   "line": "noyabrning 5-chi",
+   "now": "2026-11-12T09:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "1 haftadan keyin",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-23",
+    "label": "Monday (dushanba / понедельник) 23 November 2026",
+    "say": {
+     "uz": "yigirma uchinchi noyabr, dushanba",
+     "ru": "двадцать третьего ноября, понедельник",
+     "en": "Monday, 23 November"
+    }
+   }
+  },
+  {
+   "line": "bir haftadan keyin",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-23",
+    "label": "Monday (dushanba / понедельник) 23 November 2026",
+    "say": {
+     "uz": "yigirma uchinchi noyabr, dushanba",
+     "ru": "двадцать третьего ноября, понедельник",
+     "en": "Monday, 23 November"
+    }
+   }
+  },
+  {
+   "line": "ikki haftadan soʻng",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-30",
+    "label": "Monday (dushanba / понедельник) 30 November 2026",
+    "say": {
+     "uz": "o‘ttizinchi noyabr, dushanba",
+     "ru": "тридцатого ноября, понедельник",
+     "en": "Monday, 30 November"
+    }
+   }
+  },
+  {
+   "line": "uch haftadan so'ng",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-07",
+    "label": "Monday (dushanba / понедельник) 7 December 2026",
+    "say": {
+     "uz": "yettinchi dekabr, dushanba",
+     "ru": "седьмого декабря, понедельник",
+     "en": "Monday, 7 December"
+    }
+   }
+  },
+  {
+   "line": "3 kundan keyin",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-19",
+    "label": "Thursday (payshanba / четверг) 19 November 2026",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, payshanba",
+     "ru": "девятнадцатого ноября, четверг",
+     "en": "Thursday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "o'n kundan keyin",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-26",
+    "label": "Thursday (payshanba / четверг) 26 November 2026",
+    "say": {
+     "uz": "yigirma oltinchi noyabr, payshanba",
+     "ru": "двадцать шестого ноября, четверг",
+     "en": "Thursday, 26 November"
+    }
+   }
+  },
+  {
+   "line": "oʻn besh kundan keyin",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-01",
+    "label": "Tuesday (seshanba / вторник) 1 December 2026",
+    "say": {
+     "uz": "birinchi dekabr, seshanba",
+     "ru": "первого декабря, вторник",
+     "en": "Tuesday, 1 December"
+    }
+   }
+  },
+  {
+   "line": "bir oydan keyin",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-16",
+    "label": "Wednesday (chorshanba / среда) 16 December 2026",
+    "say": {
+     "uz": "o‘n oltinchi dekabr, chorshanba",
+     "ru": "шестнадцатого декабря, среда",
+     "en": "Wednesday, 16 December"
+    }
+   }
+  },
+  {
+   "line": "2 oydan keyin",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-16",
+    "label": "Saturday (shanba / суббота) 16 January 2027",
+    "say": {
+     "uz": "o‘n oltinchi yanvar, shanba",
+     "ru": "шестнадцатого января, суббота",
+     "en": "Saturday, 16 January"
+    }
+   }
+  },
+  {
+   "line": "ertaga",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-17",
+    "label": "Tuesday (seshanba / вторник) 17 November 2026",
+    "say": {
+     "uz": "o‘n yettinchi noyabr, seshanba",
+     "ru": "семнадцатого ноября, вторник",
+     "en": "Tuesday, 17 November"
+    }
+   }
+  },
+  {
+   "line": "Ertaga toʻlayman",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-17",
+    "label": "Tuesday (seshanba / вторник) 17 November 2026",
+    "say": {
+     "uz": "o‘n yettinchi noyabr, seshanba",
+     "ru": "семнадцатого ноября, вторник",
+     "en": "Tuesday, 17 November"
+    }
+   }
+  },
+  {
+   "line": "indinga",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-18",
+    "label": "Wednesday (chorshanba / среда) 18 November 2026",
+    "say": {
+     "uz": "o‘n sakkizinchi noyabr, chorshanba",
+     "ru": "восемнадцатого ноября, среда",
+     "en": "Wednesday, 18 November"
+    }
+   }
+  },
+  {
+   "line": "bugun",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-16",
+    "label": "Monday (dushanba / понедельник) 16 November 2026",
+    "say": {
+     "uz": "o‘n oltinchi noyabr, dushanba",
+     "ru": "шестнадцатого ноября, понедельник",
+     "en": "Monday, 16 November"
+    }
+   }
+  },
+  {
+   "line": "ertagacha",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "juma kuni",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-20",
+    "label": "Friday (juma / пятница) 20 November 2026",
+    "say": {
+     "uz": "yigirmanchi noyabr, juma",
+     "ru": "двадцатого ноября, пятница",
+     "en": "Friday, 20 November"
+    }
+   }
+  },
+  {
+   "line": "Payshanba",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-19",
+    "label": "Thursday (payshanba / четверг) 19 November 2026",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, payshanba",
+     "ru": "девятнадцатого ноября, четверг",
+     "en": "Thursday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "shanbada",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-21",
+    "label": "Saturday (shanba / суббота) 21 November 2026",
+    "say": {
+     "uz": "yigirma birinchi noyabr, shanba",
+     "ru": "двадцать первого ноября, суббота",
+     "en": "Saturday, 21 November"
+    }
+   }
+  },
+  {
+   "line": "yakshanbaga",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-22",
+    "label": "Sunday (yakshanba / воскресенье) 22 November 2026",
+    "say": {
+     "uz": "yigirma ikkinchi noyabr, yakshanba",
+     "ru": "двадцать второго ноября, воскресенье",
+     "en": "Sunday, 22 November"
+    }
+   }
+  },
+  {
+   "line": "dushanba kuni",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-23",
+    "label": "Monday (dushanba / понедельник) 23 November 2026",
+    "say": {
+     "uz": "yigirma uchinchi noyabr, dushanba",
+     "ru": "двадцать третьего ноября, понедельник",
+     "en": "Monday, 23 November"
+    }
+   }
+  },
+  {
+   "line": "kelasi hafta seshanba",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-24",
+    "label": "Tuesday (seshanba / вторник) 24 November 2026",
+    "say": {
+     "uz": "yigirma to‘rtinchi noyabr, seshanba",
+     "ru": "двадцать четвёртого ноября, вторник",
+     "en": "Tuesday, 24 November"
+    }
+   }
+  },
+  {
+   "line": "keyingi hafta jumada",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-27",
+    "label": "Friday (juma / пятница) 27 November 2026",
+    "say": {
+     "uz": "yigirma yettinchi noyabr, juma",
+     "ru": "двадцать седьмого ноября, пятница",
+     "en": "Friday, 27 November"
+    }
+   }
+  },
+  {
+   "line": "25-noyabr",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "25 noyabrda",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "yigirma beshinchi",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "beshinchi kuni",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "5-chi",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "31-chi",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-31",
+    "label": "Thursday (payshanba / четверг) 31 December 2026",
+    "say": {
+     "uz": "o‘ttiz birinchi dekabr, payshanba",
+     "ru": "тридцать первого декабря, четверг",
+     "en": "Thursday, 31 December"
+    }
+   }
+  },
+  {
+   "line": "30-sanada",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-30",
+    "label": "Monday (dushanba / понедельник) 30 November 2026",
+    "say": {
+     "uz": "o‘ttizinchi noyabr, dushanba",
+     "ru": "тридцатого ноября, понедельник",
+     "en": "Monday, 30 November"
+    }
+   }
+  },
+  {
+   "line": "oʻn toʻqqizinchi noyabr",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-19",
+    "label": "Thursday (payshanba / четверг) 19 November 2026",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, payshanba",
+     "ru": "девятнадцатого ноября, четверг",
+     "en": "Thursday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "5 yanvar",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-05",
+    "label": "Tuesday (seshanba / вторник) 5 January 2027",
+    "say": {
+     "uz": "beshinchi yanvar, seshanba",
+     "ru": "пятого января, вторник",
+     "en": "Tuesday, 5 January"
+    }
+   }
+  },
+  {
+   "line": "29-fevral",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "oy oxirida",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-30",
+    "label": "Monday (dushanba / понедельник) 30 November 2026",
+    "say": {
+     "uz": "o‘ttizinchi noyabr, dushanba",
+     "ru": "тридцатого ноября, понедельник",
+     "en": "Monday, 30 November"
+    }
+   }
+  },
+  {
+   "line": "keyingi oy boshida",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-01",
+    "label": "Tuesday (seshanba / вторник) 1 December 2026",
+    "say": {
+     "uz": "birinchi dekabr, seshanba",
+     "ru": "первого декабря, вторник",
+     "en": "Tuesday, 1 December"
+    }
+   }
+  },
+  {
+   "line": "через неделю",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-23",
+    "label": "Monday (dushanba / понедельник) 23 November 2026",
+    "say": {
+     "uz": "yigirma uchinchi noyabr, dushanba",
+     "ru": "двадцать третьего ноября, понедельник",
+     "en": "Monday, 23 November"
+    }
+   }
+  },
+  {
+   "line": "через две недели",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-30",
+    "label": "Monday (dushanba / понедельник) 30 November 2026",
+    "say": {
+     "uz": "o‘ttizinchi noyabr, dushanba",
+     "ru": "тридцатого ноября, понедельник",
+     "en": "Monday, 30 November"
+    }
+   }
+  },
+  {
+   "line": "через 3 дня",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-19",
+    "label": "Thursday (payshanba / четверг) 19 November 2026",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, payshanba",
+     "ru": "девятнадцатого ноября, четверг",
+     "en": "Thursday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "через месяц",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-16",
+    "label": "Wednesday (chorshanba / среда) 16 December 2026",
+    "say": {
+     "uz": "o‘n oltinchi dekabr, chorshanba",
+     "ru": "шестнадцатого декабря, среда",
+     "en": "Wednesday, 16 December"
+    }
+   }
+  },
+  {
+   "line": "через пятнадцать дней",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-01",
+    "label": "Tuesday (seshanba / вторник) 1 December 2026",
+    "say": {
+     "uz": "birinchi dekabr, seshanba",
+     "ru": "первого декабря, вторник",
+     "en": "Tuesday, 1 December"
+    }
+   }
+  },
+  {
+   "line": "завтра",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-17",
+    "label": "Tuesday (seshanba / вторник) 17 November 2026",
+    "say": {
+     "uz": "o‘n yettinchi noyabr, seshanba",
+     "ru": "семнадцатого ноября, вторник",
+     "en": "Tuesday, 17 November"
+    }
+   }
+  },
+  {
+   "line": "послезавтра",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-18",
+    "label": "Wednesday (chorshanba / среда) 18 November 2026",
+    "say": {
+     "uz": "o‘n sakkizinchi noyabr, chorshanba",
+     "ru": "восемнадцатого ноября, среда",
+     "en": "Wednesday, 18 November"
+    }
+   }
+  },
+  {
+   "line": "сегодня",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-16",
+    "label": "Monday (dushanba / понедельник) 16 November 2026",
+    "say": {
+     "uz": "o‘n oltinchi noyabr, dushanba",
+     "ru": "шестнадцатого ноября, понедельник",
+     "en": "Monday, 16 November"
+    }
+   }
+  },
+  {
+   "line": "в пятницу",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-20",
+    "label": "Friday (juma / пятница) 20 November 2026",
+    "say": {
+     "uz": "yigirmanchi noyabr, juma",
+     "ru": "двадцатого ноября, пятница",
+     "en": "Friday, 20 November"
+    }
+   }
+  },
+  {
+   "line": "в среду",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-18",
+    "label": "Wednesday (chorshanba / среда) 18 November 2026",
+    "say": {
+     "uz": "o‘n sakkizinchi noyabr, chorshanba",
+     "ru": "восемнадцатого ноября, среда",
+     "en": "Wednesday, 18 November"
+    }
+   }
+  },
+  {
+   "line": "в следующий вторник",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-24",
+    "label": "Tuesday (seshanba / вторник) 24 November 2026",
+    "say": {
+     "uz": "yigirma to‘rtinchi noyabr, seshanba",
+     "ru": "двадцать четвёртого ноября, вторник",
+     "en": "Tuesday, 24 November"
+    }
+   }
+  },
+  {
+   "line": "двадцать пятого ноября",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "25-го ноября",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "третьего числа",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-03",
+    "label": "Thursday (payshanba / четверг) 3 December 2026",
+    "say": {
+     "uz": "uchinchi dekabr, payshanba",
+     "ru": "третьего декабря, четверг",
+     "en": "Thursday, 3 December"
+    }
+   }
+  },
+  {
+   "line": "четвёртого декабря",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-04",
+    "label": "Friday (juma / пятница) 4 December 2026",
+    "say": {
+     "uz": "to‘rtinchi dekabr, juma",
+     "ru": "четвёртого декабря, пятница",
+     "en": "Friday, 4 December"
+    }
+   }
+  },
+  {
+   "line": "тридцатого",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "в конце месяца",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-30",
+    "label": "Monday (dushanba / понедельник) 30 November 2026",
+    "say": {
+     "uz": "o‘ttizinchi noyabr, dushanba",
+     "ru": "тридцатого ноября, понедельник",
+     "en": "Monday, 30 November"
+    }
+   }
+  },
+  {
+   "line": "в начале следующего месяца",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-01",
+    "label": "Tuesday (seshanba / вторник) 1 December 2026",
+    "say": {
+     "uz": "birinchi dekabr, seshanba",
+     "ru": "первого декабря, вторник",
+     "en": "Tuesday, 1 December"
+    }
+   }
+  },
+  {
+   "line": "ertaga emas",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "не завтра",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "1992",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "92-yil",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "nech pul?",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "keyinroq",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "pul boʻlganda",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "mayli",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "Ha, ertaga 5 da",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-17",
+    "label": "Tuesday (seshanba / вторник) 17 November 2026",
+    "say": {
+     "uz": "o‘n yettinchi noyabr, seshanba",
+     "ru": "семнадцатого ноября, вторник",
+     "en": "Tuesday, 17 November"
+    }
+   }
+  },
+  {
+   "line": "",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "12 000 soʻm",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "bir marta to'layman",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "3 marta",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "1 mayli",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "birinchi toʻlovni qachon qilaman?",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "ikkinchi qismini",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "5-chi kuni toʻlayman",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "25-chi.",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "у меня нет средств",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "среди недели",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "в среду утром",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-18",
+    "label": "Wednesday (chorshanba / среда) 18 November 2026",
+    "say": {
+     "uz": "o‘n sakkizinchi noyabr, chorshanba",
+     "ru": "восемнадцатого ноября, среда",
+     "en": "Wednesday, 18 November"
+    }
+   }
+  },
+  {
+   "line": "до пятницы",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-20",
+    "label": "Friday (juma / пятница) 20 November 2026",
+    "say": {
+     "uz": "yigirmanchi noyabr, juma",
+     "ru": "двадцатого ноября, пятница",
+     "en": "Friday, 20 November"
+    }
+   }
+  },
+  {
+   "line": "в субботу",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-11-21",
+    "label": "Saturday (shanba / суббота) 21 November 2026",
+    "say": {
+     "uz": "yigirma birinchi noyabr, shanba",
+     "ru": "двадцать первого ноября, суббота",
+     "en": "Saturday, 21 November"
+    }
+   }
+  },
+  {
+   "line": "12 martda",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-03-12",
+    "label": "Friday (juma / пятница) 12 March 2027",
+    "say": {
+     "uz": "o‘n ikkinchi mart, juma",
+     "ru": "двенадцатого марта, пятница",
+     "en": "Friday, 12 March"
+    }
+   }
+  },
+  {
+   "line": "noyabrning 5-chi",
+   "now": "2026-11-15T20:30:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "1 haftadan keyin",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-04",
+    "label": "Monday (dushanba / понедельник) 4 January 2027",
+    "say": {
+     "uz": "to‘rtinchi yanvar, dushanba",
+     "ru": "четвёртого января, понедельник",
+     "en": "Monday, 4 January"
+    }
+   }
+  },
+  {
+   "line": "bir haftadan keyin",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-04",
+    "label": "Monday (dushanba / понедельник) 4 January 2027",
+    "say": {
+     "uz": "to‘rtinchi yanvar, dushanba",
+     "ru": "четвёртого января, понедельник",
+     "en": "Monday, 4 January"
+    }
+   }
+  },
+  {
+   "line": "ikki haftadan soʻng",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-11",
+    "label": "Monday (dushanba / понедельник) 11 January 2027",
+    "say": {
+     "uz": "o‘n birinchi yanvar, dushanba",
+     "ru": "одиннадцатого января, понедельник",
+     "en": "Monday, 11 January"
+    }
+   }
+  },
+  {
+   "line": "uch haftadan so'ng",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-18",
+    "label": "Monday (dushanba / понедельник) 18 January 2027",
+    "say": {
+     "uz": "o‘n sakkizinchi yanvar, dushanba",
+     "ru": "восемнадцатого января, понедельник",
+     "en": "Monday, 18 January"
+    }
+   }
+  },
+  {
+   "line": "3 kundan keyin",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-31",
+    "label": "Thursday (payshanba / четверг) 31 December 2026",
+    "say": {
+     "uz": "o‘ttiz birinchi dekabr, payshanba",
+     "ru": "тридцать первого декабря, четверг",
+     "en": "Thursday, 31 December"
+    }
+   }
+  },
+  {
+   "line": "o'n kundan keyin",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-07",
+    "label": "Thursday (payshanba / четверг) 7 January 2027",
+    "say": {
+     "uz": "yettinchi yanvar, payshanba",
+     "ru": "седьмого января, четверг",
+     "en": "Thursday, 7 January"
+    }
+   }
+  },
+  {
+   "line": "oʻn besh kundan keyin",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-12",
+    "label": "Tuesday (seshanba / вторник) 12 January 2027",
+    "say": {
+     "uz": "o‘n ikkinchi yanvar, seshanba",
+     "ru": "двенадцатого января, вторник",
+     "en": "Tuesday, 12 January"
+    }
+   }
+  },
+  {
+   "line": "bir oydan keyin",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-28",
+    "label": "Thursday (payshanba / четверг) 28 January 2027",
+    "say": {
+     "uz": "yigirma sakkizinchi yanvar, payshanba",
+     "ru": "двадцать восьмого января, четверг",
+     "en": "Thursday, 28 January"
+    }
+   }
+  },
+  {
+   "line": "2 oydan keyin",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-02-28",
+    "label": "Sunday (yakshanba / воскресенье) 28 February 2027",
+    "say": {
+     "uz": "yigirma sakkizinchi fevral, yakshanba",
+     "ru": "двадцать восьмого февраля, воскресенье",
+     "en": "Sunday, 28 February"
+    }
+   }
+  },
+  {
+   "line": "ertaga",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-29",
+    "label": "Tuesday (seshanba / вторник) 29 December 2026",
+    "say": {
+     "uz": "yigirma to‘qqizinchi dekabr, seshanba",
+     "ru": "двадцать девятого декабря, вторник",
+     "en": "Tuesday, 29 December"
+    }
+   }
+  },
+  {
+   "line": "Ertaga toʻlayman",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-29",
+    "label": "Tuesday (seshanba / вторник) 29 December 2026",
+    "say": {
+     "uz": "yigirma to‘qqizinchi dekabr, seshanba",
+     "ru": "двадцать девятого декабря, вторник",
+     "en": "Tuesday, 29 December"
+    }
+   }
+  },
+  {
+   "line": "indinga",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-30",
+    "label": "Wednesday (chorshanba / среда) 30 December 2026",
+    "say": {
+     "uz": "o‘ttizinchi dekabr, chorshanba",
+     "ru": "тридцатого декабря, среда",
+     "en": "Wednesday, 30 December"
+    }
+   }
+  },
+  {
+   "line": "bugun",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-28",
+    "label": "Monday (dushanba / понедельник) 28 December 2026",
+    "say": {
+     "uz": "yigirma sakkizinchi dekabr, dushanba",
+     "ru": "двадцать восьмого декабря, понедельник",
+     "en": "Monday, 28 December"
+    }
+   }
+  },
+  {
+   "line": "ertagacha",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "juma kuni",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-01",
+    "label": "Friday (juma / пятница) 1 January 2027",
+    "say": {
+     "uz": "birinchi yanvar, juma",
+     "ru": "первого января, пятница",
+     "en": "Friday, 1 January"
+    }
+   }
+  },
+  {
+   "line": "Payshanba",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-31",
+    "label": "Thursday (payshanba / четверг) 31 December 2026",
+    "say": {
+     "uz": "o‘ttiz birinchi dekabr, payshanba",
+     "ru": "тридцать первого декабря, четверг",
+     "en": "Thursday, 31 December"
+    }
+   }
+  },
+  {
+   "line": "shanbada",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-02",
+    "label": "Saturday (shanba / суббота) 2 January 2027",
+    "say": {
+     "uz": "ikkinchi yanvar, shanba",
+     "ru": "второго января, суббота",
+     "en": "Saturday, 2 January"
+    }
+   }
+  },
+  {
+   "line": "yakshanbaga",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-03",
+    "label": "Sunday (yakshanba / воскресенье) 3 January 2027",
+    "say": {
+     "uz": "uchinchi yanvar, yakshanba",
+     "ru": "третьего января, воскресенье",
+     "en": "Sunday, 3 January"
+    }
+   }
+  },
+  {
+   "line": "dushanba kuni",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-04",
+    "label": "Monday (dushanba / понедельник) 4 January 2027",
+    "say": {
+     "uz": "to‘rtinchi yanvar, dushanba",
+     "ru": "четвёртого января, понедельник",
+     "en": "Monday, 4 January"
+    }
+   }
+  },
+  {
+   "line": "kelasi hafta seshanba",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-05",
+    "label": "Tuesday (seshanba / вторник) 5 January 2027",
+    "say": {
+     "uz": "beshinchi yanvar, seshanba",
+     "ru": "пятого января, вторник",
+     "en": "Tuesday, 5 January"
+    }
+   }
+  },
+  {
+   "line": "keyingi hafta jumada",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-08",
+    "label": "Friday (juma / пятница) 8 January 2027",
+    "say": {
+     "uz": "sakkizinchi yanvar, juma",
+     "ru": "восьмого января, пятница",
+     "en": "Friday, 8 January"
+    }
+   }
+  },
+  {
+   "line": "25-noyabr",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-11-25",
+    "label": "Thursday (payshanba / четверг) 25 November 2027",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, payshanba",
+     "ru": "двадцать пятого ноября, четверг",
+     "en": "Thursday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "25 noyabrda",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-11-25",
+    "label": "Thursday (payshanba / четверг) 25 November 2027",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, payshanba",
+     "ru": "двадцать пятого ноября, четверг",
+     "en": "Thursday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "yigirma beshinchi",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-25",
+    "label": "Monday (dushanba / понедельник) 25 January 2027",
+    "say": {
+     "uz": "yigirma beshinchi yanvar, dushanba",
+     "ru": "двадцать пятого января, понедельник",
+     "en": "Monday, 25 January"
+    }
+   }
+  },
+  {
+   "line": "beshinchi kuni",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-05",
+    "label": "Tuesday (seshanba / вторник) 5 January 2027",
+    "say": {
+     "uz": "beshinchi yanvar, seshanba",
+     "ru": "пятого января, вторник",
+     "en": "Tuesday, 5 January"
+    }
+   }
+  },
+  {
+   "line": "5-chi",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-05",
+    "label": "Tuesday (seshanba / вторник) 5 January 2027",
+    "say": {
+     "uz": "beshinchi yanvar, seshanba",
+     "ru": "пятого января, вторник",
+     "en": "Tuesday, 5 January"
+    }
+   }
+  },
+  {
+   "line": "31-chi",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-31",
+    "label": "Thursday (payshanba / четверг) 31 December 2026",
+    "say": {
+     "uz": "o‘ttiz birinchi dekabr, payshanba",
+     "ru": "тридцать первого декабря, четверг",
+     "en": "Thursday, 31 December"
+    }
+   }
+  },
+  {
+   "line": "30-sanada",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-30",
+    "label": "Wednesday (chorshanba / среда) 30 December 2026",
+    "say": {
+     "uz": "o‘ttizinchi dekabr, chorshanba",
+     "ru": "тридцатого декабря, среда",
+     "en": "Wednesday, 30 December"
+    }
+   }
+  },
+  {
+   "line": "oʻn toʻqqizinchi noyabr",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-11-19",
+    "label": "Friday (juma / пятница) 19 November 2027",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, juma",
+     "ru": "девятнадцатого ноября, пятница",
+     "en": "Friday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "5 yanvar",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-05",
+    "label": "Tuesday (seshanba / вторник) 5 January 2027",
+    "say": {
+     "uz": "beshinchi yanvar, seshanba",
+     "ru": "пятого января, вторник",
+     "en": "Tuesday, 5 January"
+    }
+   }
+  },
+  {
+   "line": "29-fevral",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "oy oxirida",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-31",
+    "label": "Thursday (payshanba / четверг) 31 December 2026",
+    "say": {
+     "uz": "o‘ttiz birinchi dekabr, payshanba",
+     "ru": "тридцать первого декабря, четверг",
+     "en": "Thursday, 31 December"
+    }
+   }
+  },
+  {
+   "line": "keyingi oy boshida",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-01",
+    "label": "Friday (juma / пятница) 1 January 2027",
+    "say": {
+     "uz": "birinchi yanvar, juma",
+     "ru": "первого января, пятница",
+     "en": "Friday, 1 January"
+    }
+   }
+  },
+  {
+   "line": "через неделю",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-04",
+    "label": "Monday (dushanba / понедельник) 4 January 2027",
+    "say": {
+     "uz": "to‘rtinchi yanvar, dushanba",
+     "ru": "четвёртого января, понедельник",
+     "en": "Monday, 4 January"
+    }
+   }
+  },
+  {
+   "line": "через две недели",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-11",
+    "label": "Monday (dushanba / понедельник) 11 January 2027",
+    "say": {
+     "uz": "o‘n birinchi yanvar, dushanba",
+     "ru": "одиннадцатого января, понедельник",
+     "en": "Monday, 11 January"
+    }
+   }
+  },
+  {
+   "line": "через 3 дня",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-31",
+    "label": "Thursday (payshanba / четверг) 31 December 2026",
+    "say": {
+     "uz": "o‘ttiz birinchi dekabr, payshanba",
+     "ru": "тридцать первого декабря, четверг",
+     "en": "Thursday, 31 December"
+    }
+   }
+  },
+  {
+   "line": "через месяц",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-28",
+    "label": "Thursday (payshanba / четверг) 28 January 2027",
+    "say": {
+     "uz": "yigirma sakkizinchi yanvar, payshanba",
+     "ru": "двадцать восьмого января, четверг",
+     "en": "Thursday, 28 January"
+    }
+   }
+  },
+  {
+   "line": "через пятнадцать дней",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-12",
+    "label": "Tuesday (seshanba / вторник) 12 January 2027",
+    "say": {
+     "uz": "o‘n ikkinchi yanvar, seshanba",
+     "ru": "двенадцатого января, вторник",
+     "en": "Tuesday, 12 January"
+    }
+   }
+  },
+  {
+   "line": "завтра",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-29",
+    "label": "Tuesday (seshanba / вторник) 29 December 2026",
+    "say": {
+     "uz": "yigirma to‘qqizinchi dekabr, seshanba",
+     "ru": "двадцать девятого декабря, вторник",
+     "en": "Tuesday, 29 December"
+    }
+   }
+  },
+  {
+   "line": "послезавтра",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-30",
+    "label": "Wednesday (chorshanba / среда) 30 December 2026",
+    "say": {
+     "uz": "o‘ttizinchi dekabr, chorshanba",
+     "ru": "тридцатого декабря, среда",
+     "en": "Wednesday, 30 December"
+    }
+   }
+  },
+  {
+   "line": "сегодня",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-28",
+    "label": "Monday (dushanba / понедельник) 28 December 2026",
+    "say": {
+     "uz": "yigirma sakkizinchi dekabr, dushanba",
+     "ru": "двадцать восьмого декабря, понедельник",
+     "en": "Monday, 28 December"
+    }
+   }
+  },
+  {
+   "line": "в пятницу",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-01",
+    "label": "Friday (juma / пятница) 1 January 2027",
+    "say": {
+     "uz": "birinchi yanvar, juma",
+     "ru": "первого января, пятница",
+     "en": "Friday, 1 January"
+    }
+   }
+  },
+  {
+   "line": "в среду",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-30",
+    "label": "Wednesday (chorshanba / среда) 30 December 2026",
+    "say": {
+     "uz": "o‘ttizinchi dekabr, chorshanba",
+     "ru": "тридцатого декабря, среда",
+     "en": "Wednesday, 30 December"
+    }
+   }
+  },
+  {
+   "line": "в следующий вторник",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-05",
+    "label": "Tuesday (seshanba / вторник) 5 January 2027",
+    "say": {
+     "uz": "beshinchi yanvar, seshanba",
+     "ru": "пятого января, вторник",
+     "en": "Tuesday, 5 January"
+    }
+   }
+  },
+  {
+   "line": "двадцать пятого ноября",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-11-25",
+    "label": "Thursday (payshanba / четверг) 25 November 2027",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, payshanba",
+     "ru": "двадцать пятого ноября, четверг",
+     "en": "Thursday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "25-го ноября",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-11-25",
+    "label": "Thursday (payshanba / четверг) 25 November 2027",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, payshanba",
+     "ru": "двадцать пятого ноября, четверг",
+     "en": "Thursday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "третьего числа",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-03",
+    "label": "Sunday (yakshanba / воскресенье) 3 January 2027",
+    "say": {
+     "uz": "uchinchi yanvar, yakshanba",
+     "ru": "третьего января, воскресенье",
+     "en": "Sunday, 3 January"
+    }
+   }
+  },
+  {
+   "line": "четвёртого декабря",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-12-04",
+    "label": "Saturday (shanba / суббота) 4 December 2027",
+    "say": {
+     "uz": "to‘rtinchi dekabr, shanba",
+     "ru": "четвёртого декабря, суббота",
+     "en": "Saturday, 4 December"
+    }
+   }
+  },
+  {
+   "line": "тридцатого",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "в конце месяца",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-31",
+    "label": "Thursday (payshanba / четверг) 31 December 2026",
+    "say": {
+     "uz": "o‘ttiz birinchi dekabr, payshanba",
+     "ru": "тридцать первого декабря, четверг",
+     "en": "Thursday, 31 December"
+    }
+   }
+  },
+  {
+   "line": "в начале следующего месяца",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-01",
+    "label": "Friday (juma / пятница) 1 January 2027",
+    "say": {
+     "uz": "birinchi yanvar, juma",
+     "ru": "первого января, пятница",
+     "en": "Friday, 1 January"
+    }
+   }
+  },
+  {
+   "line": "ertaga emas",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "не завтра",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "1992",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "92-yil",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "nech pul?",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "keyinroq",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "pul boʻlganda",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "mayli",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "Ha, ertaga 5 da",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-29",
+    "label": "Tuesday (seshanba / вторник) 29 December 2026",
+    "say": {
+     "uz": "yigirma to‘qqizinchi dekabr, seshanba",
+     "ru": "двадцать девятого декабря, вторник",
+     "en": "Tuesday, 29 December"
+    }
+   }
+  },
+  {
+   "line": "",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "12 000 soʻm",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "bir marta to'layman",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "3 marta",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "1 mayli",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "birinchi toʻlovni qachon qilaman?",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "ikkinchi qismini",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "5-chi kuni toʻlayman",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-05",
+    "label": "Tuesday (seshanba / вторник) 5 January 2027",
+    "say": {
+     "uz": "beshinchi yanvar, seshanba",
+     "ru": "пятого января, вторник",
+     "en": "Tuesday, 5 January"
+    }
+   }
+  },
+  {
+   "line": "25-chi.",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-25",
+    "label": "Monday (dushanba / понедельник) 25 January 2027",
+    "say": {
+     "uz": "yigirma beshinchi yanvar, dushanba",
+     "ru": "двадцать пятого января, понедельник",
+     "en": "Monday, 25 January"
+    }
+   }
+  },
+  {
+   "line": "у меня нет средств",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "среди недели",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "в среду утром",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2026-12-30",
+    "label": "Wednesday (chorshanba / среда) 30 December 2026",
+    "say": {
+     "uz": "o‘ttizinchi dekabr, chorshanba",
+     "ru": "тридцатого декабря, среда",
+     "en": "Wednesday, 30 December"
+    }
+   }
+  },
+  {
+   "line": "до пятницы",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-01",
+    "label": "Friday (juma / пятница) 1 January 2027",
+    "say": {
+     "uz": "birinchi yanvar, juma",
+     "ru": "первого января, пятница",
+     "en": "Friday, 1 January"
+    }
+   }
+  },
+  {
+   "line": "в субботу",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-02",
+    "label": "Saturday (shanba / суббота) 2 January 2027",
+    "say": {
+     "uz": "ikkinchi yanvar, shanba",
+     "ru": "второго января, суббота",
+     "en": "Saturday, 2 January"
+    }
+   }
+  },
+  {
+   "line": "12 martda",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-03-12",
+    "label": "Friday (juma / пятница) 12 March 2027",
+    "say": {
+     "uz": "o‘n ikkinchi mart, juma",
+     "ru": "двенадцатого марта, пятница",
+     "en": "Friday, 12 March"
+    }
+   }
+  },
+  {
+   "line": "noyabrning 5-chi",
+   "now": "2026-12-28T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2027-01-05",
+    "label": "Tuesday (seshanba / вторник) 5 January 2027",
+    "say": {
+     "uz": "beshinchi yanvar, seshanba",
+     "ru": "пятого января, вторник",
+     "en": "Tuesday, 5 January"
+    }
+   }
+  },
+  {
+   "line": "1 haftadan keyin",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-07",
+    "label": "Monday (dushanba / понедельник) 7 February 2028",
+    "say": {
+     "uz": "yettinchi fevral, dushanba",
+     "ru": "седьмого февраля, понедельник",
+     "en": "Monday, 7 February"
+    }
+   }
+  },
+  {
+   "line": "bir haftadan keyin",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-07",
+    "label": "Monday (dushanba / понедельник) 7 February 2028",
+    "say": {
+     "uz": "yettinchi fevral, dushanba",
+     "ru": "седьмого февраля, понедельник",
+     "en": "Monday, 7 February"
+    }
+   }
+  },
+  {
+   "line": "ikki haftadan soʻng",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-14",
+    "label": "Monday (dushanba / понедельник) 14 February 2028",
+    "say": {
+     "uz": "o‘n to‘rtinchi fevral, dushanba",
+     "ru": "четырнадцатого февраля, понедельник",
+     "en": "Monday, 14 February"
+    }
+   }
+  },
+  {
+   "line": "uch haftadan so'ng",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-21",
+    "label": "Monday (dushanba / понедельник) 21 February 2028",
+    "say": {
+     "uz": "yigirma birinchi fevral, dushanba",
+     "ru": "двадцать первого февраля, понедельник",
+     "en": "Monday, 21 February"
+    }
+   }
+  },
+  {
+   "line": "3 kundan keyin",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-03",
+    "label": "Thursday (payshanba / четверг) 3 February 2028",
+    "say": {
+     "uz": "uchinchi fevral, payshanba",
+     "ru": "третьего февраля, четверг",
+     "en": "Thursday, 3 February"
+    }
+   }
+  },
+  {
+   "line": "o'n kundan keyin",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-10",
+    "label": "Thursday (payshanba / четверг) 10 February 2028",
+    "say": {
+     "uz": "o‘ninchi fevral, payshanba",
+     "ru": "десятого февраля, четверг",
+     "en": "Thursday, 10 February"
+    }
+   }
+  },
+  {
+   "line": "oʻn besh kundan keyin",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-15",
+    "label": "Tuesday (seshanba / вторник) 15 February 2028",
+    "say": {
+     "uz": "o‘n beshinchi fevral, seshanba",
+     "ru": "пятнадцатого февраля, вторник",
+     "en": "Tuesday, 15 February"
+    }
+   }
+  },
+  {
+   "line": "bir oydan keyin",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-29",
+    "label": "Tuesday (seshanba / вторник) 29 February 2028",
+    "say": {
+     "uz": "yigirma to‘qqizinchi fevral, seshanba",
+     "ru": "двадцать девятого февраля, вторник",
+     "en": "Tuesday, 29 February"
+    }
+   }
+  },
+  {
+   "line": "2 oydan keyin",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-03-31",
+    "label": "Friday (juma / пятница) 31 March 2028",
+    "say": {
+     "uz": "o‘ttiz birinchi mart, juma",
+     "ru": "тридцать первого марта, пятница",
+     "en": "Friday, 31 March"
+    }
+   }
+  },
+  {
+   "line": "ertaga",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-01",
+    "label": "Tuesday (seshanba / вторник) 1 February 2028",
+    "say": {
+     "uz": "birinchi fevral, seshanba",
+     "ru": "первого февраля, вторник",
+     "en": "Tuesday, 1 February"
+    }
+   }
+  },
+  {
+   "line": "Ertaga toʻlayman",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-01",
+    "label": "Tuesday (seshanba / вторник) 1 February 2028",
+    "say": {
+     "uz": "birinchi fevral, seshanba",
+     "ru": "первого февраля, вторник",
+     "en": "Tuesday, 1 February"
+    }
+   }
+  },
+  {
+   "line": "indinga",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-02",
+    "label": "Wednesday (chorshanba / среда) 2 February 2028",
+    "say": {
+     "uz": "ikkinchi fevral, chorshanba",
+     "ru": "второго февраля, среда",
+     "en": "Wednesday, 2 February"
+    }
+   }
+  },
+  {
+   "line": "bugun",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-01-31",
+    "label": "Monday (dushanba / понедельник) 31 January 2028",
+    "say": {
+     "uz": "o‘ttiz birinchi yanvar, dushanba",
+     "ru": "тридцать первого января, понедельник",
+     "en": "Monday, 31 January"
+    }
+   }
+  },
+  {
+   "line": "ertagacha",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "juma kuni",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-04",
+    "label": "Friday (juma / пятница) 4 February 2028",
+    "say": {
+     "uz": "to‘rtinchi fevral, juma",
+     "ru": "четвёртого февраля, пятница",
+     "en": "Friday, 4 February"
+    }
+   }
+  },
+  {
+   "line": "Payshanba",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-03",
+    "label": "Thursday (payshanba / четверг) 3 February 2028",
+    "say": {
+     "uz": "uchinchi fevral, payshanba",
+     "ru": "третьего февраля, четверг",
+     "en": "Thursday, 3 February"
+    }
+   }
+  },
+  {
+   "line": "shanbada",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-05",
+    "label": "Saturday (shanba / суббота) 5 February 2028",
+    "say": {
+     "uz": "beshinchi fevral, shanba",
+     "ru": "пятого февраля, суббота",
+     "en": "Saturday, 5 February"
+    }
+   }
+  },
+  {
+   "line": "yakshanbaga",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-06",
+    "label": "Sunday (yakshanba / воскресенье) 6 February 2028",
+    "say": {
+     "uz": "oltinchi fevral, yakshanba",
+     "ru": "шестого февраля, воскресенье",
+     "en": "Sunday, 6 February"
+    }
+   }
+  },
+  {
+   "line": "dushanba kuni",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-07",
+    "label": "Monday (dushanba / понедельник) 7 February 2028",
+    "say": {
+     "uz": "yettinchi fevral, dushanba",
+     "ru": "седьмого февраля, понедельник",
+     "en": "Monday, 7 February"
+    }
+   }
+  },
+  {
+   "line": "kelasi hafta seshanba",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-08",
+    "label": "Tuesday (seshanba / вторник) 8 February 2028",
+    "say": {
+     "uz": "sakkizinchi fevral, seshanba",
+     "ru": "восьмого февраля, вторник",
+     "en": "Tuesday, 8 February"
+    }
+   }
+  },
+  {
+   "line": "keyingi hafta jumada",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-11",
+    "label": "Friday (juma / пятница) 11 February 2028",
+    "say": {
+     "uz": "o‘n birinchi fevral, juma",
+     "ru": "одиннадцатого февраля, пятница",
+     "en": "Friday, 11 February"
+    }
+   }
+  },
+  {
+   "line": "25-noyabr",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-11-25",
+    "label": "Saturday (shanba / суббота) 25 November 2028",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, shanba",
+     "ru": "двадцать пятого ноября, суббота",
+     "en": "Saturday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "25 noyabrda",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-11-25",
+    "label": "Saturday (shanba / суббота) 25 November 2028",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, shanba",
+     "ru": "двадцать пятого ноября, суббота",
+     "en": "Saturday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "yigirma beshinchi",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-25",
+    "label": "Friday (juma / пятница) 25 February 2028",
+    "say": {
+     "uz": "yigirma beshinchi fevral, juma",
+     "ru": "двадцать пятого февраля, пятница",
+     "en": "Friday, 25 February"
+    }
+   }
+  },
+  {
+   "line": "beshinchi kuni",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-05",
+    "label": "Saturday (shanba / суббота) 5 February 2028",
+    "say": {
+     "uz": "beshinchi fevral, shanba",
+     "ru": "пятого февраля, суббота",
+     "en": "Saturday, 5 February"
+    }
+   }
+  },
+  {
+   "line": "5-chi",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-05",
+    "label": "Saturday (shanba / суббота) 5 February 2028",
+    "say": {
+     "uz": "beshinchi fevral, shanba",
+     "ru": "пятого февраля, суббота",
+     "en": "Saturday, 5 February"
+    }
+   }
+  },
+  {
+   "line": "31-chi",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-01-31",
+    "label": "Monday (dushanba / понедельник) 31 January 2028",
+    "say": {
+     "uz": "o‘ttiz birinchi yanvar, dushanba",
+     "ru": "тридцать первого января, понедельник",
+     "en": "Monday, 31 January"
+    }
+   }
+  },
+  {
+   "line": "30-sanada",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "oʻn toʻqqizinchi noyabr",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-11-19",
+    "label": "Sunday (yakshanba / воскресенье) 19 November 2028",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, yakshanba",
+     "ru": "девятнадцатого ноября, воскресенье",
+     "en": "Sunday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "5 yanvar",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2029-01-05",
+    "label": "Friday (juma / пятница) 5 January 2029",
+    "say": {
+     "uz": "beshinchi yanvar, juma",
+     "ru": "пятого января, пятница",
+     "en": "Friday, 5 January"
+    }
+   }
+  },
+  {
+   "line": "29-fevral",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-29",
+    "label": "Tuesday (seshanba / вторник) 29 February 2028",
+    "say": {
+     "uz": "yigirma to‘qqizinchi fevral, seshanba",
+     "ru": "двадцать девятого февраля, вторник",
+     "en": "Tuesday, 29 February"
+    }
+   }
+  },
+  {
+   "line": "oy oxirida",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-01-31",
+    "label": "Monday (dushanba / понедельник) 31 January 2028",
+    "say": {
+     "uz": "o‘ttiz birinchi yanvar, dushanba",
+     "ru": "тридцать первого января, понедельник",
+     "en": "Monday, 31 January"
+    }
+   }
+  },
+  {
+   "line": "keyingi oy boshida",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-01",
+    "label": "Tuesday (seshanba / вторник) 1 February 2028",
+    "say": {
+     "uz": "birinchi fevral, seshanba",
+     "ru": "первого февраля, вторник",
+     "en": "Tuesday, 1 February"
+    }
+   }
+  },
+  {
+   "line": "через неделю",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-07",
+    "label": "Monday (dushanba / понедельник) 7 February 2028",
+    "say": {
+     "uz": "yettinchi fevral, dushanba",
+     "ru": "седьмого февраля, понедельник",
+     "en": "Monday, 7 February"
+    }
+   }
+  },
+  {
+   "line": "через две недели",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-14",
+    "label": "Monday (dushanba / понедельник) 14 February 2028",
+    "say": {
+     "uz": "o‘n to‘rtinchi fevral, dushanba",
+     "ru": "четырнадцатого февраля, понедельник",
+     "en": "Monday, 14 February"
+    }
+   }
+  },
+  {
+   "line": "через 3 дня",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-03",
+    "label": "Thursday (payshanba / четверг) 3 February 2028",
+    "say": {
+     "uz": "uchinchi fevral, payshanba",
+     "ru": "третьего февраля, четверг",
+     "en": "Thursday, 3 February"
+    }
+   }
+  },
+  {
+   "line": "через месяц",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-29",
+    "label": "Tuesday (seshanba / вторник) 29 February 2028",
+    "say": {
+     "uz": "yigirma to‘qqizinchi fevral, seshanba",
+     "ru": "двадцать девятого февраля, вторник",
+     "en": "Tuesday, 29 February"
+    }
+   }
+  },
+  {
+   "line": "через пятнадцать дней",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-15",
+    "label": "Tuesday (seshanba / вторник) 15 February 2028",
+    "say": {
+     "uz": "o‘n beshinchi fevral, seshanba",
+     "ru": "пятнадцатого февраля, вторник",
+     "en": "Tuesday, 15 February"
+    }
+   }
+  },
+  {
+   "line": "завтра",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-01",
+    "label": "Tuesday (seshanba / вторник) 1 February 2028",
+    "say": {
+     "uz": "birinchi fevral, seshanba",
+     "ru": "первого февраля, вторник",
+     "en": "Tuesday, 1 February"
+    }
+   }
+  },
+  {
+   "line": "послезавтра",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-02",
+    "label": "Wednesday (chorshanba / среда) 2 February 2028",
+    "say": {
+     "uz": "ikkinchi fevral, chorshanba",
+     "ru": "второго февраля, среда",
+     "en": "Wednesday, 2 February"
+    }
+   }
+  },
+  {
+   "line": "сегодня",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-01-31",
+    "label": "Monday (dushanba / понедельник) 31 January 2028",
+    "say": {
+     "uz": "o‘ttiz birinchi yanvar, dushanba",
+     "ru": "тридцать первого января, понедельник",
+     "en": "Monday, 31 January"
+    }
+   }
+  },
+  {
+   "line": "в пятницу",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-04",
+    "label": "Friday (juma / пятница) 4 February 2028",
+    "say": {
+     "uz": "to‘rtinchi fevral, juma",
+     "ru": "четвёртого февраля, пятница",
+     "en": "Friday, 4 February"
+    }
+   }
+  },
+  {
+   "line": "в среду",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-02",
+    "label": "Wednesday (chorshanba / среда) 2 February 2028",
+    "say": {
+     "uz": "ikkinchi fevral, chorshanba",
+     "ru": "второго февраля, среда",
+     "en": "Wednesday, 2 February"
+    }
+   }
+  },
+  {
+   "line": "в следующий вторник",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-08",
+    "label": "Tuesday (seshanba / вторник) 8 February 2028",
+    "say": {
+     "uz": "sakkizinchi fevral, seshanba",
+     "ru": "восьмого февраля, вторник",
+     "en": "Tuesday, 8 February"
+    }
+   }
+  },
+  {
+   "line": "двадцать пятого ноября",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-11-25",
+    "label": "Saturday (shanba / суббота) 25 November 2028",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, shanba",
+     "ru": "двадцать пятого ноября, суббота",
+     "en": "Saturday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "25-го ноября",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-11-25",
+    "label": "Saturday (shanba / суббота) 25 November 2028",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, shanba",
+     "ru": "двадцать пятого ноября, суббота",
+     "en": "Saturday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "третьего числа",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-03",
+    "label": "Thursday (payshanba / четверг) 3 February 2028",
+    "say": {
+     "uz": "uchinchi fevral, payshanba",
+     "ru": "третьего февраля, четверг",
+     "en": "Thursday, 3 February"
+    }
+   }
+  },
+  {
+   "line": "четвёртого декабря",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-12-04",
+    "label": "Monday (dushanba / понедельник) 4 December 2028",
+    "say": {
+     "uz": "to‘rtinchi dekabr, dushanba",
+     "ru": "четвёртого декабря, понедельник",
+     "en": "Monday, 4 December"
+    }
+   }
+  },
+  {
+   "line": "тридцатого",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "в конце месяца",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-01-31",
+    "label": "Monday (dushanba / понедельник) 31 January 2028",
+    "say": {
+     "uz": "o‘ttiz birinchi yanvar, dushanba",
+     "ru": "тридцать первого января, понедельник",
+     "en": "Monday, 31 January"
+    }
+   }
+  },
+  {
+   "line": "в начале следующего месяца",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-01",
+    "label": "Tuesday (seshanba / вторник) 1 February 2028",
+    "say": {
+     "uz": "birinchi fevral, seshanba",
+     "ru": "первого февраля, вторник",
+     "en": "Tuesday, 1 February"
+    }
+   }
+  },
+  {
+   "line": "ertaga emas",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "не завтра",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "1992",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "92-yil",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "nech pul?",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "keyinroq",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "pul boʻlganda",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "mayli",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "Ha, ertaga 5 da",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-01",
+    "label": "Tuesday (seshanba / вторник) 1 February 2028",
+    "say": {
+     "uz": "birinchi fevral, seshanba",
+     "ru": "первого февраля, вторник",
+     "en": "Tuesday, 1 February"
+    }
+   }
+  },
+  {
+   "line": "",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "12 000 soʻm",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "bir marta to'layman",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "3 marta",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "1 mayli",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "birinchi toʻlovni qachon qilaman?",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "ikkinchi qismini",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "5-chi kuni toʻlayman",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-05",
+    "label": "Saturday (shanba / суббота) 5 February 2028",
+    "say": {
+     "uz": "beshinchi fevral, shanba",
+     "ru": "пятого февраля, суббота",
+     "en": "Saturday, 5 February"
+    }
+   }
+  },
+  {
+   "line": "25-chi.",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-25",
+    "label": "Friday (juma / пятница) 25 February 2028",
+    "say": {
+     "uz": "yigirma beshinchi fevral, juma",
+     "ru": "двадцать пятого февраля, пятница",
+     "en": "Friday, 25 February"
+    }
+   }
+  },
+  {
+   "line": "у меня нет средств",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "среди недели",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": null
+  },
+  {
+   "line": "в среду утром",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-02",
+    "label": "Wednesday (chorshanba / среда) 2 February 2028",
+    "say": {
+     "uz": "ikkinchi fevral, chorshanba",
+     "ru": "второго февраля, среда",
+     "en": "Wednesday, 2 February"
+    }
+   }
+  },
+  {
+   "line": "до пятницы",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-04",
+    "label": "Friday (juma / пятница) 4 February 2028",
+    "say": {
+     "uz": "to‘rtinchi fevral, juma",
+     "ru": "четвёртого февраля, пятница",
+     "en": "Friday, 4 February"
+    }
+   }
+  },
+  {
+   "line": "в субботу",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-05",
+    "label": "Saturday (shanba / суббота) 5 February 2028",
+    "say": {
+     "uz": "beshinchi fevral, shanba",
+     "ru": "пятого февраля, суббота",
+     "en": "Saturday, 5 February"
+    }
+   }
+  },
+  {
+   "line": "12 martda",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-03-12",
+    "label": "Sunday (yakshanba / воскресенье) 12 March 2028",
+    "say": {
+     "uz": "o‘n ikkinchi mart, yakshanba",
+     "ru": "двенадцатого марта, воскресенье",
+     "en": "Sunday, 12 March"
+    }
+   }
+  },
+  {
+   "line": "noyabrning 5-chi",
+   "now": "2028-01-31T10:00:00Z",
+   "timeZone": "Asia/Tashkent",
+   "output": {
+    "date": "2028-02-05",
+    "label": "Saturday (shanba / суббота) 5 February 2028",
+    "say": {
+     "uz": "beshinchi fevral, shanba",
+     "ru": "пятого февраля, суббота",
+     "en": "Saturday, 5 February"
+    }
+   }
+  },
+  {
+   "line": "1 haftadan keyin",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-21",
+    "label": "Saturday (shanba / суббота) 21 November 2026",
+    "say": {
+     "uz": "yigirma birinchi noyabr, shanba",
+     "ru": "двадцать первого ноября, суббота",
+     "en": "Saturday, 21 November"
+    }
+   }
+  },
+  {
+   "line": "bir haftadan keyin",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-21",
+    "label": "Saturday (shanba / суббота) 21 November 2026",
+    "say": {
+     "uz": "yigirma birinchi noyabr, shanba",
+     "ru": "двадцать первого ноября, суббота",
+     "en": "Saturday, 21 November"
+    }
+   }
+  },
+  {
+   "line": "ikki haftadan soʻng",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-28",
+    "label": "Saturday (shanba / суббота) 28 November 2026",
+    "say": {
+     "uz": "yigirma sakkizinchi noyabr, shanba",
+     "ru": "двадцать восьмого ноября, суббота",
+     "en": "Saturday, 28 November"
+    }
+   }
+  },
+  {
+   "line": "uch haftadan so'ng",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "3 kundan keyin",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-17",
+    "label": "Tuesday (seshanba / вторник) 17 November 2026",
+    "say": {
+     "uz": "o‘n yettinchi noyabr, seshanba",
+     "ru": "семнадцатого ноября, вторник",
+     "en": "Tuesday, 17 November"
+    }
+   }
+  },
+  {
+   "line": "o'n kundan keyin",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-24",
+    "label": "Tuesday (seshanba / вторник) 24 November 2026",
+    "say": {
+     "uz": "yigirma to‘rtinchi noyabr, seshanba",
+     "ru": "двадцать четвёртого ноября, вторник",
+     "en": "Tuesday, 24 November"
+    }
+   }
+  },
+  {
+   "line": "oʻn besh kundan keyin",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-29",
+    "label": "Sunday (yakshanba / воскресенье) 29 November 2026",
+    "say": {
+     "uz": "yigirma to‘qqizinchi noyabr, yakshanba",
+     "ru": "двадцать девятого ноября, воскресенье",
+     "en": "Sunday, 29 November"
+    }
+   }
+  },
+  {
+   "line": "bir oydan keyin",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-14",
+    "label": "Monday (dushanba / понедельник) 14 December 2026",
+    "say": {
+     "uz": "o‘n to‘rtinchi dekabr, dushanba",
+     "ru": "четырнадцатого декабря, понедельник",
+     "en": "Monday, 14 December"
+    }
+   }
+  },
+  {
+   "line": "2 oydan keyin",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2027-01-14",
+    "label": "Thursday (payshanba / четверг) 14 January 2027",
+    "say": {
+     "uz": "o‘n to‘rtinchi yanvar, payshanba",
+     "ru": "четырнадцатого января, четверг",
+     "en": "Thursday, 14 January"
+    }
+   }
+  },
+  {
+   "line": "ertaga",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-15",
+    "label": "Sunday (yakshanba / воскресенье) 15 November 2026",
+    "say": {
+     "uz": "o‘n beshinchi noyabr, yakshanba",
+     "ru": "пятнадцатого ноября, воскресенье",
+     "en": "Sunday, 15 November"
+    }
+   }
+  },
+  {
+   "line": "Ertaga toʻlayman",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-15",
+    "label": "Sunday (yakshanba / воскресенье) 15 November 2026",
+    "say": {
+     "uz": "o‘n beshinchi noyabr, yakshanba",
+     "ru": "пятнадцатого ноября, воскресенье",
+     "en": "Sunday, 15 November"
+    }
+   }
+  },
+  {
+   "line": "indinga",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-16",
+    "label": "Monday (dushanba / понедельник) 16 November 2026",
+    "say": {
+     "uz": "o‘n oltinchi noyabr, dushanba",
+     "ru": "шестнадцатого ноября, понедельник",
+     "en": "Monday, 16 November"
+    }
+   }
+  },
+  {
+   "line": "bugun",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-14",
+    "label": "Saturday (shanba / суббота) 14 November 2026",
+    "say": {
+     "uz": "o‘n to‘rtinchi noyabr, shanba",
+     "ru": "четырнадцатого ноября, суббота",
+     "en": "Saturday, 14 November"
+    }
+   }
+  },
+  {
+   "line": "ertagacha",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "juma kuni",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-20",
+    "label": "Friday (juma / пятница) 20 November 2026",
+    "say": {
+     "uz": "yigirmanchi noyabr, juma",
+     "ru": "двадцатого ноября, пятница",
+     "en": "Friday, 20 November"
+    }
+   }
+  },
+  {
+   "line": "Payshanba",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-19",
+    "label": "Thursday (payshanba / четверг) 19 November 2026",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, payshanba",
+     "ru": "девятнадцатого ноября, четверг",
+     "en": "Thursday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "shanbada",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-21",
+    "label": "Saturday (shanba / суббота) 21 November 2026",
+    "say": {
+     "uz": "yigirma birinchi noyabr, shanba",
+     "ru": "двадцать первого ноября, суббота",
+     "en": "Saturday, 21 November"
+    }
+   }
+  },
+  {
+   "line": "yakshanbaga",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-15",
+    "label": "Sunday (yakshanba / воскресенье) 15 November 2026",
+    "say": {
+     "uz": "o‘n beshinchi noyabr, yakshanba",
+     "ru": "пятнадцатого ноября, воскресенье",
+     "en": "Sunday, 15 November"
+    }
+   }
+  },
+  {
+   "line": "dushanba kuni",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-16",
+    "label": "Monday (dushanba / понедельник) 16 November 2026",
+    "say": {
+     "uz": "o‘n oltinchi noyabr, dushanba",
+     "ru": "шестнадцатого ноября, понедельник",
+     "en": "Monday, 16 November"
+    }
+   }
+  },
+  {
+   "line": "kelasi hafta seshanba",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-17",
+    "label": "Tuesday (seshanba / вторник) 17 November 2026",
+    "say": {
+     "uz": "o‘n yettinchi noyabr, seshanba",
+     "ru": "семнадцатого ноября, вторник",
+     "en": "Tuesday, 17 November"
+    }
+   }
+  },
+  {
+   "line": "keyingi hafta jumada",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-20",
+    "label": "Friday (juma / пятница) 20 November 2026",
+    "say": {
+     "uz": "yigirmanchi noyabr, juma",
+     "ru": "двадцатого ноября, пятница",
+     "en": "Friday, 20 November"
+    }
+   }
+  },
+  {
+   "line": "25-noyabr",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "25 noyabrda",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "yigirma beshinchi",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "beshinchi kuni",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "5-chi",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "31-chi",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-31",
+    "label": "Thursday (payshanba / четверг) 31 December 2026",
+    "say": {
+     "uz": "o‘ttiz birinchi dekabr, payshanba",
+     "ru": "тридцать первого декабря, четверг",
+     "en": "Thursday, 31 December"
+    }
+   }
+  },
+  {
+   "line": "30-sanada",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-30",
+    "label": "Monday (dushanba / понедельник) 30 November 2026",
+    "say": {
+     "uz": "o‘ttizinchi noyabr, dushanba",
+     "ru": "тридцатого ноября, понедельник",
+     "en": "Monday, 30 November"
+    }
+   }
+  },
+  {
+   "line": "oʻn toʻqqizinchi noyabr",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-19",
+    "label": "Thursday (payshanba / четверг) 19 November 2026",
+    "say": {
+     "uz": "o‘n to‘qqizinchi noyabr, payshanba",
+     "ru": "девятнадцатого ноября, четверг",
+     "en": "Thursday, 19 November"
+    }
+   }
+  },
+  {
+   "line": "5 yanvar",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2027-01-05",
+    "label": "Tuesday (seshanba / вторник) 5 January 2027",
+    "say": {
+     "uz": "beshinchi yanvar, seshanba",
+     "ru": "пятого января, вторник",
+     "en": "Tuesday, 5 January"
+    }
+   }
+  },
+  {
+   "line": "29-fevral",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "oy oxirida",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-30",
+    "label": "Monday (dushanba / понедельник) 30 November 2026",
+    "say": {
+     "uz": "o‘ttizinchi noyabr, dushanba",
+     "ru": "тридцатого ноября, понедельник",
+     "en": "Monday, 30 November"
+    }
+   }
+  },
+  {
+   "line": "keyingi oy boshida",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-01",
+    "label": "Tuesday (seshanba / вторник) 1 December 2026",
+    "say": {
+     "uz": "birinchi dekabr, seshanba",
+     "ru": "первого декабря, вторник",
+     "en": "Tuesday, 1 December"
+    }
+   }
+  },
+  {
+   "line": "через неделю",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-21",
+    "label": "Saturday (shanba / суббота) 21 November 2026",
+    "say": {
+     "uz": "yigirma birinchi noyabr, shanba",
+     "ru": "двадцать первого ноября, суббота",
+     "en": "Saturday, 21 November"
+    }
+   }
+  },
+  {
+   "line": "через две недели",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-28",
+    "label": "Saturday (shanba / суббота) 28 November 2026",
+    "say": {
+     "uz": "yigirma sakkizinchi noyabr, shanba",
+     "ru": "двадцать восьмого ноября, суббота",
+     "en": "Saturday, 28 November"
+    }
+   }
+  },
+  {
+   "line": "через 3 дня",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-17",
+    "label": "Tuesday (seshanba / вторник) 17 November 2026",
+    "say": {
+     "uz": "o‘n yettinchi noyabr, seshanba",
+     "ru": "семнадцатого ноября, вторник",
+     "en": "Tuesday, 17 November"
+    }
+   }
+  },
+  {
+   "line": "через месяц",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-14",
+    "label": "Monday (dushanba / понедельник) 14 December 2026",
+    "say": {
+     "uz": "o‘n to‘rtinchi dekabr, dushanba",
+     "ru": "четырнадцатого декабря, понедельник",
+     "en": "Monday, 14 December"
+    }
+   }
+  },
+  {
+   "line": "через пятнадцать дней",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-29",
+    "label": "Sunday (yakshanba / воскресенье) 29 November 2026",
+    "say": {
+     "uz": "yigirma to‘qqizinchi noyabr, yakshanba",
+     "ru": "двадцать девятого ноября, воскресенье",
+     "en": "Sunday, 29 November"
+    }
+   }
+  },
+  {
+   "line": "завтра",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-15",
+    "label": "Sunday (yakshanba / воскресенье) 15 November 2026",
+    "say": {
+     "uz": "o‘n beshinchi noyabr, yakshanba",
+     "ru": "пятнадцатого ноября, воскресенье",
+     "en": "Sunday, 15 November"
+    }
+   }
+  },
+  {
+   "line": "послезавтра",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-16",
+    "label": "Monday (dushanba / понедельник) 16 November 2026",
+    "say": {
+     "uz": "o‘n oltinchi noyabr, dushanba",
+     "ru": "шестнадцатого ноября, понедельник",
+     "en": "Monday, 16 November"
+    }
+   }
+  },
+  {
+   "line": "сегодня",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-14",
+    "label": "Saturday (shanba / суббота) 14 November 2026",
+    "say": {
+     "uz": "o‘n to‘rtinchi noyabr, shanba",
+     "ru": "четырнадцатого ноября, суббота",
+     "en": "Saturday, 14 November"
+    }
+   }
+  },
+  {
+   "line": "в пятницу",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-20",
+    "label": "Friday (juma / пятница) 20 November 2026",
+    "say": {
+     "uz": "yigirmanchi noyabr, juma",
+     "ru": "двадцатого ноября, пятница",
+     "en": "Friday, 20 November"
+    }
+   }
+  },
+  {
+   "line": "в среду",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-18",
+    "label": "Wednesday (chorshanba / среда) 18 November 2026",
+    "say": {
+     "uz": "o‘n sakkizinchi noyabr, chorshanba",
+     "ru": "восемнадцатого ноября, среда",
+     "en": "Wednesday, 18 November"
+    }
+   }
+  },
+  {
+   "line": "в следующий вторник",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-17",
+    "label": "Tuesday (seshanba / вторник) 17 November 2026",
+    "say": {
+     "uz": "o‘n yettinchi noyabr, seshanba",
+     "ru": "семнадцатого ноября, вторник",
+     "en": "Tuesday, 17 November"
+    }
+   }
+  },
+  {
+   "line": "двадцать пятого ноября",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "25-го ноября",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "третьего числа",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-03",
+    "label": "Thursday (payshanba / четверг) 3 December 2026",
+    "say": {
+     "uz": "uchinchi dekabr, payshanba",
+     "ru": "третьего декабря, четверг",
+     "en": "Thursday, 3 December"
+    }
+   }
+  },
+  {
+   "line": "четвёртого декабря",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-04",
+    "label": "Friday (juma / пятница) 4 December 2026",
+    "say": {
+     "uz": "to‘rtinchi dekabr, juma",
+     "ru": "четвёртого декабря, пятница",
+     "en": "Friday, 4 December"
+    }
+   }
+  },
+  {
+   "line": "тридцатого",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "в конце месяца",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-30",
+    "label": "Monday (dushanba / понедельник) 30 November 2026",
+    "say": {
+     "uz": "o‘ttizinchi noyabr, dushanba",
+     "ru": "тридцатого ноября, понедельник",
+     "en": "Monday, 30 November"
+    }
+   }
+  },
+  {
+   "line": "в начале следующего месяца",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-01",
+    "label": "Tuesday (seshanba / вторник) 1 December 2026",
+    "say": {
+     "uz": "birinchi dekabr, seshanba",
+     "ru": "первого декабря, вторник",
+     "en": "Tuesday, 1 December"
+    }
+   }
+  },
+  {
+   "line": "ertaga emas",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "не завтра",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "1992",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "92-yil",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "nech pul?",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "keyinroq",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "pul boʻlganda",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "mayli",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "Ha, ertaga 5 da",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-15",
+    "label": "Sunday (yakshanba / воскресенье) 15 November 2026",
+    "say": {
+     "uz": "o‘n beshinchi noyabr, yakshanba",
+     "ru": "пятнадцатого ноября, воскресенье",
+     "en": "Sunday, 15 November"
+    }
+   }
+  },
+  {
+   "line": "",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "12 000 soʻm",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "bir marta to'layman",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "3 marta",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "1 mayli",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "birinchi toʻlovni qachon qilaman?",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "ikkinchi qismini",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "5-chi kuni toʻlayman",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  },
+  {
+   "line": "25-chi.",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-25",
+    "label": "Wednesday (chorshanba / среда) 25 November 2026",
+    "say": {
+     "uz": "yigirma beshinchi noyabr, chorshanba",
+     "ru": "двадцать пятого ноября, среда",
+     "en": "Wednesday, 25 November"
+    }
+   }
+  },
+  {
+   "line": "у меня нет средств",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "среди недели",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": null
+  },
+  {
+   "line": "в среду утром",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-18",
+    "label": "Wednesday (chorshanba / среда) 18 November 2026",
+    "say": {
+     "uz": "o‘n sakkizinchi noyabr, chorshanba",
+     "ru": "восемнадцатого ноября, среда",
+     "en": "Wednesday, 18 November"
+    }
+   }
+  },
+  {
+   "line": "до пятницы",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-20",
+    "label": "Friday (juma / пятница) 20 November 2026",
+    "say": {
+     "uz": "yigirmanchi noyabr, juma",
+     "ru": "двадцатого ноября, пятница",
+     "en": "Friday, 20 November"
+    }
+   }
+  },
+  {
+   "line": "в субботу",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-11-21",
+    "label": "Saturday (shanba / суббота) 21 November 2026",
+    "say": {
+     "uz": "yigirma birinchi noyabr, shanba",
+     "ru": "двадцать первого ноября, суббота",
+     "en": "Saturday, 21 November"
+    }
+   }
+  },
+  {
+   "line": "12 martda",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2027-03-12",
+    "label": "Friday (juma / пятница) 12 March 2027",
+    "say": {
+     "uz": "o‘n ikkinchi mart, juma",
+     "ru": "двенадцатого марта, пятница",
+     "en": "Friday, 12 March"
+    }
+   }
+  },
+  {
+   "line": "noyabrning 5-chi",
+   "now": "2026-11-14T23:30:00Z",
+   "timeZone": "America/New_York",
+   "output": {
+    "date": "2026-12-05",
+    "label": "Saturday (shanba / суббота) 5 December 2026",
+    "say": {
+     "uz": "beshinchi dekabr, shanba",
+     "ru": "пятого декабря, суббота",
+     "en": "Saturday, 5 December"
+    }
+   }
+  }
+ ],
  "calendar": [
   {
    "now": "2026-11-12T07:00:00Z",

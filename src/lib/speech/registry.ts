@@ -55,6 +55,7 @@ export const ENGINES: readonly EngineInfo[] = [
   { kind: 'stt', id: 'speko', name: 'gemini-3.5', vendor: 'Google', via: 'Speko', runs: 'cloud', live: false, languages: ['uz', 'ru', 'en'], pricePerMin: 0.005, setup: 'SPEKO_API_KEY' },
   { kind: 'stt', id: 'scribe', name: 'ElevenLabs Scribe', vendor: 'ElevenLabs', via: 'Speko', runs: 'cloud', live: false, languages: ['uz', 'ru', 'en'], pricePerMin: 0.0065, setup: 'SPEKO_API_KEY' },
   { kind: 'stt', id: 'gemini', name: 'Gemini Flash-Lite', vendor: 'Google', runs: 'cloud', live: false, languages: ['uz', 'ru', 'en'], pricePerMin: 0.0009, setup: 'GEMINI_API_KEY' },
+  { kind: 'stt', id: 'brb', name: 'BRB Whisper', vendor: 'BRB (own model)', runs: 'server', live: false, languages: ['uz', 'ru', 'en'], pricePerMin: null, setup: 'BRB_STT_URL' },
 
   /* ── text to speech ── */
   { kind: 'tts', id: 'default', name: 'Own TTS', vendor: 'CallMind', runs: 'server', live: true, languages: ['uz'], pricePerMin: null, setup: 'TTS_BASE_URL' },

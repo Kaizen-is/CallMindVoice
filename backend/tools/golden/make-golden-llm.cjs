@@ -188,7 +188,7 @@ const SCENARIOS = [
   },
   {
     name: 'gemini_stream_503_haiku_rescues_streamed',
-    env: { GEMINI_API_KEY: 'g-key', ANTHROPIC_API_KEY: 'a-key' },
+    env: { GEMINI_API_KEY: 'g-key', ANTHROPIC_API_KEY: 'a-key', LLM_PROVIDER: 'gemini' },
     delta: true,
     input: BASE,
     fetch: [{ status: 503, statusText: 'Service Unavailable', body: '{"error":{"message":"high demand"}}' }],
@@ -203,21 +203,21 @@ const SCENARIOS = [
   },
   {
     name: 'gemini_one_piece_unreadable_haiku_one_piece',
-    env: { GEMINI_API_KEY: 'g-key', ANTHROPIC_API_KEY: 'a-key' },
+    env: { GEMINI_API_KEY: 'g-key', ANTHROPIC_API_KEY: 'a-key', LLM_PROVIDER: 'gemini' },
     input: BASE,
     fetch: [{ body: geminiBody('not json at all') }],
     claude: [{ message: { content: [{ type: 'text', text: ANSWER(' Yillik 24 foiz. ', true, [2]) }], usage: { input_tokens: 310, output_tokens: 20 }, stop_reason: 'end_turn', model: 'claude-haiku-5-5' } }],
   },
   {
     name: 'gemini_stream_breaks_after_partial',
-    env: { GEMINI_API_KEY: 'g-key', ANTHROPIC_API_KEY: 'a-key' },
+    env: { GEMINI_API_KEY: 'g-key', ANTHROPIC_API_KEY: 'a-key', LLM_PROVIDER: 'gemini' },
     delta: true,
     input: BASE,
     fetch: [{ chunks: geminiSse(['{"answer":"Kredit foizi yillik', ' yigirma to‘rt']), breakAfter: true }],
   },
   {
     name: 'gemini_blocked',
-    env: { GEMINI_API_KEY: 'g-key', LLM_FALLBACK_MODEL: 'off', ANTHROPIC_API_KEY: 'a-key' },
+    env: { GEMINI_API_KEY: 'g-key', LLM_FALLBACK_MODEL: 'off', ANTHROPIC_API_KEY: 'a-key', LLM_PROVIDER: 'gemini' },
     input: BASE,
     fetch: [{ body: JSON.stringify({ promptFeedback: { blockReason: 'SAFETY' } }) }],
   },
@@ -288,6 +288,19 @@ const SCENARIOS = [
     claude: [{ events: [], throw: 'overloaded' }],
   },
   {
+    name: 'haiku_default_with_both_keys',
+    env: { GEMINI_API_KEY: 'g-key', ANTHROPIC_API_KEY: 'a-key' },
+    delta: true,
+    input: BASE,
+    claude: [{ events: claudeDeltas(ANSWER('Yillik 24 foiz.', true, [1])), final: claudeFinal() }],
+  },
+  {
+    name: 'haiku_default_fails_local',
+    env: { GEMINI_API_KEY: 'g-key', ANTHROPIC_API_KEY: 'a-key' },
+    input: BASE,
+    claude: [{ throw: 'overloaded' }],
+  },
+  {
     name: 'human_shortcut',
     env: { GEMINI_API_KEY: 'g-key' },
     delta: true,
@@ -334,6 +347,27 @@ const SCENARIOS = [
     fetch: [{ body: geminiBody(ANSWER('Спасибо!', true, [])) }],
   },
   {
+    name: 'loan_named_day_uz',
+    env: { GEMINI_API_KEY: 'g-key' },
+    input: {
+      ...BASE, language: 'uz', question: '1 haftadan keyin', hits: [], target: TARGET, timeZone: 'Asia/Tashkent',
+      history: [{ role: 'caller', text: 'Ha, menman' }, { role: 'agent', text: 'Rahmat! Tug‘ilgan yilingiz?' }, { role: 'caller', text: '1992' }, { role: 'agent', text: 'Rahmat. Qaysi kuni to‘lay olasiz?' }],
+    },
+    fetch: [{ body: geminiBody(ANSWER('Yaxshi, o‘n to‘qqizinchi noyabr, payshanba kuni kutamiz.', true, [])) }],
+  },
+  {
+    name: 'loan_named_day_ru_unchecked',
+    env: { GEMINI_API_KEY: 'g-key' },
+    input: { ...BASE, language: 'ru', question: 'Через неделю, наверное', hits: [], target: { ...TARGET, birthYear: '' }, timeZone: 'Europe/Moscow' },
+    fetch: [{ body: geminiBody(ANSWER('Хорошо, ждём девятнадцатого ноября.', true, [])) }],
+  },
+  {
+    name: 'loan_named_day_before_identity',
+    env: { GEMINI_API_KEY: 'g-key' },
+    input: { ...BASE, language: 'uz', question: 'ertaga gaplashamiz', hits: [], target: TARGET, timeZone: 'Asia/Tashkent', history: [{ role: 'caller', text: 'Ha' }] },
+    fetch: [{ body: geminiBody(ANSWER('Tug‘ilgan yilingizni ayting.', true, [])) }],
+  },
+  {
     name: 'lookup_facts_and_note_long_history',
     env: { GEMINI_API_KEY: 'g-key' },
     input: {
@@ -344,7 +378,7 @@ const SCENARIOS = [
   },
   {
     name: 'gemini_empty_answer_local_floor',
-    env: { GEMINI_API_KEY: 'g-key', ANTHROPIC_API_KEY: 'a-key' },
+    env: { GEMINI_API_KEY: 'g-key', ANTHROPIC_API_KEY: 'a-key', LLM_PROVIDER: 'gemini' },
     input: BASE,
     fetch: [{ body: geminiBody(ANSWER('   ', true, [])) }],
     claude: [{ throw: 'down' }],
@@ -422,7 +456,7 @@ function usageView() {
   }
   // Model resolution and labels under different keys.
   const choices = [null, 'gemini:gemini-3.8-flash', 'openai:gpt-5.5', 'anthropic:claude-haiku-5-5', 'ollama:gemma4:31b', 'bogus', ':x', 'gemini: ', 'gemini'];
-  const envs = [{}, { GEMINI_API_KEY: 'g' }, { ANTHROPIC_API_KEY: 'a', OPENAI_API_KEY: 'o' }, { OLLAMA_BASE_URL: 'http://x', GEMINI_API_KEY: 'g', LLM_PROVIDER: 'anthropic' }, { OPENAI_API_KEY: 'o', LLM_PROVIDER: 'OpenAI', GEMINI_MODEL: 'gm' }];
+  const envs = [{}, { GEMINI_API_KEY: 'g' }, { GEMINI_API_KEY: 'g', ANTHROPIC_API_KEY: 'a' }, { ANTHROPIC_API_KEY: 'a', OPENAI_API_KEY: 'o' }, { OLLAMA_BASE_URL: 'http://x', GEMINI_API_KEY: 'g', LLM_PROVIDER: 'anthropic' }, { OPENAI_API_KEY: 'o', LLM_PROVIDER: 'OpenAI', GEMINI_MODEL: 'gm' }];
   for (const env of envs) {
     setEnv(env);
     const provider = fresh('lib/llm/provider.js');

@@ -407,6 +407,31 @@ export function Playground({
     [ttsEnabled, agent?.speakingRate],
   );
 
+  // The picked voice model failed and the browser's own voice read the reply:
+  // said once, not on every reply, until a model voice plays again.
+  const voiceWarnedRef = useRef(false);
+  const warnBrowserVoice = useCallback(() => {
+    if (voiceWarnedRef.current) return;
+    voiceWarnedRef.current = true;
+    toast.toast({
+      tone: 'error',
+      title: t('play.toast.voiceFallbackTitle', 'Voice model did not answer'),
+      description:
+        ttsEngine === 'brb'
+          ? t(
+              'play.toast.voiceFallbackBrb',
+              'BRB TTS could not be reached, so the browser read the reply in its own voice. BRB works only through the BRB VPN.',
+            )
+          : t(
+              'play.toast.voiceFallbackBody',
+              'The voice model did not answer, so the browser read the reply in its own voice.',
+            ),
+    });
+  }, [toast, t, ttsEngine]);
+  useEffect(() => {
+    voiceWarnedRef.current = false;
+  }, [ttsEngine]);
+
   /**
    * Speak `text` from the streaming TTS endpoint.
    *
@@ -541,9 +566,12 @@ export function Playground({
           if (continueSession && !stale()) setAiSpeaking();
         });
         if (spoke) {
+          voiceWarnedRef.current = false;
           if (continueSession && ttsPlaybackRef.current === playbackId) resumeListening();
           return;
         }
+        // Stopped on purpose (talked over, new call) is not a failure.
+        if (!stale()) warnBrowserVoice();
       }
       if (continueSession) {
         if (!sessionIsActive()) return;
@@ -552,7 +580,7 @@ export function Playground({
       await speak(text, lang);
       if (continueSession && ttsPlaybackRef.current === playbackId) resumeListening();
     },
-    [ttsEnabled, ttsOn, ttsEngine, speakStream, speak, resumeListening, sessionIsActive, setAiSpeaking],
+    [ttsEnabled, ttsOn, ttsEngine, speakStream, speak, resumeListening, sessionIsActive, setAiSpeaking, warnBrowserVoice],
   );
 
   /* ── the turn ───────────────────────────────────────────────── */
@@ -760,7 +788,7 @@ export function Playground({
         } else if ((event.t === 'filler' || event.t === 'audio') && ttsEnabled) {
           const nowPage = performance.now();
           const nowAudio = out.now;
-          const span = out.enqueue(decodePcm(event.pcm));
+          const span = out.enqueue(decodePcm(event.pcm), event.rate);
           if (span) {
             const playAt = nowPage + (span.start - nowAudio) * 1000;
             if (event.t === 'filler') {
@@ -779,6 +807,7 @@ export function Playground({
           }
           if (event.t === 'audio' && span && !voiced) {
             voiced = true;
+            voiceWarnedRef.current = false;
             setThinking(false);
             setAiSpeaking();
           }
@@ -834,6 +863,8 @@ export function Playground({
     if (agentMsgId && ttsEnabled) {
       if (!voiced) {
         // No voice could be rendered: the browser reads the line rather than go silent.
+        // A dropped line already has its own message; it is not the voice model's fault.
+        if (ttsOn && !dropped) warnBrowserVoice();
         setAiSpeaking();
         await speakWithBrowser(replyText, replyLang, () => seq !== callSeqRef.current);
       } else {

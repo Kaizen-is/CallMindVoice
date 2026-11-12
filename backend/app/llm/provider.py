@@ -78,7 +78,7 @@ def _env_model(p: str) -> str:
 
 
 def _provider() -> str:
-    """LLM_PROVIDER forces one; otherwise the first configured wins (Ollama, Gemini, Claude, OpenAI), local last."""
+    """LLM_PROVIDER forces one; otherwise the first configured wins (Claude, Ollama, Gemini, OpenAI), local last."""
     pref = env("LLM_PROVIDER").lower() or None
     if pref == "ollama":
         return "ollama" if ollama.has_ollama() else "local"
@@ -90,12 +90,12 @@ def _provider() -> str:
         return "openai" if openai.has_openai() else "local"
     if pref == "local":
         return "local"
+    if claude.client() is not None:
+        return "anthropic"
     if ollama.has_ollama():
         return "ollama"
     if gemini.has_gemini():
         return "gemini"
-    if claude.client() is not None:
-        return "anthropic"
     if openai.has_openai():
         return "openai"
     return "local"

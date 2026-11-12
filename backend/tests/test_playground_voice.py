@@ -33,7 +33,13 @@ def fake_tts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return rendered
 
 
-def _run_reply(deltas: list[str], reply: str, fast: bool = True, abort_after_audio: int | None = None):
+def _run_reply(
+    deltas: list[str],
+    reply: str,
+    fast: bool = True,
+    abort_after_audio: int | None = None,
+    pick: pv.VoicePick = PICK,
+):
     sent: list[dict] = []
     marks: list[str] = []
 
@@ -48,7 +54,7 @@ def _run_reply(deltas: list[str], reply: str, fast: bool = True, abort_after_aud
         voice = pv.SpeakAsWritten(
             AGENT,
             "uz",
-            PICK,
+            pick,
             send,
             signal,
             pv.SpeakOptions(
@@ -81,6 +87,15 @@ def test_reply_is_voiced_sentence_by_sentence(fake_tts: list[str]) -> None:
     assert len(audio) == 2 * len(fake_tts)
     assert marks == ["segment", "audio"]
     assert not any(e["t"] == "voice" for e in sent)
+
+
+def test_voice_rate_rides_on_audio_events(fake_tts: list[str]) -> None:
+    reply = "Kredit foizi yillik yigirma to‘rt foiz. Yana savol bormi?"
+    own, _ = _run_reply([reply], reply)
+    brb, _ = _run_reply([reply], reply, pick=pv.VoicePick("brb", ""))
+    # Our own TTS server makes 8 kHz, which the page assumes; BRB is asked for 24 kHz and says so.
+    assert all("rate" not in e for e in own if e["t"] == "audio")
+    assert [e["rate"] for e in brb if e["t"] == "audio"] == [24000] * sum(e["t"] == "audio" for e in brb)
 
 
 def test_legacy_mode_waits_for_whole_sentences(fake_tts: list[str]) -> None:
@@ -155,8 +170,12 @@ def test_filler_rotates_and_skips_greetings(monkeypatch: pytest.MonkeyPatch) -> 
     assert pv.filler_for(AGENT, "call-f", "Assalomu alaykum", PICK) is None  # a greeting gets no "let me check"
     first = pv.filler_for(AGENT, "call-f", "Kredit foizi qancha?", PICK)
     pv.filler_for(AGENT, "call-f", "Muddat qancha?", PICK)
-    assert first == "AQI="
+    assert first == {"pcm": "AQI="}
     assert seen == ["Bir daqiqa.", "Hozir tekshiraman."]
+    assert pv.filler_for(AGENT, "call-g", "Kredit foizi qancha?", pv.VoicePick("brb", "")) == {
+        "pcm": "AQI=",
+        "rate": 24000,
+    }
 
 
 def test_prefetched_transcript_is_reused_once(monkeypatch: pytest.MonkeyPatch) -> None:

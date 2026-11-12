@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from app.llm.json_stream import answer_extractor
-from app.llm.loan_call import calendar_block, identity_check
+from app.llm.loan_call import calendar_block, identity_check, named_day
 from app.llm.local import classify_intent, sentiment_of, summarize_local, synthesize_local
 from app.speech.normalize import normalize_for_speech, split_for_speech
 from app.speech.numbers import uzbek_numbers_to_digits
@@ -72,6 +72,12 @@ def test_handoff_summary(case):
 def test_identity_check(case):
     got = identity_check(case["birthYear"], case["lines"])
     assert {"status": got.status, "justWrong": got.just_wrong, "wrongTries": got.wrong_tries} == case["output"]
+
+
+@pytest.mark.parametrize("case", G["namedDay"], ids=ids("day", G["namedDay"]))
+def test_named_day(case):
+    now = datetime.fromisoformat(case["now"].replace("Z", "+00:00"))
+    assert named_day(case["line"], case["timeZone"], now) == case["output"]
 
 
 @pytest.mark.parametrize("case", G["calendar"], ids=ids("cal", G["calendar"]))

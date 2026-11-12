@@ -53,8 +53,8 @@ export class VoiceOut {
     return Math.max(0, this.playhead - this.ctx.currentTime);
   }
 
-  /** Queue one chunk of 16-bit mono PCM straight after whatever is queued. */
-  enqueue(pcm: Uint8Array): Span | null {
+  /** Queue one chunk of 16-bit mono PCM (at `rate`, 8 kHz by default) straight after whatever is queued. */
+  enqueue(pcm: Uint8Array, rate: number = VOICE_RATE): Span | null {
     const frames = Math.floor(pcm.byteLength / 2);
     if (!frames) return null;
     const view = new DataView(pcm.buffer, pcm.byteOffset, frames * 2);
@@ -62,7 +62,7 @@ export class VoiceOut {
     for (let i = 0; i < frames; i++) samples[i] = view.getInt16(i * 2, true) / 32768;
 
     const source = this.ctx.createBufferSource();
-    source.buffer = this.buffer(samples);
+    source.buffer = this.buffer(samples, rate);
     source.connect(this.out);
     // A small cushion keeps the very first chunk from being clipped.
     const start = Math.max(this.playhead, this.ctx.currentTime + 0.04);
@@ -73,14 +73,14 @@ export class VoiceOut {
     return { start, end: this.playhead };
   }
 
-  private buffer(samples: Float32Array<ArrayBuffer>): AudioBuffer {
+  private buffer(samples: Float32Array<ArrayBuffer>, rate: number): AudioBuffer {
     try {
-      const buffer = this.ctx.createBuffer(1, samples.length, VOICE_RATE);
+      const buffer = this.ctx.createBuffer(1, samples.length, rate);
       buffer.copyToChannel(samples, 0);
       return buffer;
     } catch {
       // An engine that refuses an 8 kHz buffer gets it upsampled to its own rate.
-      const ratio = this.ctx.sampleRate / VOICE_RATE;
+      const ratio = this.ctx.sampleRate / rate;
       const up = new Float32Array(new ArrayBuffer(Math.floor(samples.length * ratio) * 4));
       for (let i = 0; i < up.length; i++) {
         const at = i / ratio;

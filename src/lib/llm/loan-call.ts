@@ -8,8 +8,9 @@
  *     sees the year at all: the caller's own words are checked, and the prompt
  *     is only told the outcome.
  *   • Dates. The model placed "Friday" on a Saturday and "Monday" on today.
- *     Here the next three weeks are written out, so a spoken day is looked up,
- *     never worked out.
+ *     Here the next three weeks are written out, and a day the person names
+ *     ("1 haftadan keyin", "juma kuni", "через неделю") is worked out in code
+ *     and handed over with the words to say it back with (`namedDay`).
  */
 import { uzbekNumbersToDigits } from '@/lib/speech/numbers';
 import type { CallTarget } from '@/lib/types';
@@ -83,15 +84,19 @@ function label(d: Date): string {
   return `${DAY_EN[w]} (${DAY_UZ[w]} / ${DAY_RU[w]}) ${d.getUTCDate()} ${MONTH_EN[d.getUTCMonth()]}`;
 }
 
-/** The next three weeks in the tenant's time zone, named the way callers name them. */
-export function calendarBlock(timeZone = 'Asia/Tashkent', now = new Date()): string {
+/** Today in the tenant's time zone, at noon UTC (which keeps day arithmetic clear of daylight saving). */
+function todayIn(timeZone: string, now: Date): Date {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
       .formatToParts(now)
       .map((p) => [p.type, p.value]),
   );
-  // Noon UTC keeps day arithmetic clear of any daylight-saving edge.
-  const today = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), 12));
+  return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), 12));
+}
+
+/** The next three weeks in the tenant's time zone, named the way callers name them. */
+export function calendarBlock(timeZone = 'Asia/Tashkent', now = new Date()): string {
+  const today = todayIn(timeZone, now);
   const day = (n: number) => new Date(today.getTime() + n * DAY_MS);
 
   // Weeks run Monday to Sunday: the rest of this one, then the next two.
@@ -136,4 +141,184 @@ export function calendarBlock(timeZone = 'Asia/Tashkent', now = new Date()): str
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+/* ── the day they just named ─────────────────────────────────── */
+
+// Even with the calendar written out, a small model picked the wrong line for
+// "1 haftadan keyin" four times in five (and said the day in the wrong words).
+// So a day the person names is worked out here, as identity is, and the model
+// is handed the date and the exact words to say it back with.
+
+const MONTH_UZ = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentyabr', 'oktabr', 'noyabr', 'dekabr'];
+const MONTH_RU_GEN = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+];
+const UNIT_UZ = ['bir', 'ikki', 'uch', "to'rt", 'besh', 'olti', 'yetti', 'sakkiz', "to'qqiz"];
+const ORD_UZ = ['birinchi', 'ikkinchi', 'uchinchi', "to'rtinchi", 'beshinchi', 'oltinchi', 'yettinchi', 'sakkizinchi', "to'qqizinchi"];
+const TENS_UZ: Record<string, number> = { "o'n": 10, yigirma: 20, "o'ttiz": 30 };
+const ORD_TENS_UZ: Record<string, number> = { "o'ninchi": 10, yigirmanchi: 20, "o'ttizinchi": 30 };
+const NUM_RU: Record<string, number> = {
+  один: 1, одну: 1, одна: 1, два: 2, две: 2, три: 3, четыре: 4, пять: 5,
+  шесть: 6, семь: 7, восемь: 8, девять: 9, десять: 10, пятнадцать: 15,
+};
+const ORD_RU_GEN = [
+  'первого', 'второго', 'третьего', 'четвёртого', 'пятого', 'шестого', 'седьмого', 'восьмого', 'девятого', 'десятого',
+  'одиннадцатого', 'двенадцатого', 'тринадцатого', 'четырнадцатого', 'пятнадцатого', 'шестнадцатого',
+  'семнадцатого', 'восемнадцатого', 'девятнадцатого',
+];
+const WEEKDAY_UZ = ['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba'];
+// Whole words: "сред" alone would also catch "средства" (funds) and "среди".
+const WEEKDAY_RU = [
+  'воскресенье|воскресенья', 'понедельник|понедельника', 'вторник|вторника', 'среда|среду|среды',
+  'четверг|четверга', 'пятница|пятницу|пятницы', 'суббота|субботу|субботы',
+];
+
+/** A word starts or ends here (letters and the Uzbek apostrophe belong to words). */
+const B = "(?<![\\p{L}'])";
+const E = "(?![\\p{L}'])";
+const alt = (words: string[]) => words.join('|');
+
+/** Number words as digits: "ikki", "o'n besh", "две", and ordinals ("beshinchi") as "5-chi". */
+function digitsFor(text: string): string {
+  let t = text.replace(
+    new RegExp(`${B}(?:(${alt(Object.keys(TENS_UZ))})\\s+)?(${alt(ORD_UZ)})${E}`, 'gu'),
+    (_m, tens: string | undefined, unit: string) => `${(tens ? TENS_UZ[tens] : 0) + ORD_UZ.indexOf(unit) + 1}-chi`,
+  );
+  t = t.replace(new RegExp(`${B}(${alt(Object.keys(ORD_TENS_UZ))})${E}`, 'gu'), (_m, w: string) => `${ORD_TENS_UZ[w]}-chi`);
+  t = t.replace(
+    new RegExp(`${B}(${alt(Object.keys(TENS_UZ))})(?:\\s+(${alt(UNIT_UZ)}))?${E}`, 'gu'),
+    (_m, tens: string, unit: string | undefined) => String(TENS_UZ[tens] + (unit ? UNIT_UZ.indexOf(unit) + 1 : 0)),
+  );
+  t = t.replace(new RegExp(`${B}(${alt(UNIT_UZ)})${E}`, 'gu'), (_m, w: string) => String(UNIT_UZ.indexOf(w) + 1));
+  // Russian ordinals in the genitive ("двадцать пятого", "третьего") as "25-го".
+  const ordRu = ORD_RU_GEN.map((w) => w.replace(/ё/g, 'е'));
+  t = t.replace(
+    new RegExp(`${B}(?:(двадцать|тридцать)\\s+)?(${alt(ordRu)})${E}`, 'gu'),
+    (_m, tens: string | undefined, w: string) => `${(tens === 'двадцать' ? 20 : tens ? 30 : 0) + ordRu.indexOf(w) + 1}-го`,
+  );
+  t = t.replace(new RegExp(`${B}(двадцатого|тридцатого)${E}`, 'gu'), (_m, w: string) => (w === 'двадцатого' ? '20-го' : '30-го'));
+  t = t.replace(
+    new RegExp(`${B}(?:(двадцать|тридцать)\\s+)?(${alt(Object.keys(NUM_RU))})${E}`, 'gu'),
+    (_m, tens: string | undefined, unit: string) => String((tens === 'двадцать' ? 20 : tens ? 30 : 0) + NUM_RU[unit]),
+  );
+  return t.replace(new RegExp(`${B}(двадцать|тридцать)${E}`, 'gu'), (_m, w: string) => (w === 'двадцать' ? '20' : '30'));
+}
+
+function ordinalUz(n: number): string {
+  const tens = Math.floor(n / 10) * 10;
+  const unit = n % 10;
+  if (!unit) return Object.keys(ORD_TENS_UZ).find((w) => ORD_TENS_UZ[w] === tens)!;
+  const tensWord = Object.keys(TENS_UZ).find((w) => TENS_UZ[w] === tens);
+  return tensWord ? `${tensWord} ${ORD_UZ[unit - 1]}` : ORD_UZ[unit - 1];
+}
+
+function ordinalRu(n: number): string {
+  if (n < 20) return ORD_RU_GEN[n - 1];
+  if (n === 20) return 'двадцатого';
+  if (n === 30) return 'тридцатого';
+  return `${n < 30 ? 'двадцать' : 'тридцать'} ${ORD_RU_GEN[(n % 10) - 1]}`;
+}
+
+export interface NamedDay {
+  /** YYYY-MM-DD. */
+  date: string;
+  /** As the calendar names it, with the year. */
+  label: string;
+  /** The words to say it back with. */
+  say: { uz: string; ru: string; en: string };
+}
+
+function named(d: Date): NamedDay {
+  const w = d.getUTCDay();
+  const day = d.getUTCDate();
+  const m = d.getUTCMonth();
+  return {
+    date: d.toISOString().slice(0, 10),
+    label: `${label(d)} ${d.getUTCFullYear()}`,
+    say: {
+      uz: `${ordinalUz(day)} ${MONTH_UZ[m]}, ${DAY_UZ[w]}`.replace(/'/g, '‘'),
+      ru: `${ordinalRu(day)} ${MONTH_RU_GEN[m]}, ${DAY_RU[w]}`,
+      en: `${DAY_EN[w]}, ${day} ${MONTH_EN[m]}`,
+    },
+  };
+}
+
+/**
+ * The day one line names — "ertaga", "1 haftadan keyin", "juma kuni", "kelasi
+ * hafta seshanba", "25-noyabr", "oy oxirida", "через неделю", "в пятницу" —
+ * worked out from today in the tenant's time zone, or null when it names none
+ * or says it unclearly (a negation such as "ertaga emas" is left to the model).
+ */
+export function namedDay(line: string, timeZone = 'Asia/Tashkent', now = new Date()): NamedDay | null {
+  const t = digitsFor(uzbekNumbersToDigits(line).toLowerCase().replace(/[‘ʻʼ’`]/g, "'").replace(/ё/g, 'е'));
+  if (new RegExp(`${B}(?:emas|не)${E}`, 'u').test(t)) return null;
+  const today = todayIn(timeZone, now);
+  const at = (n: number) => named(new Date(today.getTime() + n * DAY_MS));
+  const monthsLater = (n: number) => {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + n, 1, 12));
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 12)).getUTCDate();
+    d.setUTCDate(Math.min(today.getUTCDate(), last));
+    return named(d);
+  };
+  const dayOf = (year: number, month: number, day: number) => {
+    const last = new Date(Date.UTC(year, month + 1, 0, 12)).getUTCDate();
+    return day >= 1 && day <= last ? new Date(Date.UTC(year, month, day, 12)) : null;
+  };
+
+  // "3 kundan keyin", "2 haftadan so'ng", "1 oydan keyin"
+  let m = t.match(
+    new RegExp(`(?<![0-9])([0-9]{1,2})\\s*-?\\s*(kun|hafta|oy)(?:lar)?(?:dan)?\\s+(?:keyin|so'ng|o'tib|o'tgach)${E}`, 'u'),
+  );
+  if (m) {
+    const n = Number(m[1]);
+    return m[2] === 'oy' ? monthsLater(n) : at(m[2] === 'kun' ? n : n * 7);
+  }
+  // "через неделю", "через 3 дня", "через месяц"
+  m = t.match(new RegExp(`${B}через\\s+(?:([0-9]{1,2})\\s+)?(день|дня|дней|неделю|недели|недель|месяц|месяца|месяцев)${E}`, 'u'));
+  if (m) {
+    const n = m[1] ? Number(m[1]) : 1;
+    return m[2].startsWith('месяц') ? monthsLater(n) : at(m[2].startsWith('нед') ? n * 7 : n);
+  }
+  if (new RegExp(`${B}(?:indinga|послезавтра)${E}`, 'u').test(t)) return at(2);
+  if (new RegExp(`${B}(?:ertaga|завтра)${E}`, 'u').test(t)) return at(1);
+  if (new RegExp(`${B}(?:bugun|сегодня)${E}`, 'u').test(t)) return at(0);
+  if (/oy\s+oxir|конц[еау]\s+месяца/u.test(t)) {
+    return named(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0, 12)));
+  }
+  if (/(?:keyingi|kelasi)\s+oy\s+bosh|начал[еоа]\s+следующего\s+месяца/u.test(t)) {
+    return named(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1, 12)));
+  }
+  // "25-noyabr", "25 noyabrda", "25-го ноября" — a whole month word ("1 marta", once, is not March)
+  m = t.match(
+    new RegExp(
+      `(?<![0-9])([0-9]{1,2})\\s*-?\\s*(?:chi\\s+|го\\s+|е\\s+)?(?:(${alt(MONTH_UZ)})(?:da|ga|dan|gacha|ning|si)?|(${alt(MONTH_RU_GEN)}))${E}`,
+      'u',
+    ),
+  );
+  if (m) {
+    const month = m[2] ? MONTH_UZ.indexOf(m[2]) : MONTH_RU_GEN.indexOf(m[3]);
+    let d = dayOf(today.getUTCFullYear(), month, Number(m[1]));
+    if (d && d.getTime() < today.getTime()) d = dayOf(today.getUTCFullYear() + 1, month, Number(m[1]));
+    return d ? named(d) : null;
+  }
+  // "25-chi", "5-chi kuni", "5-sanada", "третьего числа" (a day of the month on its own). An
+  // ordinal counts only at the end of the line or before kun/sana: "birinchi to'lov" is not a day.
+  m = t.match(/(?<![0-9])([0-9]{1,2})\s*-?\s*(?:(?:chi|inchi|nchi)(?:si)?(?=\s*[.,!?]*\s*(?![\s\S])|\s+(?:kun|sana))|sana|го\s+числа|числа)/u);
+  if (m) {
+    const n = Number(m[1]);
+    let d = n >= today.getUTCDate() ? dayOf(today.getUTCFullYear(), today.getUTCMonth(), n) : null;
+    d ??= dayOf(today.getUTCFullYear(), today.getUTCMonth() + 1, n);
+    return d ? named(d) : null;
+  }
+  // "juma kuni", "kelasi hafta seshanba", "в пятницу", "в следующий вторник"
+  let weekday = WEEKDAY_UZ.findIndex((w) => new RegExp(`${B}${w}`, 'u').test(t));
+  if (weekday < 0) weekday = WEEKDAY_RU.findIndex((w) => new RegExp(`${B}(?:${w})${E}`, 'u').test(t));
+  if (weekday >= 0) {
+    const todayW = today.getUTCDay();
+    if (/(?:kelasi|keyingi)\s+hafta|следующ/u.test(t)) return at((7 - todayW) % 7 + 1 + ((weekday + 6) % 7));
+    return at((weekday - todayW + 7) % 7 || 7);
+  }
+  return null;
 }
