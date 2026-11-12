@@ -23,7 +23,8 @@ import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { llmCost, type LlmProvider } from '@/lib/speech/registry';
 import type { LlmCall } from './call';
-import { hasGemini, geminiJson, geminiText, geminiModel } from './gemini';
+import { hasGemini, geminiJson, geminiJsonStream, geminiText, geminiModel } from './gemini';
+import { answerExtractor } from './json-stream';
 import { hasOpenAI, openaiJsonStream, openaiModel, openaiText } from './openai';
 import { hasOllama, ollamaJson, ollamaJsonStream, ollamaText, ollamaModel } from './ollama';
 import { calendarBlock, identityCheck, type IdentityStatus } from './loan-call';
@@ -453,13 +454,21 @@ export interface GenerateInput extends SynthesisInput {
   extraNote?: string;
   /** `provider:model` to answer with — the agent's choice or the account default (see `resolveLlm`). */
   llm?: string | null;
+  /**
+   * With `onDelta`, Gemini and Claude stream their answer (OpenAI always
+   * streams, Ollama streams whenever `onDelta` is given). `false` keeps
+   * Gemini and Claude answering in one piece, as before — used to compare the two.
+   */
+  stream?: boolean;
 }
 
 /**
  * `onDelta`, when given, receives the spoken answer piece by piece as the
- * model writes it (Ollama only; the other engines answer in one piece and
- * never call it). The returned `answer` always starts with everything that was
- * streamed, so a voice that already spoke part of it is never contradicted.
+ * model writes it: OpenAI, Ollama, Gemini and Claude all stream (Gemini and
+ * Claude unless `input.stream === false`); the local engine answers in one
+ * piece and never calls it. The returned `answer` always starts with
+ * everything that was streamed, so a voice that already spoke part of it is
+ * never contradicted.
  */
 export async function generateAnswer(
   input: GenerateInput,
@@ -484,7 +493,8 @@ export async function generateAnswer(
   // human" shortcut never reaches a model, so it is not counted.
   const shortcut = out.intent === 'human' && !input.target?.fullName;
   if (sel.provider !== 'local' && !shortcut) {
-    const fellBack = out.engine === 'local';
+    const rescued = out.engine.endsWith(FALLBACK_TAG);
+    const fellBack = out.engine === 'local' || rescued;
     recordUsage({
       kind: 'llm',
       engine: sel.provider,
@@ -496,10 +506,32 @@ export async function generateAnswer(
       tokensOut: call.tokensOut ?? null,
       costUsd: llmCost(selectionId(sel), call.tokensIn, call.tokensOut),
       ok: !fellBack,
-      error: fellBack ? 'fell_back_to_local' : null,
+      error: rescued ? 'fell_back_to_fallback_model' : fellBack ? 'fell_back_to_local' : null,
     });
   }
   return out;
+}
+
+/* ── the fallback model ──────────────────────────────────────── */
+
+/** Marks a reply the fallback model wrote, in its `engine` string. */
+const FALLBACK_TAG = ' (fallback)';
+
+/** True when the chosen model failed and the fallback model wrote this answer. */
+export function isFallbackAnswer(out: Pick<SynthesisOutput, 'engine'>): boolean {
+  return out.engine.endsWith(FALLBACK_TAG);
+}
+
+/**
+ * The model that answers when the chosen one fails before saying a word
+ * (Gemini's "503 high demand", a timeout, a block): Claude Haiku by default,
+ * so the caller hears a real answer instead of the local engine's template.
+ * `LLM_FALLBACK_MODEL` picks another Claude model; `off` turns it off. Needs
+ * ANTHROPIC_API_KEY.
+ */
+function fallbackModel(): string | null {
+  const model = (process.env.LLM_FALLBACK_MODEL ?? 'claude-haiku-5-5').trim();
+  return model && model !== 'off' ? model : null;
 }
 
 async function answerOnce(
@@ -554,19 +586,100 @@ async function answerOnce(
     };
   };
 
-  // Any failure below falls through to the local engine rather than dead air.
-  if ((active === 'ollama' && onDelta) || active === 'openai') {
+  /**
+   * The chosen model failed before any of its answer went out: answer with the
+   * fallback model, streamed the same way, and only if that fails too with the
+   * local engine. Never used once part of an answer was streamed — a voice that
+   * already spoke must not be contradicted by a second model.
+   */
+  const rescue = async (reason: string): Promise<SynthesisOutput> => {
+    const model = fallbackModel();
+    const backupClient = model && !(active === 'anthropic' && sel.model === model) ? anthropic() : null;
+    if (!model || !backupClient) return synthesizeLocal(input);
+    console.warn(`[llm] ${engine} failed before answering (${reason}); answering with ${model}`);
+    const backup: LlmCall = { model };
+    const started = performance.now();
+    let firstMs: number | null = null;
     let streamed = '';
-    const stream = active === 'openai' ? openaiJsonStream : ollamaJsonStream;
-    const raw = await stream(
-      system,
-      user,
-      (delta) => {
-        streamed += delta;
-        onDelta?.(delta);
-      },
-      call,
-    );
+    let raw: string | null = null;
+    try {
+      // Streamed like the chosen model would have been (not in the `stream: false` comparison mode).
+      if (onDelta && input.stream !== false) {
+        raw = await claudeJsonStream(
+          backupClient,
+          model,
+          system,
+          user,
+          (delta) => {
+            firstMs ??= performance.now() - started;
+            streamed += delta;
+            onDelta(delta);
+          },
+          backup,
+        );
+      } else {
+        const message = await backupClient.messages.create({
+          ...claudeAnswerParams(model, system, user),
+        } as Anthropic.MessageCreateParamsNonStreaming);
+        backup.tokensIn = message.usage.input_tokens;
+        backup.tokensOut = message.usage.output_tokens;
+        const block = message.content.find((b) => b.type === 'text');
+        raw = message.stop_reason !== 'refusal' && block?.type === 'text' ? block.text : null;
+      }
+    } catch (err) {
+      console.warn('[llm] fallback failed:', err instanceof Error ? err.message : err);
+    }
+    const tag = `claude:${model}${FALLBACK_TAG}`;
+    let out: SynthesisOutput | null = null;
+    try {
+      const parsed = raw ? (JSON.parse(raw) as { answer: string; answered: boolean; usedExcerpts: number[] }) : null;
+      if (parsed?.answer?.trim()) out = finalize(parsed, tag);
+    } catch {
+      /* handled below */
+    }
+    if (!out && streamed.trim()) out = { answer: streamed.trim(), intent, answered: true, usedHits: [], engine: tag };
+    recordUsage({
+      kind: 'llm',
+      engine: 'anthropic',
+      model: `anthropic:${model}`,
+      ms: performance.now() - started,
+      firstMs,
+      chars: out?.answer.length ?? 0,
+      tokensIn: backup.tokensIn ?? null,
+      tokensOut: backup.tokensOut ?? null,
+      costUsd: llmCost(`anthropic:${model}`, backup.tokensIn, backup.tokensOut),
+      ok: Boolean(out),
+      error: out ? null : 'fallback_failed',
+    });
+    return out ?? synthesizeLocal(input);
+  };
+
+  // Gemini and Claude stream only for a caller that voices the answer as it
+  // comes; elsewhere one piece is as fast and simpler.
+  const streamOthers = Boolean(onDelta) && input.stream !== false;
+  const claude = active === 'anthropic' ? anthropic() : null;
+
+  // Any failure below falls through to the local engine rather than dead air.
+  if (
+    active === 'openai' ||
+    (active === 'ollama' && onDelta) ||
+    (active === 'gemini' && streamOthers) ||
+    (active === 'anthropic' && streamOthers && claude)
+  ) {
+    let streamed = '';
+    const relay = (delta: string) => {
+      streamed += delta;
+      onDelta?.(delta);
+    };
+    const raw =
+      active === 'anthropic' && claude
+        ? await claudeJsonStream(claude, sel.model, system, user, relay, call)
+        : await (active === 'openai' ? openaiJsonStream : active === 'gemini' ? geminiJsonStream : ollamaJsonStream)(
+            system,
+            user,
+            relay,
+            call,
+          );
     try {
       const parsed = raw
         ? (JSON.parse(raw) as { answer: string; answered: boolean; usedExcerpts: number[] })
@@ -580,36 +693,25 @@ async function answerOnce(
     if (streamed.trim()) {
       return { answer: streamed.trim(), intent, answered: true, usedHits: [], engine };
     }
-    return synthesizeLocal(input);
+    return rescue(raw ? 'unreadable answer' : 'no answer');
   }
 
   if (active === 'gemini' || active === 'ollama') {
     try {
       const raw = active === 'ollama' ? await ollamaJson(system, user, call) : await geminiJson(system, user, call);
-      if (!raw) return synthesizeLocal(input);
+      if (!raw) return rescue('no answer');
       const parsed = JSON.parse(raw) as { answer: string; answered: boolean; usedExcerpts: number[] };
-      if (!parsed.answer?.trim()) return synthesizeLocal(input);
+      if (!parsed.answer?.trim()) return rescue('empty answer');
       return finalize(parsed, engine);
     } catch {
-      return synthesizeLocal(input);
+      return rescue('unreadable answer');
     }
   }
 
-  const claude = anthropic();
   if (!claude) return synthesizeLocal(input);
   try {
     const message = await claude.messages.create({
-      model: sel.model,
-      max_tokens: 400,
-      // Voice turns are latency-bound; depth of reasoning is not what makes
-      // this answer good — grounding is. See README ▸ Latency budget.
-      ...claudeThinking(sel.model),
-      output_config: {
-        effort: 'low',
-        format: { type: 'json_schema', schema: ANSWER_SCHEMA },
-      },
-      system,
-      messages: [{ role: 'user', content: user }],
+      ...claudeAnswerParams(sel.model, system, user),
     } as Anthropic.MessageCreateParamsNonStreaming);
     call.tokensIn = message.usage.input_tokens;
     call.tokensOut = message.usage.output_tokens;
@@ -623,6 +725,60 @@ async function answerOnce(
   } catch {
     return synthesizeLocal(input);
   }
+}
+
+/**
+ * The request every Claude answer makes. Voice turns are latency-bound; depth
+ * of reasoning is not what makes this answer good — grounding is.
+ */
+function claudeAnswerParams(model: string, system: string, user: string) {
+  return {
+    model,
+    max_tokens: 400,
+    ...claudeThinking(model),
+    output_config: {
+      effort: 'low',
+      format: { type: 'json_schema', schema: ANSWER_SCHEMA },
+    },
+    system,
+    messages: [{ role: 'user' as const, content: user }],
+  };
+}
+
+/**
+ * Claude's structured answer, streamed: the `answer` text goes to `onAnswer`
+ * as it is written. Resolves to the complete JSON string, or null on failure
+ * or refusal — check what was already streamed before falling back.
+ */
+async function claudeJsonStream(
+  claude: Anthropic,
+  model: string,
+  system: string,
+  user: string,
+  onAnswer: (delta: string) => void,
+  call: LlmCall,
+): Promise<string | null> {
+  const extract = answerExtractor(onAnswer);
+  let raw = '';
+  try {
+    const stream = claude.messages.stream({
+      ...claudeAnswerParams(model, system, user),
+    } as Anthropic.MessageStreamParams);
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        raw += event.delta.text;
+        extract(raw);
+      }
+    }
+    const message = await stream.finalMessage();
+    call.tokensIn = message.usage.input_tokens;
+    call.tokensOut = message.usage.output_tokens;
+    if (message.stop_reason === 'refusal') return null;
+  } catch (err) {
+    console.warn('[claude] stream failed:', err instanceof Error ? err.message : err);
+    return null;
+  }
+  return raw.trim() || null;
 }
 
 /** Streaming variant used by the web playground for token-by-token display. */

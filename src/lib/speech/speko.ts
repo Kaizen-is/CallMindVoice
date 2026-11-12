@@ -77,7 +77,8 @@ export class SpekoError extends Error {
 /**
  * Render `text` with one ElevenLabs model, yielding PCM pieces as they arrive.
  * Like `streamPcm` in `./tts`: the first piece goes out after a quarter second
- * of audio, then half-second pieces, never splitting a 16-bit sample.
+ * of audio (a tenth with `quickStart`), then half-second pieces (quarter),
+ * never splitting a 16-bit sample.
  * `sampleRate` is 8 kHz for phone calls; the web asks for 24 kHz.
  */
 export async function* spekoStreamPcm(
@@ -86,9 +87,11 @@ export async function* spekoStreamPcm(
   language: Locale,
   voice: string,
   sampleRate: number = SAMPLE_RATE,
+  quickStart = false,
 ): AsyncGenerator<Buffer, void, unknown> {
-  const firstPieceBytes = sampleRate / 2; // 0.25 s of 16-bit mono
-  const pieceBytes = sampleRate; // 0.5 s
+  // 16-bit mono: `sampleRate` bytes are 0.5 s. Quick start: 0.1 s, then 0.25 s pieces.
+  const firstPieceBytes = quickStart ? Math.round(sampleRate / 5) & ~1 : sampleRate / 2;
+  const pieceBytes = quickStart ? sampleRate / 2 : sampleRate;
   const key = spekoKey();
   if (!key) throw new SpekoError('speko_not_configured', 503);
 

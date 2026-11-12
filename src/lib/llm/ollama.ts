@@ -14,6 +14,10 @@
  */
 import 'server-only';
 import type { LlmCall } from './call';
+import { answerExtractor } from './json-stream';
+
+// Kept importable from here for existing callers.
+export { answerExtractor };
 
 export function hasOllama(): boolean {
   return Boolean(process.env.OLLAMA_BASE_URL);
@@ -204,49 +208,6 @@ export async function ollamaJsonStream(
   if (start >= 0 && end > start) return raw.slice(start, end + 1);
   console.warn(`[ollama] no JSON in reply: ${raw.slice(0, 200)}`);
   return null;
-}
-
-/**
- * Follows a growing JSON text and reports the `answer` string's value as it
- * appears, decoded. Escapes split across pieces wait for their next piece.
- */
-export function answerExtractor(onAnswer: (delta: string) => void): (raw: string) => void {
-  let at = -1; // index of the first character of the value, once found
-  let closed = false;
-  return (raw) => {
-    if (closed) return;
-    if (at < 0) {
-      const m = /"answer"\s*:\s*"/.exec(raw);
-      if (!m) return;
-      at = m.index + m[0].length;
-    }
-    let out = '';
-    let i = at;
-    while (i < raw.length) {
-      const c = raw[i];
-      if (c === '"') {
-        closed = true;
-        break;
-      }
-      if (c !== '\\') {
-        out += c;
-        i += 1;
-        continue;
-      }
-      if (i + 1 >= raw.length) break;
-      const e = raw[i + 1];
-      if (e === 'u') {
-        if (i + 6 > raw.length) break;
-        out += String.fromCharCode(parseInt(raw.slice(i + 2, i + 6), 16) || 32);
-        i += 6;
-      } else {
-        out += e === 'n' ? '\n' : e === 't' ? ' ' : e === 'r' ? '' : e;
-        i += 2;
-      }
-    }
-    at = i;
-    if (out) onAnswer(out);
-  };
 }
 
 /** Plain-text generation, used for the operator hand-off summary. */

@@ -192,6 +192,11 @@ export async function runTurn(params: {
   context?: (callerLines: string[]) => string | { facts: string; note?: string };
   /** The reply as it is generated, for callers that voice it sentence by sentence. */
   onDelta?: (delta: string) => void;
+  /**
+   * `false`: Gemini and Claude answer in one piece even with `onDelta` (how
+   * they answered before streaming was added) — for before/after comparisons.
+   */
+  streamLlm?: boolean;
 }): Promise<TurnResult> {
   const { tenantId, callId, agent, utterance } = params;
   const persist = params.persist !== false;
@@ -251,6 +256,7 @@ export async function runTurn(params: {
     greeting: agent.greeting,
     timeZone: agentHours(agent).timezone,
     llm: agentLlm(agent),
+    stream: params.streamLlm,
     ...lookupFor(params.context, [
       ...modelHistory.filter((turn) => turn.role === 'caller').map((turn) => turn.text),
       utterance,

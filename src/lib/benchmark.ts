@@ -23,7 +23,7 @@ import path from 'node:path';
 import { all, now, run } from '@/lib/db';
 import { VOICES } from '@/lib/catalog';
 import { score } from '@/lib/speech/scoring';
-import { generateAnswer, llmProviderReady } from '@/lib/llm/provider';
+import { generateAnswer, isFallbackAnswer, llmProviderReady } from '@/lib/llm/provider';
 import { ENGINES, LLM_MODELS } from '@/lib/speech/registry';
 import { ELEVEN_VOICES } from '@/lib/speech/speko';
 import { sttEngineIds, transcribeOne, type SttEngineId } from '@/lib/speech/stt';
@@ -287,7 +287,8 @@ async function benchmarkLlm(build: string) {
           if (firstMs === null) firstMs = performance.now() - started;
         },
       ).catch(() => null);
-      if (!out || out.engine === 'local' || !out.answer.trim()) continue;
+      // The model under test failed if the local engine or the fallback model answered for it.
+      if (!out || out.engine === 'local' || isFallbackAnswer(out) || !out.answer.trim()) continue;
       const totalMs = performance.now() - started;
       total.push(totalMs);
       // Models that answer in one piece have no separate first word.

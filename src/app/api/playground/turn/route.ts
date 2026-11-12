@@ -6,6 +6,15 @@
  *
  * `?prefetch=1`: the caller has paused, probably at the end of the phrase —
  * transcribe now and keep it for the turn that follows.
+ *
+ * Form field `legacy=1` voices the turn the way it was before the latency
+ * work (answer in one piece on Gemini/Claude, sentence-sized first piece, no
+ * render-ahead), so the Playground can compare both on the same agent.
+ *
+ * The `final` event's `ms` carries the turn's measured marks, in ms from the
+ * moment the request was read: `stt`, `retrieval`, `llm` (durations) and
+ * `llmFirst`, `firstSegment`, `firstAudio` (when the model's first words, the
+ * first piece handed to the voice, and the first audio sent happened).
  */
 import { currentSession } from '@/lib/auth';
 import { runTurn } from '@/lib/engine/conversation';
@@ -53,6 +62,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!saved) return Response.json({ error: 'no_agent' }, { status: 404 });
 
   const lang = callLang(form.get('lang'), saved);
+  const fast = String(form.get('legacy') ?? '') !== '1';
   const stt = sttPick(form.get('sttEngine'));
   const wav = hasAudio ? await (audio as File).arrayBuffer() : new ArrayBuffer(0);
   if (prefetch) {
@@ -70,8 +80,12 @@ export async function POST(request: Request): Promise<Response> {
     let sttMs = 0;
     let result: Awaited<ReturnType<typeof runTurn>> | null = null;
     let voice: ReturnType<typeof speakAsWritten> | null = null;
+    const started = performance.now();
+    const marks: Record<string, number> = {};
+    const mark = (key: string) => {
+      marks[key] ??= Math.round(performance.now() - started);
+    };
     try {
-      const started = performance.now();
       let heard;
       try {
         heard = streamed
@@ -89,7 +103,11 @@ export async function POST(request: Request): Promise<Response> {
       if (heard.text) {
         const filler = fillerFor(agent, callId, heard.text, pick);
         if (filler) send({ t: 'filler', pcm: filler });
-        const speaker = speakAsWritten(agent, detectLanguage(heard.text) as Locale, pick, send, signal);
+        const speaker = speakAsWritten(agent, detectLanguage(heard.text) as Locale, pick, send, signal, {
+          fast,
+          onFirstSegment: () => mark('firstSegment'),
+          onFirstAudio: () => mark('firstAudio'),
+        });
         voice = speaker;
         result = await runTurn({
           tenantId: session.tenant.id,
@@ -97,7 +115,11 @@ export async function POST(request: Request): Promise<Response> {
           agent,
           utterance: heard.text,
           sttMs,
-          onDelta: (delta) => speaker.push(delta),
+          streamLlm: fast,
+          onDelta: (delta) => {
+            mark('llmFirst');
+            speaker.push(delta);
+          },
         });
       }
     } finally {
@@ -114,7 +136,13 @@ export async function POST(request: Request): Promise<Response> {
       t: 'final',
       text: result.reply,
       end: null,
-      ms: { stt: sttMs, retrieval: result.timings.retrievalMs, llm: result.timings.llmMs },
+      ms: {
+        stt: sttMs,
+        retrieval: result.timings.retrievalMs,
+        llm: result.timings.llmMs,
+        ...marks,
+        fast: fast ? 1 : 0,
+      },
     });
     send({ t: 'detail', detail: turnDetail(result) });
     send({ t: 'done' });

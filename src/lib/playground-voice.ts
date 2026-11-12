@@ -116,9 +116,17 @@ export function sttPick(value: unknown): SttEngine {
   return isSttEngine(value) ? value : 'auto';
 }
 
-function synthOptions(agent: Agent, lang: Locale, pick: VoicePick): SynthOptions {
+function synthOptions(agent: Agent, lang: Locale, pick: VoicePick, quickStart = false): SynthOptions {
   // Cached, like the demo: scripted calls repeat sentences, and a hit is a file read.
-  return { tenantId: agent.tenant_id, voiceId: pick.voiceId, language: lang, tag: 'pg_call', cache: true, engine: pick.engine };
+  return {
+    tenantId: agent.tenant_id,
+    voiceId: pick.voiceId,
+    language: lang,
+    tag: 'pg_call',
+    cache: true,
+    engine: pick.engine,
+    quickStart,
+  };
 }
 
 function canSpeak(pick: VoicePick): boolean {
@@ -171,16 +179,106 @@ export async function speak(agent: Agent, text: string, lang: Locale, pick: Voic
 }
 
 /**
+ * How a reply is voiced while it is written. `fast` (the default) is what the
+ * latency work added; `fast: false` is the voice as it was before, kept so the
+ * Playground can compare the two on the same agent (`?legacy=1`).
+ */
+export interface SpeakOptions {
+  /**
+   * The first piece may end at a clause (a comma after four words or more)
+   * instead of a whole sentence; the next sentence renders while the current
+   * one plays; and the first audio leaves after 0.1 s instead of 0.25 s.
+   */
+  fast?: boolean;
+  /** The first piece of text was handed to the TTS. */
+  onFirstSegment?: () => void;
+  /** The first audio of the reply was sent. */
+  onFirstAudio?: () => void;
+}
+
+/** A clause long enough to be said on its own: four words, 25 characters. */
+const CLAUSE_MIN_WORDS = 4;
+const CLAUSE_MIN_CHARS = 25;
+
+/** One segment being rendered, possibly ahead of the one playing. */
+interface Rendering {
+  /** How much of the reply had been taken when this segment was cut — what is shown with it. */
+  shownUpTo: number;
+  chunks(): AsyncGenerator<Buffer, void, unknown>;
+}
+
+/**
+ * Start rendering `segment` now and keep its audio until it is read. Lets the
+ * next sentence render while the one before it is still playing.
+ */
+function renderAhead(segment: string, opts: SynthOptions, signal: AbortSignal, shownUpTo: number): Rendering {
+  const pieces: Buffer[] = [];
+  let done = false;
+  let failure: unknown = null;
+  let wake: (() => void) | null = null;
+  const poke = () => {
+    wake?.();
+    wake = null;
+  };
+  // Talked over: the reader stops at once, not at the next piece of audio.
+  signal.addEventListener('abort', poke, { once: true });
+  void (async () => {
+    try {
+      for await (const pcm of synthesizeStream(segment, opts)) {
+        if (signal.aborted) break;
+        pieces.push(pcm);
+        poke();
+      }
+    } catch (err) {
+      failure = err;
+    } finally {
+      done = true;
+      poke();
+      signal.removeEventListener('abort', poke);
+    }
+  })();
+  return {
+    shownUpTo,
+    async *chunks() {
+      let read = 0;
+      for (;;) {
+        if (signal.aborted) return;
+        if (read < pieces.length) {
+          yield pieces[read++];
+          continue;
+        }
+        if (done) {
+          if (failure) throw failure;
+          return;
+        }
+        await new Promise<void>((resolve) => (wake = resolve));
+      }
+    },
+  };
+}
+
+/**
  * Voice a reply while the model is still writing it — the demo's
  * `speakAsWritten`, with the Playground's engine and voice. Each complete
- * sentence goes to the TTS as soon as the voice is free.
+ * sentence goes to the TTS as soon as the voice is free (with `fast`: the
+ * first clause goes at once, and the next sentence is rendered ahead).
  */
-export function speakAsWritten(agent: Agent, lang: Locale, pick: VoicePick, send: Send, signal: AbortSignal) {
+export function speakAsWritten(
+  agent: Agent,
+  lang: Locale,
+  pick: VoicePick,
+  send: Send,
+  signal: AbortSignal,
+  options: SpeakOptions = {},
+) {
+  const fast = options.fast !== false;
+  const opts = synthOptions(agent, lang, pick, fast);
   let text = '';
   let taken = 0;
   let finished = false;
   let shown = false;
   let sent = 0;
+  let segments = 0;
   let wake: (() => void) | null = null;
   const notify = () => {
     wake?.();
@@ -195,36 +293,66 @@ export function speakAsWritten(agent: Agent, lang: Locale, pick: VoicePick, send
     }
     const ends = [...rest.matchAll(/[.!?…]+(?=\s)/g)];
     const last = ends[ends.length - 1];
-    if (!last) return null;
-    const cut = last.index + last[0].length;
-    // A lone "Ha." sounds clipped on its own; it waits for the next sentence.
-    if (rest.slice(0, cut).trim().length < 12) return null;
-    taken += cut;
-    return rest.slice(0, cut).trim();
+    if (last) {
+      const cut = last.index + last[0].length;
+      // A lone "Ha." sounds clipped on its own; it waits for the next sentence.
+      if (rest.slice(0, cut).trim().length >= 12) {
+        taken += cut;
+        return rest.slice(0, cut).trim();
+      }
+    }
+    // The very first words: a whole clause is enough to start speaking on.
+    if (fast && segments === 0) {
+      for (const m of rest.matchAll(/[,;:—–]+(?=\s)/g)) {
+        const cut = m.index + m[0].length;
+        const piece = rest.slice(0, cut).trim();
+        if (piece.length >= CLAUSE_MIN_CHARS && piece.split(/\s+/).length >= CLAUSE_MIN_WORDS) {
+          taken += cut;
+          return piece;
+        }
+      }
+    }
+    return null;
+  };
+
+  /** Cut the next segment, if there is one, and start rendering it. */
+  const take = (): Rendering | null => {
+    const segment = nextSegment();
+    if (!segment) return null;
+    if (segments === 0) options.onFirstSegment?.();
+    segments += 1;
+    return canSpeak(pick)
+      ? renderAhead(segment, opts, signal, taken)
+      : { shownUpTo: taken, chunks: async function* () {} };
   };
 
   const worker = (async () => {
+    let current: Rendering | null = null;
     for (;;) {
       if (signal.aborted) return;
-      const segment = nextSegment();
-      if (!segment) {
+      current ??= take();
+      if (!current) {
         if (finished) return;
         await new Promise<void>((resolve) => (wake = resolve));
         continue;
       }
-      const said = text.slice(0, taken).trim();
+      const said = text.slice(0, current.shownUpTo).trim();
       send(shown ? { t: 'more', text: said } : { t: 'reply', text: said, lang, end: null });
       shown = true;
-      if (!canSpeak(pick)) continue;
+      let next: Rendering | null = null;
       try {
-        for await (const pcm of synthesizeStream(segment, synthOptions(agent, lang, pick))) {
+        for await (const pcm of current.chunks()) {
           if (signal.aborted) break;
           send({ t: 'audio', pcm: pcm.toString('base64') });
+          if (sent === 0) options.onFirstAudio?.();
           sent += 1;
+          // Render the next sentence while this one plays.
+          if (fast && !next) next = take();
         }
       } catch (err) {
         console.warn('[playground] tts failed:', err instanceof Error ? err.message : err);
       }
+      current = next;
     }
   })();
 

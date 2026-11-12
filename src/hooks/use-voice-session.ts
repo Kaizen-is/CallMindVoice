@@ -42,8 +42,16 @@ export type VoiceState =
 /** Why a session failed, for callers that show their own localised messages. */
 export type VoiceErrorCode = 'mic_denied' | 'mic_unavailable' | 'recording';
 
+/** Timing of a finished utterance, on the page's `performance.now()` clock. */
+export interface UtteranceTiming {
+  /** The last moment the caller's voice was heard — the real end of speech, before the silence wait. */
+  speechEndedAt: number;
+  /** When the utterance was handed over (end of speech + the silence that confirmed it). */
+  finalizedAt: number;
+}
+
 interface UseVoiceSessionOptions {
-  onUtterance: (recording: RecordingResult, turnId: number) => Promise<void> | void;
+  onUtterance: (recording: RecordingResult, turnId: number, timing: UtteranceTiming) => Promise<void> | void;
   /**
    * The utterance as it stands after EARLY_SILENCE_MS of quiet. If the pause
    * holds, `onUtterance` receives this very object (same `wav` Blob), so work
@@ -181,6 +189,10 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
       }
       if (pending === speculation) recording?.cancel();
       finalizedRef.current = pending;
+      const timing: UtteranceTiming = {
+        speechEndedAt: lastVoiceAtRef.current || performance.now(),
+        finalizedAt: performance.now(),
+      };
 
       isFinalizingRef.current = true;
       recordingRef.current = null;
@@ -203,7 +215,7 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
             turnId,
             durationMs: Math.round(result.durationSec * 1000),
           });
-          await onUtteranceRef.current(result, turnId);
+          await onUtteranceRef.current(result, turnId, timing);
         })
         .catch((cause) => {
           if (!activeRef.current || generation !== generationRef.current) return;

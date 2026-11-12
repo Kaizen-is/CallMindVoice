@@ -15,7 +15,7 @@ import type { Locale, UiLocale } from '@/lib/types';
 import { cn, fmtLatency } from '@/lib/utils';
 import { voiceInputAvailable } from '@/lib/catalog';
 import { micSupported, type RecordingResult } from '@/lib/audio';
-import { useVoiceSession, type VoiceState } from '@/hooks/use-voice-session';
+import { useVoiceSession, type UtteranceTiming, type VoiceState } from '@/hooks/use-voice-session';
 import { useLiveTranscript } from '@/hooks/use-live-transcript';
 import { decodePcm, speakWithBrowser, VoiceOut } from '@/app/demo/voice-out';
 import { IconHandset, IconHangUp } from '@/app/demo/icons';
@@ -118,6 +118,23 @@ function pcmToAudioBuffer(ctx: AudioContext, pcm: Uint8Array, rate: number = TTS
   const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
   for (let i = 0; i < frames; i++) channel[i] = view.getInt16(i * 2, true) / 32768;
   return buffer;
+}
+
+/**
+ * One voice turn's clock on the page (`performance.now()`): when the caller
+ * really stopped talking, and when the phrase left for the server.
+ */
+interface TurnClock {
+  speechEndedAt: number;
+  sentAt: number;
+}
+
+/**
+ * `?legacy=1` on the Playground's address voices turns the way they were
+ * before the latency work, to compare both on the same agent.
+ */
+function legacyVoice(): boolean {
+  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('legacy') === '1';
 }
 
 interface Msg {
@@ -284,7 +301,9 @@ export function Playground({
     setCallPhaseState(next);
   };
   const [muted, setMuted] = useState(false);
-  const callUtteranceRef = useRef<(recording: RecordingResult) => Promise<void>>(async () => {});
+  const callUtteranceRef = useRef<(recording: RecordingResult, timing?: UtteranceTiming) => Promise<void>>(
+    async () => {},
+  );
   const callPrefetchRef = useRef<(recording: RecordingResult) => void>(() => {});
 
   /** Stop the agent mid-word and forget the turn that was speaking. */
@@ -312,7 +331,7 @@ export function Playground({
     sessionIsActive,
     setMuted: setMicMuted,
   } = useVoiceSession({
-    onUtterance: (recording) => callUtteranceRef.current(recording),
+    onUtterance: (recording, _turn, timing) => callUtteranceRef.current(recording, timing),
     onSpeculate: (recording) => callPrefetchRef.current(recording),
     onBargeIn: () => silenceAgent(),
     onError: (message) => toast.error(t('play.toast.micTitle', 'Microphone problem'), message),
@@ -676,6 +695,7 @@ export function Playground({
     form.append('sttEngine', sttEngine);
     form.append('ttsEngine', ttsEngine);
     form.append('voice', voiceOverride || agent?.voiceId || '');
+    if (legacyVoice()) form.append('legacy', '1');
     return form;
   };
 
@@ -684,8 +704,17 @@ export function Playground({
    * reply and voice it as it arrives, fill the side panels, then hand the line
    * back to the caller.
    */
-  const exchange = async (res: Response, seq: number, userMsgId?: string) => {
+  const exchange = async (res: Response, seq: number, userMsgId?: string, clock?: TurnClock) => {
     const out = outRef.current!;
+    // Measured on this page: when the filler and the reply's first audio
+    // actually start playing, and any gaps between the reply's audio pieces.
+    let fillerPlayAt = 0;
+    let replyPlayAt = 0;
+    let replyRecvAt = 0;
+    let lastEnd = 0;
+    let gapCount = 0;
+    let gapMs = 0;
+    let serverMs: Record<string, number> | undefined;
     let agentMsgId = '';
     let replyText = '';
     let replyLang: Locale = speechLang;
@@ -724,10 +753,29 @@ export function Playground({
         } else if ((event.t === 'more' || event.t === 'final') && agentMsgId) {
           // The reply grows a sentence at a time as the model writes it.
           replyText = event.text;
+          if (event.t === 'final') serverMs = event.ms;
           const id = agentMsgId;
           setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: event.text } : x)));
         } else if ((event.t === 'filler' || event.t === 'audio') && ttsEnabled) {
+          const nowPage = performance.now();
+          const nowAudio = out.now;
           const span = out.enqueue(decodePcm(event.pcm));
+          if (span) {
+            const playAt = nowPage + (span.start - nowAudio) * 1000;
+            if (event.t === 'filler') {
+              fillerPlayAt ||= playAt;
+            } else {
+              if (!replyPlayAt) {
+                replyPlayAt = playAt;
+                replyRecvAt = nowPage;
+              } else if (span.start - lastEnd > 0.015) {
+                // The voice ran dry and restarted: an audible gap.
+                gapCount += 1;
+                gapMs += (span.start - lastEnd) * 1000;
+              }
+              lastEnd = span.end;
+            }
+          }
           if (event.t === 'audio' && span && !voiced) {
             voiced = true;
             setThinking(false);
@@ -758,7 +806,26 @@ export function Playground({
 
     if (detail && agentMsgId) {
       const id = agentMsgId;
-      const reply: PlaygroundReply = { ok: true, callId: callIdRef.current ?? undefined, reply: replyText, ...detail };
+      const timings: Record<string, number> = { ...detail.timings };
+      if (serverMs) {
+        // Server marks, in ms from when the server read the phrase.
+        for (const [key, value] of Object.entries(serverMs)) timings[`srv_${key}`] = value;
+      }
+      if (clock && replyPlayAt) {
+        timings.mouthToEarMs = replyPlayAt - clock.speechEndedAt;
+        timings.endpointMs = clock.sentAt - clock.speechEndedAt;
+        if (fillerPlayAt) timings.fillerAtMs = fillerPlayAt - clock.speechEndedAt;
+        timings.gapCount = gapCount;
+        timings.gapMs = gapMs;
+        timings.replyRecvMs = replyRecvAt - clock.speechEndedAt;
+      }
+      const reply: PlaygroundReply = {
+        ok: true,
+        callId: callIdRef.current ?? undefined,
+        reply: replyText,
+        ...detail,
+        timings,
+      };
       setMessages((m) => m.map((x) => (x.id === id ? { ...x, reply } : x)));
     }
     if (dropped) toast.error(t('play.toast.answerFailTitle', 'Could not answer'), t('play.callDropped', 'The line dropped.'));
@@ -786,7 +853,7 @@ export function Playground({
     void fetch('/api/playground/turn?prefetch=1', { method: 'POST', body: callForm(wav) }).catch(() => {});
   };
 
-  callUtteranceRef.current = async ({ wav, durationSec, rms }) => {
+  callUtteranceRef.current = async ({ wav, durationSec, rms }, timing) => {
     // A cough, a click, or a phrase while the line is still connecting.
     if (callPhaseRef.current !== 'live' || !callIdRef.current || durationSec < 0.3 || rms < 0.0015 || wav.size <= 44) {
       if (callPhaseRef.current === 'live') resumeListening();
@@ -806,6 +873,9 @@ export function Playground({
     const controller = new AbortController();
     callAbortRef.current = controller;
     let res: Response | null = null;
+    const clock: TurnClock | undefined = timing
+      ? { speechEndedAt: timing.speechEndedAt, sentAt: performance.now() }
+      : undefined;
     // A 409 means the previous turn is still being written down — a moment's wait.
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -837,7 +907,7 @@ export function Playground({
       resumeListening();
       return;
     }
-    await exchange(res, seq, userMsgId);
+    await exchange(res, seq, userMsgId, clock);
   };
 
   /** Pick up: open the mic and the call together; the agent speaks first. */
@@ -1511,13 +1581,27 @@ export function Playground({
             <h3 className="text-[14px] font-semibold text-ink">{t('play.lastTurn', 'Last turn')}</h3>
             {lastReply ? (
               <div className="mt-4 space-y-3">
-                <MetricRow
-                  icon={<IconZap size={15} />}
-                  label={t('play.metric.total', 'Total')}
-                  value={fmtLatency(lastReply.timings?.totalMs)}
-                  good={(lastReply.timings?.totalMs ?? 0) < 1000}
-                />
-                <StageBar timings={lastReply.timings ?? {}} t={t} />
+                {lastReply.timings?.mouthToEarMs != null ? (
+                  <>
+                    <MetricRow
+                      icon={<IconZap size={15} />}
+                      label={t('play.metric.mouthToEar', 'You stopped → agent spoke')}
+                      value={fmtLatency(lastReply.timings.mouthToEarMs)}
+                      good={lastReply.timings.mouthToEarMs < 1000}
+                    />
+                    <TurnWaterfall timings={lastReply.timings} t={t} />
+                  </>
+                ) : (
+                  <>
+                    <MetricRow
+                      icon={<IconZap size={15} />}
+                      label={t('play.metric.total', 'Total')}
+                      value={fmtLatency(lastReply.timings?.totalMs)}
+                      good={(lastReply.timings?.totalMs ?? 0) < 1000}
+                    />
+                    <StageBar timings={lastReply.timings ?? {}} t={t} />
+                  </>
+                )}
                 <div className="space-y-2 pt-2">
                   <MetricRow
                     icon={<IconCheckCircle size={15} />}
@@ -1613,7 +1697,9 @@ function Bubble({ msg, t }: { msg: Msg; t: Translate }) {
               isCaller ? 'justify-end' : 'justify-start',
             )}
           >
-            <span className="tabular">{fmtLatency(msg.reply.timings?.totalMs)}</span>
+            <span className="tabular">
+              {fmtLatency(msg.reply.timings?.mouthToEarMs ?? msg.reply.timings?.totalMs)}
+            </span>
             <span className="tabular">
               {t('play.confShort', 'conf')} {(msg.reply.confidence ?? 0).toFixed(2)}
             </span>
@@ -1647,6 +1733,84 @@ function MetricRow({
       </span>
       <span className="flex-1 text-[12.5px] text-ink-3">{label}</span>
       <span className="text-[13px] font-medium text-ink tabular">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * Where one voice turn's time went, measured end to end: from the moment the
+ * caller stopped talking to the moment the agent's voice started playing.
+ * Each stage ends at a mark; stages whose mark is missing fold into the next.
+ */
+function TurnWaterfall({ timings, t }: { timings: Record<string, number>; t: Translate }) {
+  const endpoint = timings.endpointMs ?? 0;
+  const at = (offset: number | undefined) => (offset == null ? undefined : endpoint + offset);
+  const sttEnd = at(timings.srv_stt);
+  const marks: Array<{ key: string; label: string; at: number | undefined }> = [
+    { key: 'endpoint', label: t('play.wf.endpoint', 'Silence wait (end of speech)'), at: endpoint },
+    { key: 'stt', label: t('play.wf.stt', 'Speech-to-text'), at: sttEnd },
+    {
+      key: 'retrieval',
+      label: t('play.wf.retrieval', 'Knowledge search'),
+      at: sttEnd != null && timings.srv_retrieval != null ? sttEnd + timings.srv_retrieval : undefined,
+    },
+    { key: 'llm', label: t('play.wf.llm', 'AI first words'), at: at(timings.srv_llmFirst) },
+    { key: 'segment', label: t('play.wf.segment', 'First phrase ready'), at: at(timings.srv_firstSegment) },
+    { key: 'tts', label: t('play.wf.tts', 'Voice first audio'), at: at(timings.srv_firstAudio) },
+    { key: 'play', label: t('play.wf.play', 'Network + playback'), at: timings.mouthToEarMs },
+  ];
+  const stages: Array<{ key: string; label: string; ms: number }> = [];
+  let prev = 0;
+  for (const mark of marks) {
+    if (mark.at == null || mark.at < prev) continue;
+    stages.push({ key: mark.key, label: mark.label, ms: mark.at - prev });
+    prev = mark.at;
+  }
+  const total = timings.mouthToEarMs || 1;
+  const colors = ['var(--series-1)', 'var(--series-3)', 'var(--series-4)', 'var(--series-2)'];
+  return (
+    <div>
+      <div className="flex h-2 w-full gap-px overflow-hidden rounded-full">
+        {stages.map((s, i) =>
+          s.ms > 0 ? (
+            <div
+              key={s.key}
+              style={{ width: `${(s.ms / total) * 100}%`, background: colors[i % colors.length] }}
+              title={`${s.label} ${Math.round(s.ms)} ms`}
+            />
+          ) : null,
+        )}
+      </div>
+      <div className="mt-2 space-y-1">
+        {stages.map((s, i) => (
+          <div key={s.key} className="flex items-center justify-between text-[11.5px]">
+            <span className="inline-flex items-center gap-1.5 text-ink-3">
+              <span className="h-2 w-2 rounded-[2px]" style={{ background: colors[i % colors.length] }} />
+              {s.label}
+            </span>
+            <span className="text-ink-2 tabular">{Math.round(s.ms)} ms</span>
+          </div>
+        ))}
+        {timings.fillerAtMs != null && (
+          <div className="flex items-center justify-between text-[11.5px] text-ink-3">
+            <span>{t('play.wf.filler', '“One moment” filler started at')}</span>
+            <span className="tabular">{Math.round(timings.fillerAtMs)} ms</span>
+          </div>
+        )}
+        {(timings.gapCount ?? 0) > 0 && (
+          <div className="flex items-center justify-between text-[11.5px] text-warning">
+            <span>{t('play.wf.gaps', 'Gaps in the voice')}</span>
+            <span className="tabular">
+              {timings.gapCount} · {Math.round(timings.gapMs ?? 0)} ms
+            </span>
+          </div>
+        )}
+        <div className="pt-1 text-[11px] text-ink-3">
+          {timings.srv_fast === 0
+            ? t('play.wf.legacy', 'Legacy voice (?legacy=1): answer in one piece, no render-ahead')
+            : t('play.wf.fast', 'Streaming voice: first phrase starts early, next sentence renders ahead')}
+        </div>
+      </div>
     </div>
   );
 }

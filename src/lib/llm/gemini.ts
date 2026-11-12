@@ -9,6 +9,7 @@
  */
 import 'server-only';
 import type { LlmCall } from './call';
+import { answerExtractor } from './json-stream';
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const TIMEOUT_MS = 8000;
@@ -89,19 +90,95 @@ const ANSWER_SCHEMA = {
   propertyOrdering: ['answer', 'answered', 'usedExcerpts'],
 } as const;
 
+const ANSWER_CONFIG = {
+  responseMimeType: 'application/json',
+  responseSchema: ANSWER_SCHEMA,
+  temperature: 0.2,
+  maxOutputTokens: 500,
+} as const;
+
 /** Structured answer generation — returns the raw JSON string, or null. */
 export function geminiJson(system: string, user: string, meta?: LlmCall): Promise<string | null> {
-  return call(
-    system,
-    user,
-    {
-      responseMimeType: 'application/json',
-      responseSchema: ANSWER_SCHEMA,
-      temperature: 0.2,
-      maxOutputTokens: 500,
-    },
-    meta,
-  );
+  return call(system, user, ANSWER_CONFIG, meta);
+}
+
+/**
+ * Streaming twin of {@link geminiJson} (`streamGenerateContent`, server-sent
+ * events): the same structured answer, with the `answer` text handed to
+ * `onAnswer` piece by piece as Gemini writes it, so the voice can start on the
+ * first words. Resolves to the complete JSON string, or null on failure —
+ * check what was already streamed before falling back, since it may have been
+ * spoken.
+ */
+export async function geminiJsonStream(
+  system: string,
+  user: string,
+  onAnswer?: (delta: string) => void,
+  meta?: LlmCall,
+): Promise<string | null> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  const model = meta?.model || geminiModel();
+  const extract = onAnswer ? answerExtractor(onAnswer) : null;
+  let raw = '';
+
+  try {
+    const res = await fetch(`${ENDPOINT}/${model}:streamGenerateContent?alt=sse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: user }] }],
+        generationConfig: ANSWER_CONFIG,
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok || !res.body) {
+      console.warn(`[gemini] stream ${res.status} ${res.statusText}: ${(await res.text()).slice(0, 300)}`);
+      return null;
+    }
+
+    // One `data: {…}` line per event; each carries the next piece of text, and
+    // the last also the token counts.
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffered += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buffered.indexOf('\n')) >= 0) {
+        const line = buffered.slice(0, nl).trim();
+        buffered = buffered.slice(nl + 1);
+        if (!line.startsWith('data:')) continue;
+        let data: GeminiResponse;
+        try {
+          data = JSON.parse(line.slice(5).trim()) as GeminiResponse;
+        } catch {
+          continue;
+        }
+        if (data.promptFeedback?.blockReason) {
+          console.warn(`[gemini] blocked: ${data.promptFeedback.blockReason}`);
+          return null;
+        }
+        if (meta && data.usageMetadata) {
+          meta.tokensIn = data.usageMetadata.promptTokenCount;
+          meta.tokensOut = (data.usageMetadata.candidatesTokenCount ?? 0) + (data.usageMetadata.thoughtsTokenCount ?? 0);
+        }
+        const piece = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+        if (piece) {
+          raw += piece;
+          extract?.(raw);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[gemini] stream failed:', err instanceof Error ? err.message : err);
+    return null;
+  }
+
+  return raw.trim() || null;
 }
 
 /** Plain-text generation, used for the operator hand-off summary. */

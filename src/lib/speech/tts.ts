@@ -184,11 +184,18 @@ async function* rawEnginePcm(
 ): AsyncGenerator<Buffer, void, unknown> {
   const engine = opts.engine ?? 'default';
   if (engine === 'default') {
-    yield* streamPcm(text, voice);
+    yield* streamPcm(text, voice, opts.quickStart);
     return;
   }
   try {
-    yield* spekoStreamPcm(text, engine, opts.language ?? 'uz', elevenVoice(opts.voiceId), outputRate(opts));
+    yield* spekoStreamPcm(
+      text,
+      engine,
+      opts.language ?? 'uz',
+      elevenVoice(opts.voiceId),
+      outputRate(opts),
+      opts.quickStart,
+    );
   } catch (err) {
     if (err instanceof SpekoError) throw new TtsError(err.message, err.status);
     throw err;
@@ -206,8 +213,17 @@ async function* rawEnginePcm(
 /** The first piece goes out as soon as there is a little audio; then half-second pieces. */
 const FIRST_PIECE_BYTES = 4000; // 0.25 s
 const PIECE_BYTES = 8000; // 0.5 s
+/**
+ * `quickStart` (see SynthOptions): a tenth of a second first, then quarter
+ * seconds — the voice starts sooner and later pieces stay small enough to
+ * arrive before the one playing runs out.
+ */
+const QUICK_FIRST_PIECE_BYTES = 1600; // 0.1 s
+const QUICK_PIECE_BYTES = 4000; // 0.25 s
 
-async function* streamPcm(text: string, voice: ResolvedVoice): AsyncGenerator<Buffer, void, unknown> {
+async function* streamPcm(text: string, voice: ResolvedVoice, quickStart = false): AsyncGenerator<Buffer, void, unknown> {
+  const firstPieceBytes = quickStart ? QUICK_FIRST_PIECE_BYTES : FIRST_PIECE_BYTES;
+  const pieceBytes = quickStart ? QUICK_PIECE_BYTES : PIECE_BYTES;
   const token = await ttsToken();
   const form = buildTtsForm({ userId: 'stream', text, voice });
   // The stream keeps no file to download, so it needs no user_id or phone.
@@ -237,7 +253,7 @@ async function* streamPcm(text: string, voice: ResolvedVoice): AsyncGenerator<Bu
     const { value, done } = await reader.read();
     if (done) break;
     held = held.length ? Buffer.concat([held, Buffer.from(value)]) : Buffer.from(value);
-    if (held.length >= (first ? FIRST_PIECE_BYTES : PIECE_BYTES)) {
+    if (held.length >= (first ? firstPieceBytes : pieceBytes)) {
       const whole = held.length - (held.length % 2); // never split a 16-bit sample
       yield held.subarray(0, whole);
       held = held.subarray(whole);
@@ -327,6 +343,12 @@ export interface SynthOptions {
    * server always streams 8 kHz, so it ignores this.
    */
   sampleRate?: number;
+  /**
+   * Hand on the first 0.1 s of audio (then 0.25 s pieces) instead of the first
+   * 0.25 s (then 0.5 s pieces). Opt-in while it is measured in the Playground;
+   * the audio itself is identical, so the cache is shared.
+   */
+  quickStart?: boolean;
 }
 
 /** The sample rate this render comes out at: 8 kHz unless an ElevenLabs model was asked for more. */

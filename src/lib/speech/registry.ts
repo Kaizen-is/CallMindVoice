@@ -97,7 +97,8 @@ const llm = (
   name,
   vendor: { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google', ollama: 'Self-hosted' }[provider],
   runs: provider === 'ollama' ? 'server' : 'cloud',
-  streams: provider === 'openai' || provider === 'ollama',
+  // Every hosted provider streams its answer to a caller that voices it as it comes.
+  streams: true,
   priceIn,
   priceOut,
   setup: { openai: 'OPENAI_API_KEY', anthropic: 'ANTHROPIC_API_KEY', gemini: 'GEMINI_API_KEY', ollama: 'OLLAMA_BASE_URL' }[provider],

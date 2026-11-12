@@ -13,7 +13,7 @@
  */
 import 'server-only';
 import type { LlmCall } from './call';
-import { answerExtractor } from './ollama';
+import { answerExtractor } from './json-stream';
 
 export function hasOpenAI(): boolean {
   return Boolean(process.env.OPENAI_API_KEY);
