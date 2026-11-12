@@ -10,6 +10,8 @@ dependencies = [
   "pydantic-settings>=2.3",
   "sqlalchemy>=2.0",
   "alembic>=1.13",
+  # Unicode property classes (\p{L}) used by the ported JavaScript regexes.
+  "regex>=2024.4",
 ]
 
 [project.optional-dependencies]
