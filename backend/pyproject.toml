@@ -12,12 +12,21 @@ dependencies = [
   "alembic>=1.13",
   # Unicode property classes (\p{L}) used by the ported JavaScript regexes.
   "regex>=2024.4",
+  # Outside services (Gemini, OpenAI, Ollama, TTS, STT, Speko, GAPI): one shared async client.
+  "httpx>=0.27",
+  # Claude, through the official SDK.
+  "anthropic>=2.0",
+  # Audio decoding and resampling for the STT engines.
+  "numpy>=1.26",
 ]
 
 [project.optional-dependencies]
+# Zipformer, the in-process streaming Uzbek STT (models/uzbek-zipformer). Without it only that engine is missing.
+zipformer = [
+  "sherpa-onnx>=2.0",
+]
 dev = [
   "pytest>=8",
-  "httpx>=0.27",
   "ruff>=0.5",
 ]
 

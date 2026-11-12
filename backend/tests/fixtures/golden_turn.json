@@ -1,0 +1,2376 @@
+{
+ "seed": {
+  "tenants": [
+   {
+    "id": "t1",
+    "name": "Medline",
+    "slug": "medline",
+    "balance_uzs": 50000,
+    "created_at": "2026-11-12T05:00:00.000Z",
+    "updated_at": "2026-11-12T05:00:00.000Z"
+   }
+  ],
+  "agents": [
+   {
+    "id": "agt_rec",
+    "tenant_id": "t1",
+    "name": "Laylo",
+    "status": "live",
+    "persona": "friendly",
+    "greeting": "Assalomu alaykum!",
+    "primary_lang": "uz",
+    "voice_id": "laylo",
+    "max_turns": 4,
+    "confidence_threshold": 0.55,
+    "escalation_json": "{\"maxFailedTurns\":3}",
+    "created_at": "2026-11-12T05:00:00.000Z",
+    "updated_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "agt_loan",
+    "tenant_id": "t1",
+    "name": "Isomiddin",
+    "status": "draft",
+    "persona": "professional",
+    "greeting": "Salom",
+    "primary_lang": "uz",
+    "voice_id": "isomiddin",
+    "max_turns": 20,
+    "confidence_threshold": 0.6,
+    "escalation_json": "{}",
+    "target_json": "{\"fullName\":\"Aziz Karimov\",\"birthYear\":\"1992\",\"loanAmount\":\"1 000 000\",\"prompt\":\"\"}",
+    "created_at": "2026-11-12T05:00:00.000Z",
+    "updated_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "agt_hours",
+    "tenant_id": "t1",
+    "name": "Kecha",
+    "status": "draft",
+    "persona": "concise",
+    "greeting": "",
+    "primary_lang": "ru",
+    "voice_id": "laylo",
+    "max_turns": 20,
+    "confidence_threshold": 0.55,
+    "escalation_json": "{\"afterHoursAction\":\"voicemail\",\"onLowConfidence\":false}",
+    "hours_json": "{\"enabled\":true,\"timezone\":\"Asia/Tashkent\",\"days\":{\"0\":{\"open\":\"00:00\",\"close\":\"00:01\",\"closed\":false},\"1\":{\"open\":\"00:00\",\"close\":\"00:01\",\"closed\":false},\"2\":{\"open\":\"00:00\",\"close\":\"00:01\",\"closed\":false},\"3\":{\"open\":\"00:00\",\"close\":\"00:01\",\"closed\":false},\"4\":{\"open\":\"00:00\",\"close\":\"00:01\",\"closed\":false},\"5\":{\"open\":\"00:00\",\"close\":\"00:01\",\"closed\":false},\"6\":{\"open\":\"00:00\",\"close\":\"00:01\",\"closed\":false}}}",
+    "created_at": "2026-11-12T05:00:00.000Z",
+    "updated_at": "2026-11-12T05:00:00.000Z"
+   }
+  ],
+  "documents": [
+   {
+    "id": "doc_clinic",
+    "tenant_id": "t1",
+    "title": "Clinic",
+    "source_type": "text",
+    "status": "ready",
+    "created_at": "2026-11-12T05:00:00.000Z",
+    "updated_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "doc_insurance",
+    "tenant_id": "t1",
+    "title": "Insurance",
+    "source_type": "text",
+    "status": "ready",
+    "created_at": "2026-11-12T05:00:00.000Z",
+    "updated_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "doc_retail",
+    "tenant_id": "t1",
+    "title": "Retail",
+    "source_type": "text",
+    "status": "ready",
+    "created_at": "2026-11-12T05:00:00.000Z",
+    "updated_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "doc_bank",
+    "tenant_id": "t1",
+    "title": "Bank",
+    "source_type": "text",
+    "status": "ready",
+    "created_at": "2026-11-12T05:00:00.000Z",
+    "updated_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "doc_blob",
+    "tenant_id": "t1",
+    "title": "Blob title",
+    "source_type": "text",
+    "status": "ready",
+    "created_at": "2026-11-12T05:00:00.000Z",
+    "updated_at": "2026-11-12T05:00:00.000Z"
+   }
+  ],
+  "chunks": [
+   {
+    "id": "chk_0000",
+    "tenant_id": "t1",
+    "document_id": "doc_clinic",
+    "ordinal": 0,
+    "heading": "Ish vaqti va manzil",
+    "text": "Ish vaqti va manzil\nMedline klinikasi dushanbadan jumagacha 08:00 dan 20:00 gacha ishlaydi. Shanba kuni 09:00 dan 16:00 gacha qabul qilamiz. Yakshanba dam olish kuni.\nManzil: Toshkent shahri, Chilonzor tumani, Bunyodkor ko'chasi 12-uy. Orientir: Chilonzor metro bekatidan 300 metr.\nTelefon: +998 71 200 70 70. Qo'shimcha raqam: +998 90 100 70 70 (Telegram va WhatsApp).",
+    "token_count": 103,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"12\":1,\"16\":1,\"20\":1,\"70\":4,\"71\":1,\"90\":1,\"100\":1,\"200\":1,\"300\":1,\"998\":2,\"ish\":3,\"vaqt\":3,\"manzil\":4,\"medlin\":1,\"klinikas\":1,\"dushanba\":1,\"juma\":1,\"08\":1,\"00\":4,\"gach\":2,\"ishla\":1,\"shanb\":1,\"kuni\":2,\"09\":1,\"qabul\":1,\"qilamiz\":1,\"yakshanb\":1,\"dam\":1,\"olish\":1,\"toshkent\":1,\"shahr\":1,\"chilonzor\":2,\"tuma\":1,\"bunyodkor\":1,\"kochas\":1,\"uy\":1,\"orientir\":1,\"metr\":2,\"bekati\":1,\"telefon\":1,\"qoshimch\":1,\"raqam\":1,\"telegram\":1,\"whatsapp\":1,\"~hours\":3,\"~address\":3,\"~weekend\":1,\"~booking\":1,\"~phone\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0001",
+    "tenant_id": "t1",
+    "document_id": "doc_clinic",
+    "ordinal": 1,
+    "heading": "Qabul narxlari",
+    "text": "Qabul narxlari\nTerapevt qabuli — 120 000 so'm.\nKardiolog qabuli — 180 000 so'm. Birinchi konsultatsiya EKG bilan birga.\nNevropatolog qabuli — 170 000 so'm.\nLOR (quloq-burun-tomoq) qabuli — 150 000 so'm.\nGinekolog qabuli — 190 000 so'm.\nPediatr qabuli — 130 000 so'm.\nEndokrinolog qabuli — 175 000 so'm.\nTakroriy qabul 14 kun ichida — 50% chegirma.",
+    "token_count": 96,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"14\":1,\"50\":1,\"120\":1,\"130\":1,\"150\":1,\"170\":1,\"175\":1,\"180\":1,\"190\":1,\"qabul\":11,\"narx\":3,\"terapevt\":1,\"000\":7,\"som\":7,\"kardiolog\":1,\"birinch\":1,\"konsultatsi\":1,\"ekg\":1,\"birg\":1,\"nevropatolog\":1,\"lor\":1,\"quloq\":1,\"burun\":1,\"tomoq\":1,\"ginekolog\":1,\"pediatr\":1,\"endokrinolog\":1,\"takror\":1,\"kun\":1,\"chegirm\":1,\"~booking\":3,\"~price\":3,\"~doctor\":1,\"~discount\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0002",
+    "tenant_id": "t1",
+    "document_id": "doc_clinic",
+    "ordinal": 2,
+    "heading": "Laboratoriya va tekshiruvlar",
+    "text": "Laboratoriya va tekshiruvlar\nUmumiy qon tahlili — 60 000 so'm, natija 3 soatda tayyor.\nBiokimyoviy tahlil — 145 000 so'm, natija ertasi kuni soat 14:00 ga tayyor.\nQalqonsimon bez gormonlari (TTG, T3, T4) — 210 000 so'm.\nUZI qorin bo'shlig'i — 160 000 so'm.\nUZI qalqonsimon bez — 110 000 so'm.\nEKG — 70 000 so'm.\nRentgen (bitta proyeksiya) — 90 000 so'm.\nMRT bosh miya — 850 000 so'm. MRT faqat oldindan yozilish orqali.",
+    "token_count": 116,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"14\":1,\"60\":1,\"70\":1,\"90\":1,\"110\":1,\"145\":1,\"160\":1,\"210\":1,\"850\":1,\"laboratori\":3,\"tekshiruv\":3,\"umum\":1,\"qon\":1,\"tahlil\":2,\"000\":8,\"som\":8,\"natij\":2,\"soat\":2,\"tayyor\":2,\"biokimyov\":1,\"ertas\":1,\"kuni\":1,\"00\":1,\"qalqonsimon\":2,\"gormon\":1,\"ttg\":1,\"t3\":1,\"t4\":1,\"uzi\":2,\"qorin\":1,\"boshlig\":1,\"ekg\":1,\"rentgen\":1,\"bitt\":1,\"proyeksi\":1,\"mrt\":2,\"bosh\":1,\"miya\":1,\"oldin\":1,\"yozili\":1,\"orqal\":1,\"~result\":1,\"~hours\":1,\"~availability\":1,\"~booking\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0003",
+    "tenant_id": "t1",
+    "document_id": "doc_clinic",
+    "ordinal": 3,
+    "heading": "Navbatga yozilish",
+    "text": "Navbatga yozilish\nNavbatga telefon orqali, Telegram bot orqali yoki klinikaga kelib yozilish mumkin.\nYozilishda ism-familiya, tug'ilgan sana va telefon raqam kerak bo'ladi.\nQabulga 10 daqiqa oldin kelishingizni so'raymiz.\nBekor qilish kamida 2 soat oldin ma'lum qilinishi kerak.",
+    "token_count": 77,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"10\":1,\"navbat\":4,\"yozili\":4,\"telefon\":2,\"orqal\":2,\"telegram\":1,\"bot\":1,\"klinika\":1,\"kelib\":1,\"yozilish\":1,\"ism\":1,\"famili\":1,\"tugil\":1,\"sana\":1,\"raqam\":1,\"bola\":1,\"qabul\":1,\"daqiq\":1,\"kelish\":1,\"soraymiz\":1,\"bekor\":1,\"qili\":1,\"kami\":1,\"soat\":1,\"malum\":1,\"qilinish\":1,\"~booking\":3,\"~phone\":1,\"~child\":1,\"~cancel\":1,\"~hours\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0004",
+    "tenant_id": "t1",
+    "document_id": "doc_clinic",
+    "ordinal": 4,
+    "heading": "Kerakli hujjatlar",
+    "text": "Kerakli hujjatlar\nBirinchi tashrifda pasport yoki ID-karta kerak.\nBolalar uchun — tug'ilganlik haqidagi guvohnoma va ota-onaning pasporti.\nSug'urta bo'yicha kelsangiz — sug'urta polisi va yo'llanma.\nOldingi tahlil natijalari bo'lsa, olib kelishingizni so'raymiz.",
+    "token_count": 73,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"kerakl\":3,\"hujjat\":3,\"birinch\":1,\"tashrif\":1,\"pasport\":2,\"id\":1,\"kart\":1,\"bola\":1,\"tugilganlik\":1,\"haqi\":1,\"guvohnom\":1,\"ota\":1,\"onan\":1,\"sugurt\":2,\"boyich\":1,\"kelsangiz\":1,\"polis\":1,\"yollanm\":1,\"olding\":1,\"tahlil\":1,\"natija\":1,\"bols\":1,\"olib\":1,\"kelish\":1,\"soraymiz\":1,\"~doc\":3,\"~booking\":1,\"~payment\":1,\"~child\":1,\"~insurance\":1,\"~result\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0005",
+    "tenant_id": "t1",
+    "document_id": "doc_clinic",
+    "ordinal": 5,
+    "heading": "Страховка и оплата",
+    "text": "Страховка и оплата\nМы работаем со страховыми компаниями: Gross Insurance, Kafolat, Uzbekinvest, Alskom.\nПри обращении по страховке возьмите с собой полис, паспорт и направление, если оно требуется вашей страховой.\nОплата принимается наличными, картами Uzcard и Humo, а также переводом через Payme и Click.\nЧек и справку для страховой выдаём в регистратуре в день приёма.\nВозврат средств за неоказанную услугу оформляется в течение 5 рабочих дней через администратора.",
+    "token_count": 130,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"straxovk\":4,\"oplat\":4,\"rabota\":1,\"straxov\":1,\"kompaniy\":1,\"gros\":1,\"insuranc\":1,\"kafolat\":1,\"uzbekinvest\":1,\"alsk\":1,\"obrasheni\":1,\"vozmit\":1,\"sobo\":1,\"poli\":1,\"pasport\":1,\"napravlen\":1,\"ono\":1,\"trebuets\":1,\"vashe\":1,\"straxovo\":2,\"prinimaets\":1,\"nalichn\":1,\"kart\":1,\"uzcard\":1,\"humo\":1,\"takj\":1,\"perevod\":1,\"cherez\":2,\"paym\":1,\"click\":1,\"chek\":1,\"spravk\":1,\"vida\":1,\"registratur\":1,\"den\":1,\"priem\":1,\"vozvrat\":1,\"sredstv\":1,\"neokazannu\":1,\"uslug\":1,\"oformlyaets\":1,\"techen\":1,\"rabochix\":1,\"dnei\":1,\"administrator\":1,\"~payment\":3,\"~hours\":1,\"~insurance\":1,\"~refund\":1,\"~doc\":1,\"~booking\":1,\"~operator\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0006",
+    "tenant_id": "t1",
+    "document_id": "doc_clinic",
+    "ordinal": 6,
+    "heading": "Детское отделение",
+    "text": "Детское отделение\nПриём детей ведётся с рождения до 18 лет.\nПедиатр принимает ежедневно с 09:00 до 18:00, в субботу до 14:00.\nВакцинация проводится по национальному календарю прививок, по предварительной записи.\nВызов педиатра на дом — 250 000 сум по Ташкенту, заявки принимаются до 16:00.",
+    "token_count": 80,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"14\":1,\"16\":1,\"18\":2,\"250\":1,\"detsk\":3,\"otdelen\":3,\"priem\":1,\"dete\":1,\"vedets\":1,\"rojd\":1,\"let\":1,\"pediatr\":2,\"prinimaet\":1,\"ejednevn\":1,\"09\":1,\"00\":4,\"subbot\":1,\"vaktsinatsi\":1,\"provodits\":1,\"natsionalnom\":1,\"kalendar\":1,\"privivok\":1,\"predvaritelno\":1,\"zapis\":1,\"vizov\":1,\"dom\":1,\"000\":1,\"sum\":1,\"tashkent\":1,\"zayavk\":1,\"prinimayuts\":1,\"~child\":3,\"~booking\":1,\"~doctor\":1,\"~weekend\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0007",
+    "tenant_id": "t1",
+    "document_id": "doc_clinic",
+    "ordinal": 7,
+    "heading": "Results and follow-up",
+    "text": "Results and follow-up\nLaboratory results are sent by Telegram and are also available at reception.\nSame-day results are ready by 17:00 if the sample was taken before 12:00.\nA doctor calls you back within 24 hours if any result is outside the reference range.\nWritten conclusions in English are available on request at no extra charge.",
+    "token_count": 93,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"12\":1,\"17\":1,\"24\":1,\"result\":6,\"follow\":3,\"up\":3,\"laborator\":1,\"sent\":1,\"telegram\":1,\"also\":1,\"availabl\":2,\"reception\":1,\"day\":1,\"read\":1,\"00\":2,\"sampl\":1,\"taken\":1,\"befor\":1,\"doctor\":1,\"call\":1,\"back\":1,\"within\":1,\"hour\":1,\"any\":1,\"outsid\":1,\"referenc\":1,\"rang\":1,\"written\":1,\"conclusion\":1,\"engli\":1,\"request\":1,\"extr\":1,\"charg\":1,\"~result\":3,\"~phone\":1,\"~availability\":1,\"~doctor\":1,\"~hours\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0008",
+    "tenant_id": "t1",
+    "document_id": "doc_insurance",
+    "ordinal": 8,
+    "heading": "Полисы и покрытие",
+    "text": "Полисы и покрытие\nМы оформляем добровольное медицинское страхование (ДМС), страхование от несчастных случаев, автострахование (ОСАГО и КАСКО) и страхование имущества.\nМинимальный срок полиса ДМС — 12 месяцев. Полис вступает в силу на следующий день после оплаты.\nБазовый пакет ДМС стоит 2 400 000 сум в год на одного человека и покрывает амбулаторный приём, лабораторные анализы и экстренную госпитализацию.\nРасширенный пакет — 4 100 000 сум в год, дополнительно включает стоматологию и плановую госпитализацию.\nКорпоративные пакеты от 10 сотрудников — скидка 15%, от 50 сотрудников — 25%.",
+    "token_count": 164,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"10\":1,\"12\":1,\"15\":1,\"25\":1,\"50\":1,\"100\":1,\"400\":1,\"polis\":4,\"pokrit\":3,\"oformlya\":1,\"dobrovoln\":1,\"meditsinsk\":1,\"straxovan\":3,\"dms\":3,\"neschastnix\":1,\"slucha\":1,\"avtostraxovan\":1,\"osag\":1,\"kask\":1,\"imushestv\":1,\"minimalni\":1,\"srok\":1,\"mesyats\":1,\"poli\":1,\"vstupaet\":1,\"silu\":1,\"sleduyushi\":1,\"den\":1,\"posl\":1,\"oplat\":1,\"bazovi\":1,\"paket\":3,\"stoit\":1,\"000\":2,\"sum\":2,\"god\":2,\"odnog\":1,\"chelovek\":1,\"pokrivaet\":1,\"ambulatorni\":1,\"priem\":1,\"laboratorn\":1,\"analiz\":1,\"ekstrennu\":1,\"gospitalizatsi\":2,\"rasshirenni\":1,\"dopolniteln\":1,\"vklyuchaet\":1,\"stomatologi\":1,\"planovu\":1,\"korporativn\":1,\"sotrudnik\":2,\"skidk\":1,\"~doc\":3,\"~payment\":1,\"~price\":1,\"~booking\":1,\"~result\":1,\"~operator\":1,\"~discount\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0009",
+    "tenant_id": "t1",
+    "document_id": "doc_insurance",
+    "ordinal": 9,
+    "heading": "Как оформить полис",
+    "text": "Как оформить полис\nДля оформления нужны паспорт, ИНН и заполненная анкета о состоянии здоровья.\nДля корпоративного договора дополнительно требуется список сотрудников с датами рождения.\nОформление занимает один рабочий день, полис отправляется в электронном виде.\nОплата принимается переводом на расчётный счёт, картой или через Payme и Click.",
+    "token_count": 95,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"oformit\":3,\"poli\":4,\"oforml\":1,\"nujn\":1,\"pasport\":1,\"inn\":1,\"zapolnenn\":1,\"anket\":1,\"sostoyani\":1,\"zdorov\":1,\"korporativnog\":1,\"dogovor\":1,\"dopolniteln\":1,\"trebuets\":1,\"spisok\":1,\"sotrudnik\":1,\"datam\":1,\"rojd\":1,\"oformlen\":1,\"zanimaet\":1,\"odin\":1,\"rabochi\":1,\"den\":1,\"otpravlyaets\":1,\"elektronn\":1,\"vide\":1,\"oplat\":1,\"prinimaets\":1,\"perevod\":1,\"raschetni\":1,\"schet\":1,\"karto\":1,\"cherez\":1,\"paym\":1,\"click\":1,\"~doc\":3,\"~operator\":1,\"~payment\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0010",
+    "tenant_id": "t1",
+    "document_id": "doc_insurance",
+    "ordinal": 10,
+    "heading": "Обращение за выплатой",
+    "text": "Обращение за выплатой\nУведомить нас о страховом случае нужно в течение 5 рабочих дней.\nДля выплаты понадобятся: заявление, копия полиса, паспорт, документы из медучреждения или справка из ГАИ.\nРешение по выплате принимается в течение 10 рабочих дней с момента подачи полного пакета документов.\nВыплата перечисляется на карту или расчётный счёт в течение 3 банковских дней после решения.",
+    "token_count": 107,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"10\":1,\"obrashen\":3,\"viplato\":3,\"uvedomit\":1,\"straxov\":1,\"slucha\":1,\"nujn\":1,\"techen\":3,\"rabochix\":2,\"dnei\":3,\"viplat\":3,\"ponadobyats\":1,\"zayavlen\":1,\"kopi\":1,\"polis\":1,\"pasport\":1,\"dokument\":2,\"meduchrejd\":1,\"spravk\":1,\"gai\":1,\"reshen\":1,\"prinimaets\":1,\"moment\":1,\"podach\":1,\"polnog\":1,\"paket\":1,\"perechislyaets\":1,\"kart\":1,\"raschetni\":1,\"schet\":1,\"bankovskix\":1,\"posl\":1,\"resh\":1,\"~doc\":1,\"~payment\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0011",
+    "tenant_id": "t1",
+    "document_id": "doc_insurance",
+    "ordinal": 11,
+    "heading": "Что не покрывается",
+    "text": "Что не покрывается\nНе покрываются: косметология, лечение за пределами Узбекистана без предварительного согласования, хронические заболевания, заявленные до начала действия полиса, а также травмы, полученные в состоянии алкогольного опьянения.",
+    "token_count": 67,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"pokrivaets\":3,\"pokrivayuts\":1,\"kosmetologi\":1,\"lechen\":1,\"predel\":1,\"uzbekistan\":1,\"predvaritelnog\":1,\"soglas\":1,\"xronichesk\":1,\"zabolev\":1,\"zayavlenn\":1,\"nachal\":1,\"deistvi\":1,\"polis\":1,\"takj\":1,\"travm\":1,\"poluchenn\":1,\"sostoyani\":1,\"alkogolnog\":1,\"opyan\":1,\"~doc\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0012",
+    "tenant_id": "t1",
+    "document_id": "doc_insurance",
+    "ordinal": 12,
+    "heading": "Avtosug'urta",
+    "text": "Avtosug'urta\nOSAGO majburiy sug'urta — yengil avtomobil uchun yiliga 220 000 so'mdan boshlanadi.\nKASKO narxi avtomobil qiymatining 3.5–6% ini tashkil qiladi.\nBaxtsiz hodisa yuz berganda 24 soat ichida bizga xabar bering va YHXX xulosasini oling.\nEkspertiza 3 ish kuni ichida o'tkaziladi, to'lov esa 10 ish kunida amalga oshiriladi.",
+    "token_count": 92,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"10\":1,\"24\":1,\"220\":1,\"avtosugurt\":3,\"osag\":1,\"majbur\":1,\"sugurt\":1,\"yengil\":1,\"avtomobil\":2,\"yili\":1,\"000\":1,\"somdan\":1,\"boshlan\":1,\"kask\":1,\"narx\":1,\"qiymati\":1,\"3.5\":1,\"ini\":1,\"tashkil\":1,\"qila\":1,\"baxtsiz\":1,\"hodis\":1,\"yuz\":1,\"bergan\":1,\"soat\":1,\"bizg\":1,\"xabar\":1,\"bering\":1,\"yhxx\":1,\"xulosasi\":1,\"oling\":1,\"ekspertiz\":1,\"ish\":2,\"kuni\":2,\"otkazil\":1,\"tolov\":1,\"esa\":1,\"amal\":1,\"oshiril\":1,\"~insurance\":1,\"~availability\":1,\"~price\":1,\"~hours\":1,\"~payment\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0013",
+    "tenant_id": "t1",
+    "document_id": "doc_insurance",
+    "ordinal": 13,
+    "heading": "Contact and hours",
+    "text": "Contact and hours\nOur office is open Monday to Friday, 09:00 to 18:00, and Saturday 10:00 to 14:00.\nThe claims hotline runs 24 hours a day on +998 71 205 05 05.\nCorporate clients have a dedicated account manager reachable by email within one business day.",
+    "token_count": 71,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"10\":1,\"14\":1,\"18\":1,\"24\":1,\"71\":1,\"205\":1,\"998\":1,\"contact\":3,\"hour\":4,\"our\":1,\"offic\":1,\"open\":1,\"monda\":1,\"frida\":1,\"09\":1,\"00\":4,\"saturda\":1,\"claim\":1,\"hotlin\":1,\"runs\":1,\"day\":2,\"05\":2,\"corporat\":1,\"client\":1,\"dedicat\":1,\"account\":1,\"manager\":1,\"reachabl\":1,\"email\":1,\"within\":1,\"one\":1,\"busines\":1,\"~phone\":3,\"~hours\":3,\"~address\":1,\"~weekend\":1,\"~operator\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0014",
+    "tenant_id": "t1",
+    "document_id": "doc_retail",
+    "ordinal": 14,
+    "heading": "Buyurtma va yetkazib berish",
+    "text": "Buyurtma va yetkazib berish\nBuyurtmalar sayt, Telegram bot yoki call-markaz orqali qabul qilinadi.\nToshkent bo'ylab yetkazib berish 25 000 so'm. 500 000 so'mdan yuqori buyurtmalarda bepul.\nViloyatlarga yetkazish 2–4 kun, narxi 45 000 so'mdan boshlanadi.\nBugun soat 15:00 gacha berilgan buyurtma ertaga yetkaziladi.\nKuryer yetib kelishidan 30 daqiqa oldin qo'ng'iroq qiladi.",
+    "token_count": 104,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"15\":1,\"25\":1,\"30\":1,\"45\":1,\"500\":1,\"buyurtm\":4,\"yetkazib\":4,\"beri\":4,\"buyurtma\":2,\"sayt\":1,\"telegram\":1,\"bot\":1,\"call\":1,\"markaz\":1,\"orqal\":1,\"qabul\":1,\"qilin\":1,\"toshkent\":1,\"boylab\":1,\"000\":3,\"som\":1,\"somdan\":2,\"yuqor\":1,\"bepul\":1,\"viloyat\":1,\"yetkazi\":1,\"kun\":1,\"narx\":1,\"boshlan\":1,\"bugun\":1,\"soat\":1,\"00\":1,\"gach\":1,\"beril\":1,\"erta\":1,\"yetkazil\":1,\"kuryer\":1,\"yetib\":1,\"kelishi\":1,\"daqiq\":1,\"qongiroq\":1,\"qila\":1,\"~order\":3,\"~delivery\":3,\"~phone\":1,\"~booking\":1,\"~price\":1,\"~availability\":1,\"~hours\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0015",
+    "tenant_id": "t1",
+    "document_id": "doc_retail",
+    "ordinal": 15,
+    "heading": "Qaytarish va almashtirish",
+    "text": "Qaytarish va almashtirish\nTovarni 14 kun ichida qaytarish mumkin, agar u ishlatilmagan va o'ram butun bo'lsa.\nTexnika uchun kafolat 12 oy, ba'zi brendlarda 24 oy.\nNuqsonli tovar aniqlansa, almashtirish 3 ish kunida amalga oshiriladi.\nPulni qaytarish 5–7 ish kunida kartaga o'tkaziladi.",
+    "token_count": 79,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"12\":1,\"14\":1,\"24\":1,\"qaytari\":5,\"almashtiri\":4,\"tovar\":2,\"kun\":1,\"ishlatilma\":1,\"oram\":1,\"butun\":1,\"bols\":1,\"texnik\":1,\"kafolat\":1,\"oy\":2,\"bazi\":1,\"brend\":1,\"nuqsonl\":1,\"aniqlans\":1,\"ish\":2,\"kuni\":2,\"amal\":1,\"oshiril\":1,\"puln\":1,\"karta\":1,\"otkazil\":1,\"~refund\":3,\"~payment\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0016",
+    "tenant_id": "t1",
+    "document_id": "doc_retail",
+    "ordinal": 16,
+    "heading": "Оплата",
+    "text": "Оплата\nПринимаем наличные при получении, карты Uzcard и Humo, Payme, Click и рассрочку.\nРассрочка доступна на 3, 6 и 12 месяцев для заказов от 1 000 000 сум.\nДля рассрочки нужен паспорт и подтверждение дохода.\nЧек приходит на Telegram сразу после оплаты.",
+    "token_count": 71,
+    "embedding": {
+     "b64": "uKAKPHpRWj0AAAAA0Wa9u51O1z3RZr077YguPMe4mL0zc8s7JWiIvLigCrx6UVq9+HZDO2/i9jwl9k28hHqOvNp0hT2jRgq7elFavT2yCL29yDM880KVvQAuD70U8Fu81n3HPFeF+7y4lbQ8m4FbPHQ1aT0AAAAA40gNPB92Kry4oAo8+li7udgKKjmdGSA9B51RvAGn5Lyg4V05AAAAAI4eOzx56fg7NcCPPHpRWr1RNRA99EtevTMACrwisba9NoT0OyKihzviiUA8ildaPb6qh7wlF749cRxWvWK+lL2dGaA8AAAAALMY1DtAmw69JTbLPR04yTzf2yS8b+mxuw7xpz0iogc8SpDEPKeilLwghAW8zYyjvAFn+To2/k+9+IiIPKIvCD0AAAAASta4O+l7Ab13VXy8AAAAAAtFpbxCK+Q88HKTOx+uQT2wG9o7RucUOtgunryIq2W9PbsDvslxTjw8DuI6KWtMPMwmtLwjnJc9eIrbvOKJQDzPCiK9AAAAAONIDbyr6IU9Jyjhu0LGu7v0HKw+WsUmPWr20rwAAAAA1MgnPf5IDD0zc8u7FA2IPFKmCL6FohM9uZcZvAAAAABtNKu6UFuWvEH99ryT0GM8een4u8ElObzZB5K8wNBvPeLHeDm4oAq8PtJcu9Knez2cAIc8uq3ivW3PmbwAAAAAAAAAANf2CD1G5xS67ZO0PfokhrwAAAAAHfsXvQAAAAC1+188xhdFPZ0ZoDyvkkQ9Wh1fvTSjUTxwpii9eVvTPHYkjzwAAAAAIqKHO0rWuLv/J5m8MtcJPDNzy7szAAo8oGQOPaAAPjyn2qK8AAAAAIU9M7w5eMg70jZTvFWWijxsJvA8uKAKvGwm8LzXEqA7zgKju0POiTz4ZKq8MLvJPOpVOrs3PKC7WOoyPCLfGj0iooe7GK66vOY7yLz5x1o9kqC1u/xAsT1upHw8NcCPPA1hT7zjSA08sWoSvXwCczzzlrw9LGysPHRuVTv2a409+RQtvuNIDTyp3MC8bCbwPF40lrvsCPQ5AAAAAAAAAACJAs08RpszPIvyX7y4oAo8sWZnOiKihzsQTq+9s79iOsOierwAAAAA40gNvJF0LDwR85W6xhdFPQAAAAAxT868u7SVvWwm8Lz9jo+87iRpPQ35y7t56fg7OXjIu9DyobvB64K94olAPPdkOL1DNdU8qZG4PB0UdbuDaly9mJYePYytvzsAAAAAdq/nvABoAz2kCKK8PYubPFjQw7yKGjg9TZ+NO1J6a7470Za9posRPbEVmjxrjr28uKAKvDMACrzk/JY79bgXvI3n0Lxv6bE7IkTpPM+7lTwdub28kTjQPHRuVbuLDYg9I5yXvUhsjz3r9027IqIHuwAAAAAzc8s7Kax/vJhs/Tx8AnO89sALPSsZaLwAAAAAAAAAAAAAAAC5mtW8fOLzvKiebbyQcww9NoT0O1rFJj2pY9q85vEXPTQFuL15lfU6nRmgvCQvlT2NxtY861a1PJgkrryY8Ui9DjdVvaaLEb0HrqW8gy0NPQAAAABnhwM8Ll8lu/0XmbytetS7RjXyvNwLZ7yv1R08nWcBvOBTiD0kGEq98Zz2vFhrZryLqEU9HFzRvA36Kj21w9E8ny0VvdFmvbt46Xg7AAAAAIO66TuaHpi993PtPdLnVr2YzSk8mGz9vChYWD1v+gO87QDhO1jr973jSA08WIizu5oRgzvjSA28z5IAPXyiob0AAAAA40gNvNFmvTtsJvA8AJO2vaZKBL3yAju8KeIdPAQonz1fra+9TNCsPJpldLxj6aY8IqKHO+NIDTw2hPQ7V9l+O2zEYb3IXF4972AAvqM0MDvS5V+8mMOHPHpRWj0qL768IkzuvEWCNj0AAAAANxWwvbhlx7xFTX8919ZKPeKJQDyHFpi8Am1EPG/psTtFpIE8AAAAAGJhmT24oAo8n6wdPTdj77zXEqA7GAyHOvncEz4OU967NoT0O7igCjzzj3C9IKg3vKtA9z56UVo94F1lPBQcE72TD7Q9yIhMvnqzfz0Sbna9"
+    },
+    "terms_json": "{\"12\":1,\"oplat\":4,\"prinima\":1,\"nalichn\":1,\"polucheni\":1,\"kart\":1,\"uzcard\":1,\"humo\":1,\"paym\":1,\"click\":1,\"rassrochk\":3,\"dostupn\":1,\"mesyats\":1,\"zakaz\":1,\"000\":2,\"sum\":1,\"nujen\":1,\"pasport\":1,\"podtverjden\":1,\"doxo\":1,\"chek\":1,\"prixodit\":1,\"telegram\":1,\"sraz\":1,\"posl\":1,\"~payment\":3,\"~order\":1,\"~doc\":1,\"~phone\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0017",
+    "tenant_id": "t1",
+    "document_id": "doc_retail",
+    "ordinal": 17,
+    "heading": "Статус заказа",
+    "text": "Статус заказа\nСтатус заказа можно проверить по номеру заказа на сайте или назвав его оператору.\nЗаказ проходит стадии: принят, собран, передан курьеру, доставлен.\nЕсли заказ задерживается больше чем на сутки, доставка становится бесплатной.",
+    "token_count": 67,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"statu\":4,\"zakaz\":7,\"mojn\":1,\"proverit\":1,\"nomer\":1,\"sait\":1,\"nazvav\":1,\"operator\":1,\"proxodit\":1,\"stadi\":1,\"prinyat\":1,\"sobran\":1,\"pere\":1,\"kurer\":1,\"dostavlen\":1,\"zaderjivaets\":1,\"bolsh\":1,\"sutk\":1,\"dostavk\":1,\"stanovits\":1,\"besplatno\":1,\"~order\":3,\"~phone\":1,\"~operator\":1,\"~payment\":1,\"~delivery\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0018",
+    "tenant_id": "t1",
+    "document_id": "doc_retail",
+    "ordinal": 18,
+    "heading": "Store hours",
+    "text": "Store hours\nOur flagship store is open every day from 10:00 to 22:00.\nThe call centre answers from 09:00 to 21:00, seven days a week.\nOnline orders are accepted around the clock.",
+    "token_count": 49,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"10\":1,\"21\":1,\"22\":1,\"stor\":4,\"hour\":3,\"our\":1,\"flagship\":1,\"open\":1,\"ever\":1,\"day\":1,\"00\":4,\"call\":1,\"centr\":1,\"answer\":1,\"09\":1,\"seven\":1,\"days\":1,\"week\":1,\"onlin\":1,\"order\":1,\"accept\":1,\"around\":1,\"clock\":1,\"~hours\":3,\"~weekend\":1,\"~order\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0019",
+    "tenant_id": "t1",
+    "document_id": "doc_bank",
+    "ordinal": 19,
+    "heading": "Kredit mahsulotlari",
+    "text": "Kredit mahsulotlari\nIste'mol krediti: yillik 24% dan, muddati 36 oygacha.\nAvtokredit: yillik 21% dan, boshlang'ich to'lov 25%.\n- Minimal summa: 5 000 000 so'm\n- Maksimal summa: 300 000 000 so'm",
+    "token_count": 54,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"21\":1,\"24\":1,\"25\":1,\"36\":1,\"300\":1,\"kredit\":4,\"mahsulot\":3,\"istemol\":1,\"yillik\":2,\"muddat\":1,\"oygach\":1,\"avtokredit\":1,\"boshlangich\":1,\"tolov\":1,\"minimal\":1,\"summ\":2,\"000\":4,\"som\":2,\"maksimal\":1,\"~payment\":1,\"~availability\":1,\"~price\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0020",
+    "tenant_id": "t1",
+    "document_id": "doc_bank",
+    "ordinal": 20,
+    "heading": "KARTA XIZMATLARI",
+    "text": "KARTA XIZMATLARI\nKartani bloklash uchun 1600 raqamiga qo'ng'iroq qiling yoki mobil ilovadan foydalaning.\nKartani blokdan chiqarish faqat filialda pasport bilan amalga oshiriladi va bir kun ichida bajariladi.",
+    "token_count": 58,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"1600\":1,\"kart\":3,\"xizmat\":3,\"karta\":2,\"blokla\":1,\"raqami\":1,\"qongiroq\":1,\"qiling\":1,\"mobil\":1,\"ilova\":1,\"foydala\":1,\"blok\":1,\"chiqari\":1,\"filial\":1,\"pasport\":1,\"amal\":1,\"oshiril\":1,\"kun\":1,\"bajaril\":1,\"~payment\":3,\"~phone\":1,\"~address\":1,\"~doc\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0021",
+    "tenant_id": "t1",
+    "document_id": "doc_bank",
+    "ordinal": 21,
+    "heading": "1. Филиалы и часы работы",
+    "text": "1. Филиалы и часы работы\nГоловной офис: Ташкент, проспект Амира Темура, 15. Пн–Пт 9:00–18:00.\nФилиал Чиланзар: ул. Бунёдкор, 7. Суббота 9:00–14:00.",
+    "token_count": 41,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"14\":1,\"15\":1,\"18\":1,\"filial\":4,\"chas\":3,\"rabot\":3,\"golovno\":1,\"ofis\":1,\"tashkent\":1,\"prospekt\":1,\"amir\":1,\"temur\":1,\"pn\":1,\"pt\":1,\"00\":4,\"chilanzar\":1,\"ul\":1,\"bunedkor\":1,\"subbot\":1,\"~address\":3,\"~hours\":3,\"~weekend\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0022",
+    "tenant_id": "t1",
+    "document_id": "doc_bank",
+    "ordinal": 22,
+    "heading": "Ҳужжатлар",
+    "text": "Ҳужжатлар\nКредит олиш учун паспорт, иш жойидан маълумотнома ва даромад ҳақида справка керак.",
+    "token_count": 26,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"hujjat\":3,\"kredit\":1,\"olish\":1,\"pasport\":1,\"ish\":1,\"joii\":1,\"malumotnom\":1,\"daromad\":1,\"haqi\":1,\"spravk\":1,\"~doc\":3}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0023",
+    "tenant_id": "t1",
+    "document_id": "doc_bank",
+    "ordinal": 23,
+    "heading": "Long paragraph",
+    "text": "Long paragraph\nSentence number 1 explains a banking rule in detail. Another clause follows here! Sentence number 2 explains a banking rule in detail. Another clause follows here! Sentence number 3 explains a banking rule in detail. Another clause follows here! Sentence number 4 explains a banking rule in detail. Another clause follows here! Sentence number 5 explains a banking rule in detail. Another clause follows here! Sentence number 6 explains a banking rule in detail. Another clause follows here! Sentence number 7 explains a banking rule in detail. Another clause follows here!",
+    "token_count": 163,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"long\":3,\"paragraph\":3,\"sentenc\":7,\"number\":7,\"explain\":7,\"bank\":7,\"rule\":7,\"detail\":7,\"another\":7,\"claus\":7,\"follow\":7,\"~phone\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0024",
+    "tenant_id": "t1",
+    "document_id": "doc_bank",
+    "ordinal": 24,
+    "heading": "Long paragraph",
+    "text": "Long paragraph\nSentence number 8 explains a banking rule in detail. Another clause follows here! Sentence number 9 explains a banking rule in detail. Another clause follows here! Sentence number 10 explains a banking rule in detail. Another clause follows here! Sentence number 11 explains a banking rule in detail. Another clause follows here! Sentence number 12 explains a banking rule in detail. Another clause follows here! Sentence number 13 explains a banking rule in detail. Another clause follows here! Sentence number 14 explains a banking rule in detail. Another clause follows here!",
+    "token_count": 165,
+    "embedding": {
+     "b64": "5Ij5O0i8TDsAAAAAAAAAADT4GT2j8xW8AAAAAAAAAAAAAAAAqyY7PBW2Ij63SY28KA92PAAAAADtoge8Y3RLvAAAAAC7jfM8AAAAAOv127ts+Yg6AAAAAKZNAL3FXT29Ix2xPAAAAACMTdA8AAAAAEUlFLsAAAAAt0mNPKsmO7wAAAAALCc0vBg7A742zrO7AAAAAEUlFLsAAAAA7aIHvP25OD3kiPk7AAAAAEM3AT4AAAAAAAAAANx88Ds8C3+8ZfqVPOSI+TuZ8RY+44h5u41f0z1jdEs8Y3RLvEz3gbw8C388AAAAALdJjTwAAAAAAAAAABM/BDwzg1A+AAAAAPCsNzwAAAAAAAAAAKN+J73fsp88FO/FvQAAAADnN167Ix2xPAAAAAAZVLA7vCRVvqduMLzEPiq+3HzwO3f5rr17xjs+AAAAABaW9rwyWCu+lcVRPQAAAACrJju8qIupvAAAAACxmRG+Y3RLvAAAAABE3ma7AAAAAD9bLTwAAAAAwsjFPAAAAADkiPk7xRiBPO2iB7xjdEs8+84dPNojJ76OIFs9YsGxPBgAvTwAAAAAZMD+PXm7Cb0AAAAAAAAAAEvTOj3togc8Ez8EvAAAAACj8xW8/X7VvKsmO7x9Byq8qyY7POc3XjsjHbE8qya7vI1qELzQP+U8RoyWvBlUsLtvTkw9AAAAANx88DvV7b89K/aKPajKtbwAAAAAAAAAALcx9z0AAAAA5Ij5O3yYFrwAAAAA7aIHvO2iB7xjCRG9Sw/yPAAAAAC3SY08AAAAAAAAAACmAKe87aIHvAAAAAAAAAAAmxMnvEz3gTwAAAAAKUsUPVz45T1fBwu+AAAAAAAAAAAspig7SOFsvAAAAACwM4K8PHuVvXW2ybwAAAAAmI/BPLk8Hz272ae8ZfqVvKJGTDwPz8G8RN5mu/Gry7xM94E8ynYLvvCsNzwAAAAAZdQ0PQAAAACrJju8vV65vBM/BDznN147AAAAALMmrbsioZi94Y5cvQAAAAC6QCq9FNOePAAAAAAAAAAAJioHvJ7hEbzV6GG7tYSuO1iV2ryCoAc9fVGau2/5iLoAAAAAAAAAAAAAAADixRY8vkQIvRM/BDykhRw+FN+bPQTUyL0AAAAAAAAAAA1/qLwAAAAAC9eWPe2iBzyrEp49AAAAAAAAAACj8xW8AAAAAAAAAABbwz89t0mNvNsKi7oAAAAAAAAAAIdNwzzDgYC8TPeBvP0ZpjyrJjs8AAAAAGN0S7wAAAAAd/muvQAAAADRaSK+AAAAAOcwPzxIIRQ+AoAGvn0HKryz8eQ9AAAAADwLf7wAAAAAfcs5vrtoED48C/+8d/muvUz3gbwAAAAAAAAAAHMm7D0AAAAAod32vcTN3by3SY08AAAAAAAAAAAAAAAAAAAAAAAAAAC3SY08AAAAAAAAAAAAAAAAKC66PGX6lbwE1Mg9de1gPC/hJrwAAAAAl/fgPXf5rr0AAAAAb3cnvbdJjTxM94G8o/MVPAAAAAAUDS69AAAAAHf5rr0L0EG9fVGaO/CsN7zkiPk7w80hPIzEKzyd9Cu+g+0OvgAAAAC3SY08iTUmOhmgRj1tf5m9O0M2PZT1qLyLD2K7AAAAANx88DsAAAAAARrtPLQQqbyt4oW9heq7vIPtDr6j8xW85zdeOxlUsDuzvgc92kM2vq3ihb07CSQ+AAAAAOfh6byrJjs8AAAAAG/5iLrHzyu9t0mNPOGOXL0AAAAAGyeqvUUlFDtYl1q8gqAHPRM/BLyrJjs8fVGau1LWAD7kiPm7de1gPFAuhzyus+Y7RN5mO3Xnxj0AAAAAt0mNPNpDNr6wM4I8RSUUOy8g6TyJyFG8WJf4OxlUsLvFXT09CF/cvO2iBzwAAAAAfQcqPAAAAADzt7O8GDU7PRtJj7wTPwS8AAAAAKsmOzwjHbE85Ij5O4xNUD0AAAAAAAAAALMmrbtJvp08qyY7PKsmO7zcgxS9AAAAAEUlFLtjdEu8AAAAAMLIxTwkKgS7PDB3PNA1pbtFJRS7AAAAAH1RmjsR4Ky9"
+    },
+    "terms_json": "{\"10\":1,\"11\":1,\"12\":1,\"13\":1,\"14\":1,\"long\":3,\"paragraph\":3,\"sentenc\":7,\"number\":7,\"explain\":7,\"bank\":7,\"rule\":7,\"detail\":7,\"another\":7,\"claus\":7,\"follow\":7,\"~phone\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0025",
+    "tenant_id": "t1",
+    "document_id": "doc_bank",
+    "ordinal": 25,
+    "heading": "Long paragraph",
+    "text": "Long paragraph\nSentence number 15 explains a banking rule in detail. Another clause follows here! Sentence number 16 explains a banking rule in detail. Another clause follows here! Sentence number 17 explains a banking rule in detail. Another clause follows here! Sentence number 18 explains a banking rule in detail. Another clause follows here! Sentence number 19 explains a banking rule in detail. Another clause follows here! Sentence number 20 explains a banking rule in detail. Another clause follows here! Sentence number 21 explains a banking rule in detail. Another clause follows here!",
+    "token_count": 165,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"15\":1,\"16\":1,\"17\":1,\"18\":1,\"19\":1,\"20\":1,\"21\":1,\"long\":3,\"paragraph\":3,\"sentenc\":7,\"number\":7,\"explain\":7,\"bank\":7,\"rule\":7,\"detail\":7,\"another\":7,\"claus\":7,\"follow\":7,\"~phone\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0026",
+    "tenant_id": "t1",
+    "document_id": "doc_bank",
+    "ordinal": 26,
+    "heading": "Long paragraph",
+    "text": "Long paragraph\nSentence number 22 explains a banking rule in detail. Another clause follows here! Sentence number 23 explains a banking rule in detail. Another clause follows here! Sentence number 24 explains a banking rule in detail. Another clause follows here! Sentence number 25 explains a banking rule in detail. Another clause follows here! Sentence number 26 explains a banking rule in detail. Another clause follows here! Sentence number 27 explains a banking rule in detail. Another clause follows here! Sentence number 28 explains a banking rule in detail. Another clause follows here!",
+    "token_count": 165,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"22\":1,\"23\":1,\"24\":1,\"25\":1,\"26\":1,\"27\":1,\"28\":1,\"long\":3,\"paragraph\":3,\"sentenc\":7,\"number\":7,\"explain\":7,\"bank\":7,\"rule\":7,\"detail\":7,\"another\":7,\"claus\":7,\"follow\":7,\"~phone\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0027",
+    "tenant_id": "t1",
+    "document_id": "doc_bank",
+    "ordinal": 27,
+    "heading": "Long paragraph",
+    "text": "Long paragraph\nSentence number 29 explains a banking rule in detail. Another clause follows here! Sentence number 30 explains a banking rule in detail. Another clause follows here! Sentence number 31 explains a banking rule in detail. Another clause follows here! Sentence number 32 explains a banking rule in detail. Another clause follows here! Sentence number 33 explains a banking rule in detail. Another clause follows here! Sentence number 34 explains a banking rule in detail. Another clause follows here! Sentence number 35 explains a banking rule in detail. Another clause follows here!",
+    "token_count": 165,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"29\":1,\"30\":1,\"31\":1,\"32\":1,\"33\":1,\"34\":1,\"35\":1,\"long\":3,\"paragraph\":3,\"sentenc\":7,\"number\":7,\"explain\":7,\"bank\":7,\"rule\":7,\"detail\":7,\"another\":7,\"claus\":7,\"follow\":7,\"~phone\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0028",
+    "tenant_id": "t1",
+    "document_id": "doc_bank",
+    "ordinal": 28,
+    "heading": "Long paragraph",
+    "text": "Long paragraph\nSentence number 36 explains a banking rule in detail. Another clause follows here! Sentence number 37 explains a banking rule in detail. Another clause follows here! Sentence number 38 explains a banking rule in detail. Another clause follows here! Sentence number 39 explains a banking rule in detail. Another clause follows here! Sentence number 40 explains a banking rule in detail. Another clause follows here!",
+    "token_count": 119,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"36\":1,\"37\":1,\"38\":1,\"39\":1,\"40\":1,\"long\":3,\"paragraph\":3,\"sentenc\":5,\"number\":5,\"explain\":5,\"bank\":5,\"rule\":5,\"detail\":5,\"another\":5,\"claus\":5,\"follow\":5,\"~phone\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   },
+   {
+    "id": "chk_0029",
+    "tenant_id": "t1",
+    "document_id": "doc_blob",
+    "ordinal": 29,
+    "heading": null,
+    "text": "just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours",
+    "token_count": 496,
+    "embedding": {
+     "b64": "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"
+    },
+    "terms_json": "{\"just\":12,\"one\":12,\"long\":12,\"unstructur\":12,\"blob\":12,\"text\":12,\"without\":12,\"any\":12,\"line\":12,\"break\":12,\"head\":12,\"goes\":12,\"loan\":12,\"card\":12,\"branch\":12,\"open\":12,\"hour\":12,\"~payment\":1,\"~address\":1,\"~hours\":1}",
+    "created_at": "2026-11-12T05:00:00.000Z"
+   }
+  ]
+ },
+ "scripts": [
+  {
+   "name": "receptionist_voice",
+   "agent": "agt_rec",
+   "channel": "voice",
+   "lines": [
+    "Assalomu alaykum",
+    "Ish vaqtingiz qanday?",
+    "dam olish kunlari-chi?",
+    "Kosmosga uchish narxi qancha bo‘ladi?",
+    "Yana bir savol: marsga chipta?",
+    "Rahmat, xayr"
+   ],
+   "end": {
+    "outcome": "resolved_by_ai",
+    "csat": 5,
+    "endedAt": "2026-11-12T05:03:30.500Z"
+   },
+   "results": [
+    {
+     "callId": "call_u1rtgzbiyphb40yz",
+     "reply": "Assalomu alaykum! Men Layloman. Sizga qanday yordam bera olaman?",
+     "language": "uz",
+     "intent": "greeting",
+     "confidence": 0,
+     "answered": true,
+     "citations": [
+      {
+       "chunkId": "chk_0006",
+       "documentId": "doc_clinic",
+       "documentTitle": "Clinic",
+       "heading": "Детское отделение",
+       "snippet": "Детское отделение",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0008",
+       "documentId": "doc_insurance",
+       "documentTitle": "Insurance",
+       "heading": "Полисы и покрытие",
+       "snippet": "Полисы и покрытие",
+       "score": 0.974
+      }
+     ],
+     "timings": {
+      "sttMs": 100,
+      "ttsMs": 114
+     },
+     "escalate": null,
+     "turnOrdinal": 0,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Clinic",
+        "heading": "Детское отделение",
+        "score": 1,
+        "lexical": 0,
+        "dense": 1
+       },
+       {
+        "title": "Insurance",
+        "heading": "Полисы и покрытие",
+        "score": 0.974,
+        "lexical": 0,
+        "dense": 0.933
+       },
+       {
+        "title": "Clinic",
+        "heading": "Qabul narxlari",
+        "score": 0.943,
+        "lexical": 0,
+        "dense": 0.841
+       },
+       {
+        "title": "Retail",
+        "heading": "Buyurtma va yetkazib berish",
+        "score": 0.929,
+        "lexical": 0,
+        "dense": 0.83
+       },
+       {
+        "title": "Bank",
+        "heading": "1. Филиалы и часы работы",
+        "score": 0.916,
+        "lexical": 0,
+        "dense": 0.826
+       }
+      ]
+     }
+    },
+    {
+     "callId": "call_u1rtgzbiyphb40yz",
+     "reply": "Tartib quyidagicha: Ish vaqti va manzil. Ekspertiza 3 ish kuni ichida o'tkaziladi, to'lov esa 10 ish kunida amalga oshiriladi. Кредит олиш учун паспорт, иш жойидан маълумотнома ва даромад ҳақида справка керак. Boshqa yordam kerakmi?",
+     "language": "uz",
+     "intent": "howto",
+     "confidence": 0.9471278711983437,
+     "answered": true,
+     "citations": [
+      {
+       "chunkId": "chk_0000",
+       "documentId": "doc_clinic",
+       "documentTitle": "Clinic",
+       "heading": "Ish vaqti va manzil",
+       "snippet": "Ish vaqti va manzil",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0012",
+       "documentId": "doc_insurance",
+       "documentTitle": "Insurance",
+       "heading": "Avtosug'urta",
+       "snippet": "Baxtsiz hodisa yuz berganda 24 soat ichida bizga xabar bering va YHXX xulosasini oling.",
+       "score": 0.908
+      },
+      {
+       "chunkId": "chk_0022",
+       "documentId": "doc_bank",
+       "documentTitle": "Bank",
+       "heading": "Ҳужжатлар",
+       "snippet": "Кредит олиш учун паспорт, иш жойидан маълумотнома ва даромад ҳақида справка керак.",
+       "score": 0.81
+      }
+     ],
+     "timings": {
+      "sttMs": 101,
+      "ttsMs": 307
+     },
+     "escalate": null,
+     "turnOrdinal": 2,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Clinic",
+        "heading": "Ish vaqti va manzil",
+        "score": 1,
+        "lexical": 1,
+        "dense": 0.874
+       },
+       {
+        "title": "Insurance",
+        "heading": "Avtosug'urta",
+        "score": 0.908,
+        "lexical": 0.423,
+        "dense": 1
+       },
+       {
+        "title": "Bank",
+        "heading": "Ҳужжатлар",
+        "score": 0.81,
+        "lexical": 0.303,
+        "dense": 0.932
+       },
+       {
+        "title": "Insurance",
+        "heading": "Contact and hours",
+        "score": 0.773,
+        "lexical": 0.18,
+        "dense": 0.778
+       },
+       {
+        "title": "Retail",
+        "heading": "Store hours",
+        "score": 0.766,
+        "lexical": 0.192,
+        "dense": 0.622
+       }
+      ]
+     }
+    },
+    {
+     "callId": "call_u1rtgzbiyphb40yz",
+     "reply": "Mana javob: Medline klinikasi dushanbadan jumagacha 08:00 dan 20:00 gacha ishlaydi. Shanba kuni 09:00 dan 16:00 gacha qabul qilamiz. Yakshanba dam olish kuni. Головной офис: Ташкент, проспект Амира Темура, 15. Пн–Пт 9:00–18:00. Yana biror savolingiz bormi?",
+     "language": "uz",
+     "intent": "hours",
+     "confidence": 0.693623754707578,
+     "answered": true,
+     "citations": [
+      {
+       "chunkId": "chk_0000",
+       "documentId": "doc_clinic",
+       "documentTitle": "Clinic",
+       "heading": "Ish vaqti va manzil",
+       "snippet": "Medline klinikasi dushanbadan jumagacha 08:00 dan 20:00 gacha ishlaydi. Shanba kuni 09:00 dan 16:00 gacha qabul qilamiz. Yakshanba dam olish kuni.",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0021",
+       "documentId": "doc_bank",
+       "documentTitle": "Bank",
+       "heading": "1. Филиалы и часы работы",
+       "snippet": "Филиал Чиланзар: ул. Бунёдкор, 7. Суббота 9:00–14:00.",
+       "score": 0.842
+      },
+      {
+       "chunkId": "chk_0006",
+       "documentId": "doc_clinic",
+       "documentTitle": "Clinic",
+       "heading": "Детское отделение",
+       "snippet": "Педиатр принимает ежедневно с 09:00 до 18:00, в субботу до 14:00.",
+       "score": 0.804
+      }
+     ],
+     "timings": {
+      "sttMs": 102,
+      "ttsMs": 334
+     },
+     "escalate": null,
+     "turnOrdinal": 4,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Clinic",
+        "heading": "Ish vaqti va manzil",
+        "score": 1,
+        "lexical": 1,
+        "dense": 1
+       },
+       {
+        "title": "Bank",
+        "heading": "1. Филиалы и часы работы",
+        "score": 0.842,
+        "lexical": 0.31,
+        "dense": 0.827
+       },
+       {
+        "title": "Bank",
+        "heading": "Ҳужжатлар",
+        "score": 0.821,
+        "lexical": 0.553,
+        "dense": 0.793
+       },
+       {
+        "title": "Clinic",
+        "heading": "Детское отделение",
+        "score": 0.804,
+        "lexical": 0.285,
+        "dense": 0.715
+       },
+       {
+        "title": "Insurance",
+        "heading": "Contact and hours",
+        "score": 0.775,
+        "lexical": 0.274,
+        "dense": 0.659
+       }
+      ]
+     }
+    },
+    {
+     "callId": "call_u1rtgzbiyphb40yz",
+     "reply": "Maʼlumotlarimizga ko‘ra: Viloyatlarga yetkazish 2–4 kun, narxi 45 000 so'mdan boshlanadi. OSAGO majburiy sug'urta — yengil avtomobil uchun yiliga 220 000 so'mdan boshlanadi. Toshkent bo'ylab yetkazib berish 25 000 so'm. 500 000 so'mdan yuqori buyurtmalarda bepul. Boshqa yordam kerakmi?",
+     "language": "uz",
+     "intent": "price",
+     "confidence": 0.5517731453898118,
+     "answered": true,
+     "citations": [
+      {
+       "chunkId": "chk_0012",
+       "documentId": "doc_insurance",
+       "documentTitle": "Insurance",
+       "heading": "Avtosug'urta",
+       "snippet": "KASKO narxi avtomobil qiymatining 3.5–6% ini tashkil qiladi.",
+       "score": 0.903
+      },
+      {
+       "chunkId": "chk_0014",
+       "documentId": "doc_retail",
+       "documentTitle": "Retail",
+       "heading": "Buyurtma va yetkazib berish",
+       "snippet": "Viloyatlarga yetkazish 2–4 kun, narxi 45 000 so'mdan boshlanadi.",
+       "score": 0.83
+      }
+     ],
+     "timings": {
+      "sttMs": 103,
+      "ttsMs": 369
+     },
+     "escalate": null,
+     "turnOrdinal": 6,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Clinic",
+        "heading": "Ish vaqti va manzil",
+        "score": 1,
+        "lexical": 1,
+        "dense": 1
+       },
+       {
+        "title": "Insurance",
+        "heading": "Avtosug'urta",
+        "score": 0.903,
+        "lexical": 0.509,
+        "dense": 0.837
+       },
+       {
+        "title": "Retail",
+        "heading": "Buyurtma va yetkazib berish",
+        "score": 0.83,
+        "lexical": 0.291,
+        "dense": 0.806
+       },
+       {
+        "title": "Clinic",
+        "heading": "Детское отделение",
+        "score": 0.822,
+        "lexical": 0.355,
+        "dense": 0.771
+       },
+       {
+        "title": "Bank",
+        "heading": "Ҳужжатлар",
+        "score": 0.807,
+        "lexical": 0.408,
+        "dense": 0.702
+       }
+      ]
+     }
+    },
+    {
+     "callId": "call_u1rtgzbiyphb40yz",
+     "reply": "Kechirasiz, bu savolga aniq javob topa olmadim. Mutaxassisimizga ulab qo‘yaymi?",
+     "language": "uz",
+     "intent": "general",
+     "confidence": 0.3575632938113561,
+     "answered": false,
+     "citations": [
+      {
+       "chunkId": "chk_0000",
+       "documentId": "doc_clinic",
+       "documentTitle": "Clinic",
+       "heading": "Ish vaqti va manzil",
+       "snippet": "Medline klinikasi dushanbadan jumagacha 08:00 dan 20:00 gacha ishlaydi. Shanba kuni 09:00 dan 16:00 gacha qabul qilamiz. Yakshanba dam olish kuni.",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0006",
+       "documentId": "doc_clinic",
+       "documentTitle": "Clinic",
+       "heading": "Детское отделение",
+       "snippet": "Детское отделение",
+       "score": 0.954
+      }
+     ],
+     "timings": {
+      "sttMs": 104,
+      "ttsMs": 131
+     },
+     "escalate": "low_confidence",
+     "summary": "Mavzu: Greeting. Mijozning birinchi savoli: “Assalomu alaykum”. Oxirgi gap: “Yana bir savol: marsga chipta?”. Eskalatsiya sababi: AI bazadan ishonchli javob topa olmadi.",
+     "turnOrdinal": 8,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Clinic",
+        "heading": "Ish vaqti va manzil",
+        "score": 1,
+        "lexical": 1,
+        "dense": 1
+       },
+       {
+        "title": "Clinic",
+        "heading": "Детское отделение",
+        "score": 0.954,
+        "lexical": 0.852,
+        "dense": 0.875
+       },
+       {
+        "title": "Retail",
+        "heading": "Buyurtma va yetkazib berish",
+        "score": 0.897,
+        "lexical": 0.556,
+        "dense": 0.931
+       },
+       {
+        "title": "Clinic",
+        "heading": "Qabul narxlari",
+        "score": 0.896,
+        "lexical": 0.952,
+        "dense": 0.685
+       },
+       {
+        "title": "Insurance",
+        "heading": "Avtosug'urta",
+        "score": 0.878,
+        "lexical": 0.63,
+        "dense": 0.827
+       }
+      ]
+     }
+    },
+    {
+     "callId": "call_u1rtgzbiyphb40yz",
+     "reply": "Sizga rahmat! Yana savollaringiz bo‘lsa, qo‘ng‘iroq qiling. Xayr!",
+     "language": "uz",
+     "intent": "goodbye",
+     "confidence": 0.284758773533446,
+     "answered": true,
+     "citations": [
+      {
+       "chunkId": "chk_0014",
+       "documentId": "doc_retail",
+       "documentTitle": "Retail",
+       "heading": "Buyurtma va yetkazib berish",
+       "snippet": "Viloyatlarga yetkazish 2–4 kun, narxi 45 000 so'mdan boshlanadi.",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0012",
+       "documentId": "doc_insurance",
+       "documentTitle": "Insurance",
+       "heading": "Avtosug'urta",
+       "snippet": "KASKO narxi avtomobil qiymatining 3.5–6% ini tashkil qiladi.",
+       "score": 0.983
+      }
+     ],
+     "timings": {
+      "sttMs": 105,
+      "ttsMs": 115
+     },
+     "escalate": "max_turns",
+     "summary": "Mavzu: Greeting. Mijozning birinchi savoli: “Assalomu alaykum”. Oxirgi gap: “Rahmat, xayr”. Eskalatsiya sababi: max_turns.",
+     "turnOrdinal": 11,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Retail",
+        "heading": "Buyurtma va yetkazib berish",
+        "score": 1,
+        "lexical": 0.584,
+        "dense": 0.98
+       },
+       {
+        "title": "Insurance",
+        "heading": "Avtosug'urta",
+        "score": 0.983,
+        "lexical": 0.662,
+        "dense": 0.903
+       },
+       {
+        "title": "Clinic",
+        "heading": "Qabul narxlari",
+        "score": 0.98,
+        "lexical": 1,
+        "dense": 0.704
+       },
+       {
+        "title": "Clinic",
+        "heading": "Детское отделение",
+        "score": 0.962,
+        "lexical": 0.595,
+        "dense": 0.909
+       },
+       {
+        "title": "Clinic",
+        "heading": "Navbatga yozilish",
+        "score": 0.962,
+        "lexical": 0.849,
+        "dense": 0.728
+       }
+      ]
+     }
+    }
+   ],
+   "ended": {
+    "durationMs": 210500,
+    "cost": 0.1123
+   },
+   "turns": [
+    {
+     "ordinal": 0,
+     "role": "caller",
+     "text": "Assalomu alaykum",
+     "language": "uz",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 1,
+     "role": "agent",
+     "text": "Assalomu alaykum! Men Layloman. Sizga qanday yordam bera olaman?",
+     "language": "uz",
+     "confidence": 0,
+     "citations_json": "[{\"chunkId\":\"chk_0006\",\"documentId\":\"doc_clinic\",\"documentTitle\":\"Clinic\",\"heading\":\"Детское отделение\",\"snippet\":\"Детское отделение\",\"score\":1},{\"chunkId\":\"chk_0008\",\"documentId\":\"doc_insurance\",\"documentTitle\":\"Insurance\",\"heading\":\"Полисы и покрытие\",\"snippet\":\"Полисы и покрытие\",\"score\":0.974}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=114|stt=100",
+     "has_latency": 1
+    },
+    {
+     "ordinal": 2,
+     "role": "caller",
+     "text": "Ish vaqtingiz qanday?",
+     "language": "uz",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 3,
+     "role": "agent",
+     "text": "Tartib quyidagicha: Ish vaqti va manzil. Ekspertiza 3 ish kuni ichida o'tkaziladi, to'lov esa 10 ish kunida amalga oshiriladi. Кредит олиш учун паспорт, иш жойидан маълумотнома ва даромад ҳақида справка керак. Boshqa yordam kerakmi?",
+     "language": "uz",
+     "confidence": 0.9471278711983437,
+     "citations_json": "[{\"chunkId\":\"chk_0000\",\"documentId\":\"doc_clinic\",\"documentTitle\":\"Clinic\",\"heading\":\"Ish vaqti va manzil\",\"snippet\":\"Ish vaqti va manzil\",\"score\":1},{\"chunkId\":\"chk_0012\",\"documentId\":\"doc_insurance\",\"documentTitle\":\"Insurance\",\"heading\":\"Avtosug'urta\",\"snippet\":\"Baxtsiz hodisa yuz berganda 24 soat ichida bizga xabar bering va YHXX xulosasini oling.\",\"score\":0.908},{\"chunkId\":\"chk_0022\",\"documentId\":\"doc_bank\",\"documentTitle\":\"Bank\",\"heading\":\"Ҳужжатлар\",\"snippet\":\"Кредит олиш учун паспорт, иш жойидан маълумотнома ва даромад ҳақида справка керак.\",\"score\":0.81}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=307|stt=101",
+     "has_latency": 1
+    },
+    {
+     "ordinal": 4,
+     "role": "caller",
+     "text": "dam olish kunlari-chi?",
+     "language": "uz",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 5,
+     "role": "agent",
+     "text": "Mana javob: Medline klinikasi dushanbadan jumagacha 08:00 dan 20:00 gacha ishlaydi. Shanba kuni 09:00 dan 16:00 gacha qabul qilamiz. Yakshanba dam olish kuni. Головной офис: Ташкент, проспект Амира Темура, 15. Пн–Пт 9:00–18:00. Yana biror savolingiz bormi?",
+     "language": "uz",
+     "confidence": 0.693623754707578,
+     "citations_json": "[{\"chunkId\":\"chk_0000\",\"documentId\":\"doc_clinic\",\"documentTitle\":\"Clinic\",\"heading\":\"Ish vaqti va manzil\",\"snippet\":\"Medline klinikasi dushanbadan jumagacha 08:00 dan 20:00 gacha ishlaydi. Shanba kuni 09:00 dan 16:00 gacha qabul qilamiz. Yakshanba dam olish kuni.\",\"score\":1},{\"chunkId\":\"chk_0021\",\"documentId\":\"doc_bank\",\"documentTitle\":\"Bank\",\"heading\":\"1. Филиалы и часы работы\",\"snippet\":\"Филиал Чиланзар: ул. Бунёдкор, 7. Суббота 9:00–14:00.\",\"score\":0.842},{\"chunkId\":\"chk_0006\",\"documentId\":\"doc_clinic\",\"documentTitle\":\"Clinic\",\"heading\":\"Детское отделение\",\"snippet\":\"Педиатр принимает ежедневно с 09:00 до 18:00, в субботу до 14:00.\",\"score\":0.804}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=334|stt=102",
+     "has_latency": 1
+    },
+    {
+     "ordinal": 6,
+     "role": "caller",
+     "text": "Kosmosga uchish narxi qancha bo‘ladi?",
+     "language": "uz",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 7,
+     "role": "agent",
+     "text": "Maʼlumotlarimizga ko‘ra: Viloyatlarga yetkazish 2–4 kun, narxi 45 000 so'mdan boshlanadi. OSAGO majburiy sug'urta — yengil avtomobil uchun yiliga 220 000 so'mdan boshlanadi. Toshkent bo'ylab yetkazib berish 25 000 so'm. 500 000 so'mdan yuqori buyurtmalarda bepul. Boshqa yordam kerakmi?",
+     "language": "uz",
+     "confidence": 0.5517731453898118,
+     "citations_json": "[{\"chunkId\":\"chk_0012\",\"documentId\":\"doc_insurance\",\"documentTitle\":\"Insurance\",\"heading\":\"Avtosug'urta\",\"snippet\":\"KASKO narxi avtomobil qiymatining 3.5–6% ini tashkil qiladi.\",\"score\":0.903},{\"chunkId\":\"chk_0014\",\"documentId\":\"doc_retail\",\"documentTitle\":\"Retail\",\"heading\":\"Buyurtma va yetkazib berish\",\"snippet\":\"Viloyatlarga yetkazish 2–4 kun, narxi 45 000 so'mdan boshlanadi.\",\"score\":0.83}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=369|stt=103",
+     "has_latency": 1
+    },
+    {
+     "ordinal": 8,
+     "role": "caller",
+     "text": "Yana bir savol: marsga chipta?",
+     "language": "uz",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 9,
+     "role": "agent",
+     "text": "Kechirasiz, bu savolga aniq javob topa olmadim. Mutaxassisimizga ulab qo‘yaymi?",
+     "language": "uz",
+     "confidence": 0.3575632938113561,
+     "citations_json": "[{\"chunkId\":\"chk_0000\",\"documentId\":\"doc_clinic\",\"documentTitle\":\"Clinic\",\"heading\":\"Ish vaqti va manzil\",\"snippet\":\"Medline klinikasi dushanbadan jumagacha 08:00 dan 20:00 gacha ishlaydi. Shanba kuni 09:00 dan 16:00 gacha qabul qilamiz. Yakshanba dam olish kuni.\",\"score\":1},{\"chunkId\":\"chk_0006\",\"documentId\":\"doc_clinic\",\"documentTitle\":\"Clinic\",\"heading\":\"Детское отделение\",\"snippet\":\"Детское отделение\",\"score\":0.954}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=131|stt=104",
+     "has_latency": 1
+    },
+    {
+     "ordinal": 10,
+     "role": "system",
+     "text": "__unanswered__",
+     "language": null,
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 11,
+     "role": "caller",
+     "text": "Rahmat, xayr",
+     "language": "uz",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 12,
+     "role": "agent",
+     "text": "Sizga rahmat! Yana savollaringiz bo‘lsa, qo‘ng‘iroq qiling. Xayr!",
+     "language": "uz",
+     "confidence": 0.284758773533446,
+     "citations_json": "[{\"chunkId\":\"chk_0014\",\"documentId\":\"doc_retail\",\"documentTitle\":\"Retail\",\"heading\":\"Buyurtma va yetkazib berish\",\"snippet\":\"Viloyatlarga yetkazish 2–4 kun, narxi 45 000 so'mdan boshlanadi.\",\"score\":1},{\"chunkId\":\"chk_0012\",\"documentId\":\"doc_insurance\",\"documentTitle\":\"Insurance\",\"heading\":\"Avtosug'urta\",\"snippet\":\"KASKO narxi avtomobil qiymatining 3.5–6% ini tashkil qiladi.\",\"score\":0.983}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=115|stt=105",
+     "has_latency": 1
+    }
+   ],
+   "call": {
+    "direction": "inbound",
+    "channel": "voice",
+    "status": "completed",
+    "outcome": "resolved_by_ai",
+    "language": "uz",
+    "intent": "howto",
+    "sentiment": 0.5,
+    "confidence": 0.284758773533446,
+    "csat": 5,
+    "turns": 6,
+    "duration_ms": 210500,
+    "has_frm": 1,
+    "has_avg": 1,
+    "cost_usd": 0.1123,
+    "escalated": 1,
+    "escalation_reason": "low_confidence",
+    "summary": "Mavzu: Greeting. Mijozning birinchi savoli: “Assalomu alaykum”. Oxirgi gap: “Yana bir savol: marsga chipta?”. Eskalatsiya sababi: AI bazadan ishonchli javob topa olmadi.",
+    "answered": 1,
+    "ended_at": "2026-11-12T05:03:30.500Z"
+   },
+   "escalations": [
+    {
+     "reason": "low_confidence",
+     "priority": "normal",
+     "status": "waiting",
+     "summary": "Mavzu: Greeting. Mijozning birinchi savoli: “Assalomu alaykum”. Oxirgi gap: “Yana bir savol: marsga chipta?”. Eskalatsiya sababi: AI bazadan ishonchli javob topa olmadi."
+    }
+   ]
+  },
+  {
+   "name": "receptionist_human",
+   "agent": "agt_rec",
+   "channel": "web",
+   "lines": [
+    "Operator bilan gaplashmoqchiman"
+   ],
+   "end": {
+    "outcome": "resolved_by_operator",
+    "csat": null,
+    "endedAt": "2026-11-12T05:00:00.400Z"
+   },
+   "results": [
+    {
+     "callId": "call_58sovz66p6s3dewg",
+     "reply": "Albatta, hozir operatorga ulayman. Bir daqiqa kutib turing.",
+     "language": "uz",
+     "intent": "human",
+     "confidence": 0.683657967144876,
+     "answered": false,
+     "citations": [
+      {
+       "chunkId": "chk_0017",
+       "documentId": "doc_retail",
+       "documentTitle": "Retail",
+       "heading": "Статус заказа",
+       "snippet": "Статус заказа можно проверить по номеру заказа на сайте или назвав его оператору.",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0008",
+       "documentId": "doc_insurance",
+       "documentTitle": "Insurance",
+       "heading": "Полисы и покрытие",
+       "snippet": "Корпоративные пакеты от 10 сотрудников — скидка 15%, от 50 сотрудников — 25%.",
+       "score": 0.897
+      }
+     ],
+     "timings": {
+      "sttMs": 100,
+      "ttsMs": 108
+     },
+     "escalate": "explicit_request",
+     "summary": "Mavzu: Operator request. Mijozning birinchi savoli: “Operator bilan gaplashmoqchiman”. Oxirgi gap: “Operator bilan gaplashmoqchiman”. Eskalatsiya sababi: mijoz operatorni so‘radi.",
+     "turnOrdinal": 0,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Retail",
+        "heading": "Статус заказа",
+        "score": 1,
+        "lexical": 1,
+        "dense": 0.73
+       },
+       {
+        "title": "Insurance",
+        "heading": "Полисы и покрытие",
+        "score": 0.897,
+        "lexical": 0.268,
+        "dense": 1
+       },
+       {
+        "title": "Clinic",
+        "heading": "Страховка и оплата",
+        "score": 0.886,
+        "lexical": 0.299,
+        "dense": 0.845
+       },
+       {
+        "title": "Insurance",
+        "heading": "Как оформить полис",
+        "score": 0.833,
+        "lexical": 0.34,
+        "dense": 0.642
+       },
+       {
+        "title": "Insurance",
+        "heading": "Contact and hours",
+        "score": 0.821,
+        "lexical": 0.324,
+        "dense": 0.635
+       }
+      ]
+     }
+    }
+   ],
+   "ended": {
+    "durationMs": 1000,
+    "cost": 0.0005
+   },
+   "turns": [
+    {
+     "ordinal": 0,
+     "role": "caller",
+     "text": "Operator bilan gaplashmoqchiman",
+     "language": "uz",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 1,
+     "role": "agent",
+     "text": "Albatta, hozir operatorga ulayman. Bir daqiqa kutib turing.",
+     "language": "uz",
+     "confidence": 0.683657967144876,
+     "citations_json": "[{\"chunkId\":\"chk_0017\",\"documentId\":\"doc_retail\",\"documentTitle\":\"Retail\",\"heading\":\"Статус заказа\",\"snippet\":\"Статус заказа можно проверить по номеру заказа на сайте или назвав его оператору.\",\"score\":1},{\"chunkId\":\"chk_0008\",\"documentId\":\"doc_insurance\",\"documentTitle\":\"Insurance\",\"heading\":\"Полисы и покрытие\",\"snippet\":\"Корпоративные пакеты от 10 сотрудников — скидка 15%, от 50 сотрудников — 25%.\",\"score\":0.897}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=108|stt=100",
+     "has_latency": 1
+    },
+    {
+     "ordinal": 2,
+     "role": "system",
+     "text": "__unanswered__",
+     "language": null,
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    }
+   ],
+   "call": {
+    "direction": "inbound",
+    "channel": "web",
+    "status": "completed",
+    "outcome": "resolved_by_operator",
+    "language": "uz",
+    "intent": "human",
+    "sentiment": 0,
+    "confidence": 0.683657967144876,
+    "csat": null,
+    "turns": 1,
+    "duration_ms": 1000,
+    "has_frm": 1,
+    "has_avg": 1,
+    "cost_usd": 0.0005,
+    "escalated": 1,
+    "escalation_reason": "explicit_request",
+    "summary": "Mavzu: Operator request. Mijozning birinchi savoli: “Operator bilan gaplashmoqchiman”. Oxirgi gap: “Operator bilan gaplashmoqchiman”. Eskalatsiya sababi: mijoz operatorni so‘radi.",
+    "answered": 1,
+    "ended_at": "2026-11-12T05:00:00.400Z"
+   },
+   "escalations": [
+    {
+     "reason": "explicit_request",
+     "priority": "high",
+     "status": "waiting",
+     "summary": "Mavzu: Operator request. Mijozning birinchi savoli: “Operator bilan gaplashmoqchiman”. Oxirgi gap: “Operator bilan gaplashmoqchiman”. Eskalatsiya sababi: mijoz operatorni so‘radi."
+    }
+   ]
+  },
+  {
+   "name": "angry_web",
+   "agent": "agt_rec",
+   "channel": "web",
+   "lines": [
+    "Bu dahshat, juda yomon xizmat, jahlim chiqdi!"
+   ],
+   "results": [
+    {
+     "callId": "call_xvd4q3ssbclc3fbu",
+     "reply": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+     "language": "uz",
+     "intent": "complaint",
+     "confidence": 0.4355555555555556,
+     "answered": false,
+     "citations": [
+      {
+       "chunkId": "chk_0020",
+       "documentId": "doc_bank",
+       "documentTitle": "Bank",
+       "heading": "KARTA XIZMATLARI",
+       "snippet": "KARTA XIZMATLARI",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0029",
+       "documentId": "doc_blob",
+       "documentTitle": "Blob title",
+       "heading": null,
+       "snippet": "just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans an…",
+       "score": 0.529
+      }
+     ],
+     "timings": {
+      "sttMs": 100,
+      "ttsMs": 116
+     },
+     "escalate": "low_confidence",
+     "summary": "Mavzu: Complaint. Mijozning birinchi savoli: “Bu dahshat, juda yomon xizmat, jahlim chiqdi!”. Oxirgi gap: “Bu dahshat, juda yomon xizmat, jahlim chiqdi!”. Eskalatsiya sababi: AI bazadan ishonchli javob topa olmadi. Diqqat: mijoz kayfiyati salbiy.",
+     "turnOrdinal": 0,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Bank",
+        "heading": "KARTA XIZMATLARI",
+        "score": 1,
+        "lexical": 1,
+        "dense": 0.559
+       },
+       {
+        "title": "Blob title",
+        "heading": null,
+        "score": 0.529,
+        "lexical": 0,
+        "dense": 1
+       },
+       {
+        "title": "Clinic",
+        "heading": "Ish vaqti va manzil",
+        "score": 0.522,
+        "lexical": 0,
+        "dense": 0.999
+       },
+       {
+        "title": "Clinic",
+        "heading": "Results and follow-up",
+        "score": 0.514,
+        "lexical": 0,
+        "dense": 0.978
+       },
+       {
+        "title": "Clinic",
+        "heading": "Laboratoriya va tekshiruvlar",
+        "score": 0.493,
+        "lexical": 0,
+        "dense": 0.84
+       }
+      ]
+     }
+    }
+   ],
+   "ended": null,
+   "turns": [
+    {
+     "ordinal": 0,
+     "role": "caller",
+     "text": "Bu dahshat, juda yomon xizmat, jahlim chiqdi!",
+     "language": "uz",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 1,
+     "role": "agent",
+     "text": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+     "language": "uz",
+     "confidence": 0.4355555555555556,
+     "citations_json": "[{\"chunkId\":\"chk_0020\",\"documentId\":\"doc_bank\",\"documentTitle\":\"Bank\",\"heading\":\"KARTA XIZMATLARI\",\"snippet\":\"KARTA XIZMATLARI\",\"score\":1},{\"chunkId\":\"chk_0029\",\"documentId\":\"doc_blob\",\"documentTitle\":\"Blob title\",\"heading\":null,\"snippet\":\"just one long unstructured blob of text without any line breaks or headings that goes on and on about loans and cards and branches and opening hours just one long unstructured blob of text without any line breaks or headings that goes on and on about loans an…\",\"score\":0.529}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=116|stt=100",
+     "has_latency": 1
+    },
+    {
+     "ordinal": 2,
+     "role": "system",
+     "text": "__unanswered__",
+     "language": null,
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    }
+   ],
+   "call": {
+    "direction": "inbound",
+    "channel": "web",
+    "status": "escalating",
+    "outcome": null,
+    "language": "uz",
+    "intent": "complaint",
+    "sentiment": -0.55,
+    "confidence": 0.4355555555555556,
+    "csat": null,
+    "turns": 1,
+    "duration_ms": 0,
+    "has_frm": 1,
+    "has_avg": 0,
+    "cost_usd": 0,
+    "escalated": 1,
+    "escalation_reason": "low_confidence",
+    "summary": "Mavzu: Complaint. Mijozning birinchi savoli: “Bu dahshat, juda yomon xizmat, jahlim chiqdi!”. Oxirgi gap: “Bu dahshat, juda yomon xizmat, jahlim chiqdi!”. Eskalatsiya sababi: AI bazadan ishonchli javob topa olmadi. Diqqat: mijoz kayfiyati salbiy.",
+    "answered": 1,
+    "ended_at": null
+   },
+   "escalations": [
+    {
+     "reason": "low_confidence",
+     "priority": "urgent",
+     "status": "waiting",
+     "summary": "Mavzu: Complaint. Mijozning birinchi savoli: “Bu dahshat, juda yomon xizmat, jahlim chiqdi!”. Oxirgi gap: “Bu dahshat, juda yomon xizmat, jahlim chiqdi!”. Eskalatsiya sababi: AI bazadan ishonchli javob topa olmadi. Diqqat: mijoz kayfiyati salbiy."
+    }
+   ]
+  },
+  {
+   "name": "loan_call",
+   "agent": "agt_loan",
+   "channel": "voice",
+   "lines": [
+    "Allo",
+    "Operator kerak",
+    "Pulim yo‘q, juda yomon ahvoldaman"
+   ],
+   "results": [
+    {
+     "callId": "call_vxl7526rh5ajkgh0",
+     "reply": "Kechirasiz, bu savolga aniq javob topa olmadim. Mutaxassisimizga ulab qo‘yaymi?",
+     "language": "uz",
+     "intent": "general",
+     "confidence": 0,
+     "answered": false,
+     "citations": [
+      {
+       "chunkId": "chk_0017",
+       "documentId": "doc_retail",
+       "documentTitle": "Retail",
+       "heading": "Статус заказа",
+       "snippet": "Статус заказа",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0007",
+       "documentId": "doc_clinic",
+       "documentTitle": "Clinic",
+       "heading": "Results and follow-up",
+       "snippet": "Results and follow-up",
+       "score": 0.946
+      }
+     ],
+     "timings": {
+      "sttMs": 100,
+      "ttsMs": 131
+     },
+     "escalate": "low_confidence",
+     "summary": "Mavzu: General enquiry. Mijozning birinchi savoli: “Allo”. Oxirgi gap: “Allo”. Eskalatsiya sababi: AI bazadan ishonchli javob topa olmadi.",
+     "turnOrdinal": 0,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Retail",
+        "heading": "Статус заказа",
+        "score": 1,
+        "lexical": 0,
+        "dense": 1
+       },
+       {
+        "title": "Clinic",
+        "heading": "Results and follow-up",
+        "score": 0.946,
+        "lexical": 0,
+        "dense": 0.792
+       },
+       {
+        "title": "Retail",
+        "heading": "Buyurtma va yetkazib berish",
+        "score": 0.912,
+        "lexical": 0,
+        "dense": 0.684
+       },
+       {
+        "title": "Insurance",
+        "heading": "Полисы и покрытие",
+        "score": 0.89,
+        "lexical": 0,
+        "dense": 0.632
+       },
+       {
+        "title": "Insurance",
+        "heading": "Как оформить полис",
+        "score": 0.878,
+        "lexical": 0,
+        "dense": 0.632
+       }
+      ]
+     }
+    },
+    {
+     "callId": "call_vxl7526rh5ajkgh0",
+     "reply": "Albatta, hozir operatorga ulayman. Bir daqiqa kutib turing.",
+     "language": "uz",
+     "intent": "human",
+     "confidence": 0.97,
+     "answered": false,
+     "citations": [
+      {
+       "chunkId": "chk_0017",
+       "documentId": "doc_retail",
+       "documentTitle": "Retail",
+       "heading": "Статус заказа",
+       "snippet": "Статус заказа можно проверить по номеру заказа на сайте или назвав его оператору.",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0008",
+       "documentId": "doc_insurance",
+       "documentTitle": "Insurance",
+       "heading": "Полисы и покрытие",
+       "snippet": "Корпоративные пакеты от 10 сотрудников — скидка 15%, от 50 сотрудников — 25%.",
+       "score": 0.802
+      }
+     ],
+     "timings": {
+      "sttMs": 101,
+      "ttsMs": 108
+     },
+     "escalate": "low_confidence",
+     "summary": "Mavzu: Operator request. Mijozning birinchi savoli: “Allo”. Oxirgi gap: “Operator kerak”. Eskalatsiya sababi: AI bazadan ishonchli javob topa olmadi.",
+     "turnOrdinal": 3,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Retail",
+        "heading": "Статус заказа",
+        "score": 1,
+        "lexical": 1,
+        "dense": 1
+       },
+       {
+        "title": "Insurance",
+        "heading": "Полисы и покрытие",
+        "score": 0.802,
+        "lexical": 0.268,
+        "dense": 0.988
+       },
+       {
+        "title": "Clinic",
+        "heading": "Страховка и оплата",
+        "score": 0.793,
+        "lexical": 0.299,
+        "dense": 0.847
+       },
+       {
+        "title": "Insurance",
+        "heading": "Contact and hours",
+        "score": 0.788,
+        "lexical": 0.324,
+        "dense": 0.766
+       },
+       {
+        "title": "Insurance",
+        "heading": "Как оформить полис",
+        "score": 0.775,
+        "lexical": 0.34,
+        "dense": 0.695
+       }
+      ]
+     }
+    },
+    {
+     "callId": "call_vxl7526rh5ajkgh0",
+     "reply": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+     "language": "uz",
+     "intent": "complaint",
+     "confidence": 0.4677606786745028,
+     "answered": false,
+     "citations": [
+      {
+       "chunkId": "chk_0017",
+       "documentId": "doc_retail",
+       "documentTitle": "Retail",
+       "heading": "Статус заказа",
+       "snippet": "Статус заказа можно проверить по номеру заказа на сайте или назвав его оператору.",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0008",
+       "documentId": "doc_insurance",
+       "documentTitle": "Insurance",
+       "heading": "Полисы и покрытие",
+       "snippet": "Корпоративные пакеты от 10 сотрудников — скидка 15%, от 50 сотрудников — 25%.",
+       "score": 0.902
+      }
+     ],
+     "timings": {
+      "sttMs": 102,
+      "ttsMs": 116
+     },
+     "escalate": "low_confidence",
+     "summary": "Mavzu: Operator request. Mijozning birinchi savoli: “Allo”. Oxirgi gap: “Pulim yo‘q, juda yomon ahvoldaman”. Eskalatsiya sababi: AI bazadan ishonchli javob topa olmadi. Diqqat: mijoz kayfiyati salbiy.",
+     "turnOrdinal": 6,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Retail",
+        "heading": "Статус заказа",
+        "score": 1,
+        "lexical": 1,
+        "dense": 0.819
+       },
+       {
+        "title": "Insurance",
+        "heading": "Полисы и покрытие",
+        "score": 0.902,
+        "lexical": 0.268,
+        "dense": 1
+       },
+       {
+        "title": "Insurance",
+        "heading": "Contact and hours",
+        "score": 0.865,
+        "lexical": 0.324,
+        "dense": 0.715
+       },
+       {
+        "title": "Insurance",
+        "heading": "Как оформить полис",
+        "score": 0.854,
+        "lexical": 0.34,
+        "dense": 0.677
+       },
+       {
+        "title": "Clinic",
+        "heading": "Страховка и оплата",
+        "score": 0.844,
+        "lexical": 0.299,
+        "dense": 0.681
+       }
+      ]
+     }
+    }
+   ],
+   "ended": null,
+   "turns": [
+    {
+     "ordinal": 0,
+     "role": "caller",
+     "text": "Allo",
+     "language": "uz",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 1,
+     "role": "agent",
+     "text": "Kechirasiz, bu savolga aniq javob topa olmadim. Mutaxassisimizga ulab qo‘yaymi?",
+     "language": "uz",
+     "confidence": 0,
+     "citations_json": "[{\"chunkId\":\"chk_0017\",\"documentId\":\"doc_retail\",\"documentTitle\":\"Retail\",\"heading\":\"Статус заказа\",\"snippet\":\"Статус заказа\",\"score\":1},{\"chunkId\":\"chk_0007\",\"documentId\":\"doc_clinic\",\"documentTitle\":\"Clinic\",\"heading\":\"Results and follow-up\",\"snippet\":\"Results and follow-up\",\"score\":0.946}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=131|stt=100",
+     "has_latency": 1
+    },
+    {
+     "ordinal": 2,
+     "role": "system",
+     "text": "__unanswered__",
+     "language": null,
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 3,
+     "role": "caller",
+     "text": "Operator kerak",
+     "language": "uz",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 4,
+     "role": "agent",
+     "text": "Albatta, hozir operatorga ulayman. Bir daqiqa kutib turing.",
+     "language": "uz",
+     "confidence": 0.97,
+     "citations_json": "[{\"chunkId\":\"chk_0017\",\"documentId\":\"doc_retail\",\"documentTitle\":\"Retail\",\"heading\":\"Статус заказа\",\"snippet\":\"Статус заказа можно проверить по номеру заказа на сайте или назвав его оператору.\",\"score\":1},{\"chunkId\":\"chk_0008\",\"documentId\":\"doc_insurance\",\"documentTitle\":\"Insurance\",\"heading\":\"Полисы и покрытие\",\"snippet\":\"Корпоративные пакеты от 10 сотрудников — скидка 15%, от 50 сотрудников — 25%.\",\"score\":0.802}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=108|stt=101",
+     "has_latency": 1
+    },
+    {
+     "ordinal": 5,
+     "role": "system",
+     "text": "__unanswered__",
+     "language": null,
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 6,
+     "role": "caller",
+     "text": "Pulim yo‘q, juda yomon ahvoldaman",
+     "language": "uz",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 7,
+     "role": "agent",
+     "text": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+     "language": "uz",
+     "confidence": 0.4677606786745028,
+     "citations_json": "[{\"chunkId\":\"chk_0017\",\"documentId\":\"doc_retail\",\"documentTitle\":\"Retail\",\"heading\":\"Статус заказа\",\"snippet\":\"Статус заказа можно проверить по номеру заказа на сайте или назвав его оператору.\",\"score\":1},{\"chunkId\":\"chk_0008\",\"documentId\":\"doc_insurance\",\"documentTitle\":\"Insurance\",\"heading\":\"Полисы и покрытие\",\"snippet\":\"Корпоративные пакеты от 10 сотрудников — скидка 15%, от 50 сотрудников — 25%.\",\"score\":0.902}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=116|stt=102",
+     "has_latency": 1
+    },
+    {
+     "ordinal": 8,
+     "role": "system",
+     "text": "__unanswered__",
+     "language": null,
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    }
+   ],
+   "call": {
+    "direction": "inbound",
+    "channel": "voice",
+    "status": "escalating",
+    "outcome": null,
+    "language": "uz",
+    "intent": "general",
+    "sentiment": -0.55,
+    "confidence": 0.4677606786745028,
+    "csat": null,
+    "turns": 3,
+    "duration_ms": 0,
+    "has_frm": 1,
+    "has_avg": 0,
+    "cost_usd": 0,
+    "escalated": 1,
+    "escalation_reason": "low_confidence",
+    "summary": "Mavzu: General enquiry. Mijozning birinchi savoli: “Allo”. Oxirgi gap: “Allo”. Eskalatsiya sababi: AI bazadan ishonchli javob topa olmadi.",
+    "answered": 1,
+    "ended_at": null
+   },
+   "escalations": [
+    {
+     "reason": "low_confidence",
+     "priority": "normal",
+     "status": "waiting",
+     "summary": "Mavzu: General enquiry. Mijozning birinchi savoli: “Allo”. Oxirgi gap: “Allo”. Eskalatsiya sababi: AI bazadan ishonchli javob topa olmadi."
+    }
+   ]
+  },
+  {
+   "name": "after_hours_ru",
+   "agent": "agt_hours",
+   "channel": "voice",
+   "lines": [
+    "Здравствуйте, какие у вас цены?",
+    "До свидания"
+   ],
+   "end": {
+    "outcome": "abandoned",
+    "csat": null,
+    "endedAt": "2026-11-12T06:00:00.000Z"
+   },
+   "results": [
+    {
+     "callId": "call_hzyyxvo4zcqk60vi",
+     "reply": "К сожалению, точного ответа на этот вопрос у меня нет. Соединить вас со специалистом?",
+     "language": "ru",
+     "intent": "general",
+     "confidence": 0,
+     "answered": false,
+     "citations": [
+      {
+       "chunkId": "chk_0021",
+       "documentId": "doc_bank",
+       "documentTitle": "Bank",
+       "heading": "1. Филиалы и часы работы",
+       "snippet": "1. Филиалы и часы работы",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0008",
+       "documentId": "doc_insurance",
+       "documentTitle": "Insurance",
+       "heading": "Полисы и покрытие",
+       "snippet": "Полисы и покрытие",
+       "score": 0.953
+      }
+     ],
+     "timings": {
+      "sttMs": 100,
+      "ttsMs": 138
+     },
+     "escalate": "after_hours",
+     "summary": "Тема: General enquiry. Первый вопрос клиента: «Здравствуйте, какие у вас цены?». Последняя реплика: «Здравствуйте, какие у вас цены?». Причина эскалации: обращение вне рабочего времени.",
+     "turnOrdinal": 0,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Bank",
+        "heading": "1. Филиалы и часы работы",
+        "score": 1,
+        "lexical": 0,
+        "dense": 1
+       },
+       {
+        "title": "Insurance",
+        "heading": "Полисы и покрытие",
+        "score": 0.953,
+        "lexical": 0,
+        "dense": 0.825
+       },
+       {
+        "title": "Insurance",
+        "heading": "Что не покрывается",
+        "score": 0.932,
+        "lexical": 0,
+        "dense": 0.785
+       },
+       {
+        "title": "Retail",
+        "heading": "Store hours",
+        "score": 0.906,
+        "lexical": 0,
+        "dense": 0.715
+       },
+       {
+        "title": "Insurance",
+        "heading": "Contact and hours",
+        "score": 0.894,
+        "lexical": 0,
+        "dense": 0.714
+       }
+      ]
+     }
+    },
+    {
+     "callId": "call_hzyyxvo4zcqk60vi",
+     "reply": "Спасибо за обращение! Всего доброго.",
+     "language": "ru",
+     "intent": "goodbye",
+     "confidence": 0,
+     "answered": true,
+     "citations": [
+      {
+       "chunkId": "chk_0002",
+       "documentId": "doc_clinic",
+       "documentTitle": "Clinic",
+       "heading": "Laboratoriya va tekshiruvlar",
+       "snippet": "Laboratoriya va tekshiruvlar",
+       "score": 1
+      },
+      {
+       "chunkId": "chk_0001",
+       "documentId": "doc_clinic",
+       "documentTitle": "Clinic",
+       "heading": "Qabul narxlari",
+       "snippet": "Qabul narxlari",
+       "score": 0.974
+      }
+     ],
+     "timings": {
+      "sttMs": 101,
+      "ttsMs": 81
+     },
+     "escalate": null,
+     "turnOrdinal": 3,
+     "engine": "local",
+     "retrievalDebug": {
+      "strategy": "hybrid:bm25+ovoz-hashed-ngram-384",
+      "totalChunks": 30,
+      "hits": [
+       {
+        "title": "Clinic",
+        "heading": "Laboratoriya va tekshiruvlar",
+        "score": 1,
+        "lexical": 0,
+        "dense": 1
+       },
+       {
+        "title": "Clinic",
+        "heading": "Qabul narxlari",
+        "score": 0.974,
+        "lexical": 0,
+        "dense": 0.934
+       },
+       {
+        "title": "Bank",
+        "heading": "Kredit mahsulotlari",
+        "score": 0.95,
+        "lexical": 0,
+        "dense": 0.873
+       },
+       {
+        "title": "Clinic",
+        "heading": "Детское отделение",
+        "score": 0.931,
+        "lexical": 0,
+        "dense": 0.843
+       },
+       {
+        "title": "Clinic",
+        "heading": "Страховка и оплата",
+        "score": 0.875,
+        "lexical": 0,
+        "dense": 0.614
+       }
+      ]
+     }
+    }
+   ],
+   "ended": {
+    "durationMs": 3600000,
+    "cost": 1.92
+   },
+   "turns": [
+    {
+     "ordinal": 0,
+     "role": "caller",
+     "text": "Здравствуйте, какие у вас цены?",
+     "language": "ru",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 1,
+     "role": "agent",
+     "text": "К сожалению, точного ответа на этот вопрос у меня нет. Соединить вас со специалистом?",
+     "language": "ru",
+     "confidence": 0,
+     "citations_json": "[{\"chunkId\":\"chk_0021\",\"documentId\":\"doc_bank\",\"documentTitle\":\"Bank\",\"heading\":\"1. Филиалы и часы работы\",\"snippet\":\"1. Филиалы и часы работы\",\"score\":1},{\"chunkId\":\"chk_0008\",\"documentId\":\"doc_insurance\",\"documentTitle\":\"Insurance\",\"heading\":\"Полисы и покрытие\",\"snippet\":\"Полисы и покрытие\",\"score\":0.953}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=138|stt=100",
+     "has_latency": 1
+    },
+    {
+     "ordinal": 2,
+     "role": "system",
+     "text": "__unanswered__",
+     "language": null,
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 3,
+     "role": "caller",
+     "text": "До свидания",
+     "language": "ru",
+     "confidence": null,
+     "citations_json": "[]",
+     "timings_json": "{}",
+     "has_latency": 0
+    },
+    {
+     "ordinal": 4,
+     "role": "agent",
+     "text": "Спасибо за обращение! Всего доброго.",
+     "language": "ru",
+     "confidence": 0,
+     "citations_json": "[{\"chunkId\":\"chk_0002\",\"documentId\":\"doc_clinic\",\"documentTitle\":\"Clinic\",\"heading\":\"Laboratoriya va tekshiruvlar\",\"snippet\":\"Laboratoriya va tekshiruvlar\",\"score\":1},{\"chunkId\":\"chk_0001\",\"documentId\":\"doc_clinic\",\"documentTitle\":\"Clinic\",\"heading\":\"Qabul narxlari\",\"snippet\":\"Qabul narxlari\",\"score\":0.974}]",
+     "timings_json": "sttMs,retrievalMs,llmMs,ttsMs,totalMs|tts=81|stt=101",
+     "has_latency": 1
+    }
+   ],
+   "call": {
+    "direction": "inbound",
+    "channel": "voice",
+    "status": "completed",
+    "outcome": "abandoned",
+    "language": "ru",
+    "intent": "general",
+    "sentiment": 0,
+    "confidence": 0,
+    "csat": null,
+    "turns": 2,
+    "duration_ms": 3600000,
+    "has_frm": 1,
+    "has_avg": 1,
+    "cost_usd": 1.92,
+    "escalated": 1,
+    "escalation_reason": "after_hours",
+    "summary": "Тема: General enquiry. Первый вопрос клиента: «Здравствуйте, какие у вас цены?». Последняя реплика: «Здравствуйте, какие у вас цены?». Причина эскалации: обращение вне рабочего времени.",
+    "answered": 1,
+    "ended_at": "2026-11-12T06:00:00.000Z"
+   },
+   "escalations": [
+    {
+     "reason": "after_hours",
+     "priority": "normal",
+     "status": "waiting",
+     "summary": "Тема: General enquiry. Первый вопрос клиента: «Здравствуйте, какие у вас цены?». Последняя реплика: «Здравствуйте, какие у вас цены?». Причина эскалации: обращение вне рабочего времени."
+    }
+   ]
+  }
+ ],
+ "gaps": [
+  {
+   "question": "Bu dahshat, juda yomon xizmat, jahlim chiqdi!",
+   "hits": 1,
+   "best_score": 0.4355555555555556,
+   "status": "open"
+  },
+  {
+   "question": "Operator bilan gaplashmoqchiman",
+   "hits": 1,
+   "best_score": 0.683657967144876,
+   "status": "open"
+  },
+  {
+   "question": "Operator kerak",
+   "hits": 1,
+   "best_score": 0.97,
+   "status": "open"
+  },
+  {
+   "question": "Pulim yo‘q, juda yomon ahvoldaman",
+   "hits": 1,
+   "best_score": 0.4677606786745028,
+   "status": "open"
+  },
+  {
+   "question": "Yana bir savol: marsga chipta?",
+   "hits": 1,
+   "best_score": 0.3575632938113561,
+   "status": "open"
+  },
+  {
+   "question": "Здравствуйте, какие у вас цены?",
+   "hits": 1,
+   "best_score": 0,
+   "status": "open"
+  }
+ ],
+ "usageDaily": [
+  {
+   "day": "2026-11-12",
+   "calls": 3,
+   "ai_resolved": 1,
+   "escalated": 3,
+   "abandoned": 1,
+   "minutes": 63.525,
+   "cost_usd": 2.0328,
+   "csat_sum": 5,
+   "csat_count": 1
+  }
+ ],
+ "wallet": {
+  "balance": -13525,
+  "ledger": [
+   {
+    "kind": "debit",
+    "amount_uzs": 3508,
+    "balance_after": 46492,
+    "note": "AI call · 3.5 min"
+   },
+   {
+    "kind": "debit",
+    "amount_uzs": 17,
+    "balance_after": 46475,
+    "note": "AI call · 0.0 min"
+   },
+   {
+    "kind": "debit",
+    "amount_uzs": 60000,
+    "balance_after": -13525,
+    "note": "AI call · 60.0 min"
+   }
+  ]
+ },
+ "events": [
+  {
+   "type": "call_started",
+   "callId": "x",
+   "from": "+998901112233",
+   "to": "+998712000000",
+   "language": "uz"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Assalomu alaykum! Men Layloman. Sizga qanday yordam bera olaman?",
+   "utterance": "Assalomu alaykum",
+   "confidence": 0,
+   "escalated": false,
+   "latencyMs": "x"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Tartib quyidagicha: Ish vaqti va manzil. Ekspertiza 3 ish kuni ichida o'tkaziladi, to'lov esa 10 ish kunida amalga oshiriladi. Кредит олиш учун паспорт, иш жойидан маълумотнома ва даромад ҳақида справка керак. Boshqa yordam kerakmi?",
+   "utterance": "Ish vaqtingiz qanday?",
+   "confidence": 0.9471278711983437,
+   "escalated": false,
+   "latencyMs": "x"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Mana javob: Medline klinikasi dushanbadan jumagacha 08:00 dan 20:00 gacha ishlaydi. Shanba kuni 09:00 dan 16:00 gacha qabul qilamiz. Yakshanba dam olish kuni. Головной офис: Ташкент, проспект Амира Темура, 15. Пн–Пт 9:00–18:00. Yana biror savolingiz bormi?",
+   "utterance": "dam olish kunlari-chi?",
+   "confidence": 0.693623754707578,
+   "escalated": false,
+   "latencyMs": "x"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Maʼlumotlarimizga ko‘ra: Viloyatlarga yetkazish 2–4 kun, narxi 45 000 so'mdan boshlanadi. OSAGO majburiy sug'urta — yengil avtomobil uchun yiliga 220 000 so'mdan boshlanadi. Toshkent bo'ylab yetkazib berish 25 000 so'm. 500 000 so'mdan yuqori buyurtmalarda bepul. Boshqa yordam kerakmi?",
+   "utterance": "Kosmosga uchish narxi qancha bo‘ladi?",
+   "confidence": 0.5517731453898118,
+   "escalated": false,
+   "latencyMs": "x"
+  },
+  {
+   "type": "escalation",
+   "callId": "x",
+   "escalationId": "x",
+   "reason": "low_confidence",
+   "priority": "normal"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Kechirasiz, bu savolga aniq javob topa olmadim. Mutaxassisimizga ulab qo‘yaymi?",
+   "utterance": "Yana bir savol: marsga chipta?",
+   "confidence": 0.3575632938113561,
+   "escalated": true,
+   "latencyMs": "x"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Sizga rahmat! Yana savollaringiz bo‘lsa, qo‘ng‘iroq qiling. Xayr!",
+   "utterance": "Rahmat, xayr",
+   "confidence": 0.284758773533446,
+   "escalated": true,
+   "latencyMs": "x"
+  },
+  {
+   "type": "call_ended",
+   "callId": "x",
+   "outcome": "resolved_by_ai",
+   "durationMs": 210500,
+   "csat": 5
+  },
+  {
+   "type": "call_started",
+   "callId": "x",
+   "from": "+998901112233",
+   "to": "+998712000000",
+   "language": "uz"
+  },
+  {
+   "type": "escalation",
+   "callId": "x",
+   "escalationId": "x",
+   "reason": "explicit_request",
+   "priority": "high"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Albatta, hozir operatorga ulayman. Bir daqiqa kutib turing.",
+   "utterance": "Operator bilan gaplashmoqchiman",
+   "confidence": 0.683657967144876,
+   "escalated": true,
+   "latencyMs": "x"
+  },
+  {
+   "type": "call_ended",
+   "callId": "x",
+   "outcome": "resolved_by_operator",
+   "durationMs": 1000,
+   "csat": null
+  },
+  {
+   "type": "call_started",
+   "callId": "x",
+   "from": "+998901112233",
+   "to": "+998712000000",
+   "language": "uz"
+  },
+  {
+   "type": "escalation",
+   "callId": "x",
+   "escalationId": "x",
+   "reason": "low_confidence",
+   "priority": "urgent"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+   "utterance": "Bu dahshat, juda yomon xizmat, jahlim chiqdi!",
+   "confidence": 0.4355555555555556,
+   "escalated": true,
+   "latencyMs": "x"
+  },
+  {
+   "type": "call_started",
+   "callId": "x",
+   "from": "+998901112233",
+   "to": "+998712000000",
+   "language": "uz"
+  },
+  {
+   "type": "escalation",
+   "callId": "x",
+   "escalationId": "x",
+   "reason": "low_confidence",
+   "priority": "normal"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Kechirasiz, bu savolga aniq javob topa olmadim. Mutaxassisimizga ulab qo‘yaymi?",
+   "utterance": "Allo",
+   "confidence": 0,
+   "escalated": true,
+   "latencyMs": "x"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Albatta, hozir operatorga ulayman. Bir daqiqa kutib turing.",
+   "utterance": "Operator kerak",
+   "confidence": 0.97,
+   "escalated": true,
+   "latencyMs": "x"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+   "utterance": "Pulim yo‘q, juda yomon ahvoldaman",
+   "confidence": 0.4677606786745028,
+   "escalated": true,
+   "latencyMs": "x"
+  },
+  {
+   "type": "call_started",
+   "callId": "x",
+   "from": "+998901112233",
+   "to": "+998712000000",
+   "language": "ru"
+  },
+  {
+   "type": "escalation",
+   "callId": "x",
+   "escalationId": "x",
+   "reason": "after_hours",
+   "priority": "normal"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "К сожалению, точного ответа на этот вопрос у меня нет. Соединить вас со специалистом?",
+   "utterance": "Здравствуйте, какие у вас цены?",
+   "confidence": 0,
+   "escalated": true,
+   "latencyMs": "x"
+  },
+  {
+   "type": "turn",
+   "callId": "x",
+   "reply": "Спасибо за обращение! Всего доброго.",
+   "utterance": "До свидания",
+   "confidence": 0,
+   "escalated": false,
+   "latencyMs": "x"
+  },
+  {
+   "type": "call_ended",
+   "callId": "x",
+   "outcome": "abandoned",
+   "durationMs": 3600000,
+   "csat": null
+  }
+ ]
+}

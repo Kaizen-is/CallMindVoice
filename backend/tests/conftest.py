@@ -4,9 +4,13 @@ schema (`fixtures/schema.sql`, dumped from data/ovoz.db without data), so tests
 never touch the live database.
 """
 
+import os
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
+
+# Never read the developer's real .env (API keys) in tests.
+os.environ["CALLMIND_DOTENV"] = "0"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -59,3 +63,34 @@ def sql(data_dir: Path):
             con.close()
 
     return run
+
+
+PROVIDER_ENV = (
+    "GEMINI_API_KEY", "GEMINI_MODEL", "GEMINI_STT_MODEL", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "OPENAI_API_KEY",
+    "OPENAI_MODEL", "OPENAI_BASE_URL", "OPENAI_TIMEOUT_MS", "OPENAI_EMBEDDING_MODEL", "OLLAMA_BASE_URL", "OLLAMA_MODEL",
+    "OLLAMA_API_KEY", "OLLAMA_KEEP_ALIVE", "OLLAMA_TIMEOUT_MS", "LLM_PROVIDER", "LLM_FALLBACK_MODEL", "TTS_BASE_URL",
+    "TTS_CLIENT_ID", "TTS_CLIENT_SECRET", "TTS_JWT_TOKEN", "TTS_STREAM_CHUNK_SEC", "SPEKO_API_KEY", "SPEKO_BASE_URL",
+    "SPEKO_TTS_VOICE", "STT_TRANSCRIBE_URL", "WHISPER_TRANSCRIBE_URL", "WHISPER_MODEL", "WHISPER_API_KEY",
+    "GAPI_API_KEY", "GAPIAPI", "GAPI_BASE_URL", "DENOISE_URL", "ZIPFORMER_MODEL_DIR",
+)  # fmt: skip
+
+
+@pytest.fixture(autouse=True)
+def _clean_providers(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """No provider is configured unless a test says so; module caches start empty."""
+    for key in PROVIDER_ENV:
+        monkeypatch.delenv(key, raising=False)
+    _reset_provider_state()
+    yield
+    _reset_provider_state()
+
+
+def _reset_provider_state() -> None:
+    from app import http
+    from app.llm import claude
+    from app.speech import tts
+
+    http.set_transport(None)
+    claude._client = None
+    claude._client_key = None
+    tts._token = None

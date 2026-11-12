@@ -108,3 +108,30 @@ def unpack_vector(blob: bytes | None) -> list[float] | None:
         return None
     n = len(blob) // 4
     return list(struct.unpack(f"<{n}f", blob[: n * 4]))
+
+
+# ── hosted embeddings (OpenAI), as `embeddingEngine()` in embed.ts ──
+
+
+def hosted_engine_id() -> str | None:
+    """The OpenAI embedding model when OPENAI_API_KEY is set (1536 dims), else None (local engine)."""
+    from app.env import env
+
+    return env("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small") if env("OPENAI_API_KEY") else None
+
+
+async def hosted_embed(texts: list[str]) -> list[list[float]]:
+    """L2-normalised float32 vectors from OpenAI. Raises on any failure (callers fall back to words)."""
+    from app import http
+    from app.env import env
+    from app.jscompat import js_json
+
+    model = env("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+    res = await http.client().post(
+        "https://api.openai.com/v1/embeddings",
+        headers={"content-type": "application/json", "authorization": f"Bearer {env('OPENAI_API_KEY')}"},
+        content=js_json({"model": model, "input": texts}).encode(),
+    )
+    if not res.is_success:
+        raise RuntimeError(f"Embedding request failed: {res.status_code}")
+    return [l2normalize([f32(x) for x in d["embedding"]]) for d in res.json()["data"]]

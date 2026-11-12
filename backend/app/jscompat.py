@@ -31,7 +31,7 @@ def js_round(x: float) -> int:
 
 def utf16_len(s: str) -> int:
     """`s.length` in JavaScript."""
-    return len(s.encode("utf-16-le")) // 2
+    return len(s.encode("utf-16-le", errors="surrogatepass")) // 2
 
 
 def utf16_slice(s: str, start: int, end: int | None = None) -> str:
@@ -134,3 +134,106 @@ def js_log(x: float) -> float:
     if k == 0:
         return f - s * (f - r)
     return dk * _LN2_HI - ((s * (f - r) - dk * _LN2_LO) - f)
+
+
+# ── strings, numbers and truthiness ─────────────────────────────────
+
+_JS_TRIM_CHARS = JS_S
+
+
+def js_trim(s: str) -> str:
+    """`s.trim()`: strips JavaScript whitespace (Python's `strip()` uses a slightly different set)."""
+    return s.strip(_JS_TRIM_CHARS)
+
+
+def js_trim_start(s: str) -> str:
+    return s.lstrip(_JS_TRIM_CHARS)
+
+
+def js_trim_end(s: str) -> str:
+    return s.rstrip(_JS_TRIM_CHARS)
+
+
+def js_to_fixed(x: float, digits: int) -> str:
+    """`x.toFixed(digits)`: the exact binary value rounded half away from zero (Python's `round` is half-even)."""
+    from decimal import ROUND_HALF_UP, Decimal
+
+    if math.isnan(x):
+        return "NaN"
+    if x == 0:
+        x = 0.0  # (-0).toFixed() has no sign; (-0.0001).toFixed(3) keeps it: "-0.000"
+    return format(Decimal(x).quantize(Decimal(1).scaleb(-digits), rounding=ROUND_HALF_UP), "f")
+
+
+def js_fixed_number(x: float, digits: int) -> float:
+    """`Number(x.toFixed(digits))`."""
+    return float(js_to_fixed(x, digits))
+
+
+def js_number_str(x: float) -> str:
+    """`String(x)` / JSON.stringify of a number: JavaScript's Number::toString (shortest round-trip digits)."""
+    from decimal import Decimal
+
+    if isinstance(x, bool):
+        return "true" if x else "false"
+    if isinstance(x, int):
+        return str(x)
+    if math.isnan(x):
+        return "NaN"
+    if math.isinf(x):
+        return "Infinity" if x > 0 else "-Infinity"
+    if x == 0:
+        return "0"
+    if x < 0:
+        return "-" + js_number_str(-x)
+    _, digit_tuple, exp = Decimal(repr(x)).as_tuple()
+    digits = list(digit_tuple)
+    while len(digits) > 1 and digits[-1] == 0:
+        digits.pop()
+        exp += 1
+    k = len(digits)
+    n = exp + k  # x = 0.d1…dk × 10^n
+    s = "".join(map(str, digits))
+    if k <= n <= 21:
+        return s + "0" * (n - k)
+    if 0 < n <= 21:
+        return f"{s[:n]}.{s[n:]}"
+    if -6 < n <= 0:
+        return "0." + "0" * (-n) + s
+    e = n - 1
+    mantissa = s if k == 1 else f"{s[0]}.{s[1:]}"
+    return f"{mantissa}e{'+' if e >= 0 else '-'}{abs(e)}"
+
+
+def js_truthy(value: object) -> bool:
+    """JavaScript truthiness for a JSON value: `[]` and `{}` are true, `0`, `""` and null false."""
+    if isinstance(value, (list, dict)):
+        return True
+    if isinstance(value, float) and math.isnan(value):
+        return False
+    return bool(value)
+
+
+def js_json(value: object) -> str:
+    """
+    `JSON.stringify(value)`: compact, non-ASCII kept as is, numbers written as JavaScript writes
+    them (1 not 1.0, 1e-7 not 1e-07) — so request bodies and stored JSON are byte-identical.
+    """
+    import json
+
+    def enc(v: object) -> str:
+        if v is None or v is True or v is False:
+            return json.dumps(v)
+        if isinstance(v, str):
+            return json.dumps(v, ensure_ascii=False)
+        if isinstance(v, (int, float)):
+            if isinstance(v, float) and not math.isfinite(v):
+                return "null"
+            return js_number_str(v)
+        if isinstance(v, dict):
+            return "{" + ",".join(f"{json.dumps(str(k), ensure_ascii=False)}:{enc(x)}" for k, x in v.items()) + "}"
+        if isinstance(v, (list, tuple)):
+            return "[" + ",".join(enc(x) for x in v) + "]"
+        raise TypeError(f"not JSON serialisable: {type(v).__name__}")
+
+    return enc(value)

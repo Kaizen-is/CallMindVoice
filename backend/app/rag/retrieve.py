@@ -20,7 +20,7 @@ from sqlalchemy import Connection
 
 from app import db
 from app.jscompat import JS_S, js_log, utf16_len, utf16_slice
-from app.rag.embed import LOCAL_ENGINE_ID, cosine, local_embed, unpack_vector
+from app.rag.embed import LOCAL_ENGINE_ID, cosine, hosted_embed, hosted_engine_id, local_embed, unpack_vector
 from app.rag.text import expand_terms, stem, stems, tokenize
 
 K1 = 1.4
@@ -151,8 +151,12 @@ def rank(
     min_score: float = 0.06,
     query_vector: list[float] | None = None,
     engine_id: str = LOCAL_ENGINE_ID,
+    use_dense: bool = True,
 ) -> RetrievalResult:
-    """Score the corpus for `query`. `query_vector` defaults to the local embedding."""
+    """
+    Score the corpus for `query`. `query_vector` defaults to the local embedding; `use_dense=False`
+    (the hosted embedding failed) ranks on words alone.
+    """
     started = time.perf_counter()
     if not corpus.rows:
         return RetrievalResult([], 0, (time.perf_counter() - started) * 1000, "empty-index", 0)
@@ -160,9 +164,9 @@ def rank(
     query_terms = expand_terms([stem(t) for t in tokenize(query)])
     lex = _bm25(corpus, query_terms)
 
-    qv = query_vector if query_vector is not None else local_embed(query)
+    qv = (query_vector if query_vector is not None else local_embed(query)) if use_dense else None
     dense_used = qv is not None
-    dense = [cosine(v, qv) if v is not None and len(v) == len(qv) else 0.0 for v in corpus.vectors]
+    dense = [cosine(v, qv) if qv is not None and v is not None and len(v) == len(qv) else 0.0 for v in corpus.vectors]
 
     lex_rank = _rank_of(lex)
     dense_rank = _rank_of(dense)
@@ -268,7 +272,28 @@ def invalidate_corpus(tenant_id: str) -> None:
 
 
 def retrieve(tenant_id: str, query: str, *, top_k: int = 5, min_score: float = 0.06) -> RetrievalResult:
-    """Search the tenant's knowledge base (local embeddings; hosted embeddings arrive in step 1b)."""
+    """Search the tenant's knowledge base with the local embedding (no network)."""
     with db.connect() as conn:
         corpus = load_corpus(conn, tenant_id)
     return rank(corpus, query, top_k=top_k, min_score=min_score)
+
+
+async def retrieve_async(tenant_id: str, query: str, *, top_k: int = 5, min_score: float = 0.06) -> RetrievalResult:
+    """
+    Search the tenant's knowledge base like `retrieve` in retrieve.ts: with OPENAI_API_KEY set the
+    query is embedded by OpenAI (the chunks were too); if that request fails the ranking falls back
+    to words alone, never to an error.
+    """
+    with db.connect() as conn:
+        corpus = load_corpus(conn, tenant_id)
+    engine = hosted_engine_id()
+    if not corpus.rows or engine is None:
+        return rank(corpus, query, top_k=top_k, min_score=min_score)
+    try:
+        vectors = await hosted_embed([query])
+    except Exception:  # noqa: BLE001 - lexical ranking still answers
+        return rank(corpus, query, top_k=top_k, min_score=min_score, engine_id=engine, use_dense=False)
+    qv = vectors[0] if vectors else None
+    return rank(
+        corpus, query, top_k=top_k, min_score=min_score, query_vector=qv, engine_id=engine, use_dense=qv is not None
+    )
