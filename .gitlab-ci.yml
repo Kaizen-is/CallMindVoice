@@ -16,6 +16,15 @@ dependency-audit:
   script:
     - npm audit --audit-level=high
 
+backend:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - cd backend
+    - pip install --quiet -e ".[dev]"
+    - ruff check .
+    - pytest
+
 build:
   stage: build
   image: node:22-bookworm
@@ -28,7 +37,7 @@ isolated-staging:
   image: docker:27-cli
   tags: [kiber-runner]
   timeout: 20m
-  needs: [typecheck, dependency-audit, build]
+  needs: [typecheck, dependency-audit, backend, build]
   script:
     - sed -i 's/\r$//' scripts/ci-isolated-smoke.sh
     - sh scripts/ci-isolated-smoke.sh

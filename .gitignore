@@ -12,3 +12,9 @@ __pycache__/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Python backend
+backend/.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

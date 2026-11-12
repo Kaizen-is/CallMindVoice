@@ -7,3 +7,7 @@ node_modules
 data
 coverage
 *.log
+backend/.venv
+**/__pycache__
+.pytest_cache
+.ruff_cache

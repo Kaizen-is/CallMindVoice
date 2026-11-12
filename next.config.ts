@@ -37,10 +37,27 @@ const serverActionOrigins = (process.env.SERVER_ACTIONS_ALLOWED_ORIGINS ?? '')
   .map((s) => s.trim())
   .filter(Boolean);
 
+/**
+ * The Python backend (FastAPI, `backend/`), which takes over this app's server
+ * code area by area. It listens privately on 127.0.0.1:8100; the browser
+ * reaches it only through this app, as `/api/core/*` — so the edge proxy needs
+ * no change and the login cookie travels with every request. Read at build
+ * time; set CORE_API_URL to point elsewhere.
+ */
+const coreApiUrl = (process.env.CORE_API_URL ?? 'http://127.0.0.1:8100').replace(/\/+$/, '');
+
 const nextConfig: NextConfig = {
   // sherpa-onnx-node is a native addon (Zipformer STT): loaded at runtime, never bundled.
   serverExternalPackages: ['mammoth', 'unpdf', 'sherpa-onnx-node'],
   allowedDevOrigins,
+  async rewrites() {
+    return {
+      // Before the app's own routes, so /api/core/* is always the Python backend.
+      beforeFiles: [{ source: '/api/core/:path*', destination: `${coreApiUrl}/:path*` }],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
   experimental: {
     // Server Actions handle multi-megabyte knowledge-base uploads.
     serverActions: {

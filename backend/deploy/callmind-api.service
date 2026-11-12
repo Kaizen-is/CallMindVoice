@@ -1,0 +1,33 @@
+# CallMind API (FastAPI) — runs next to callmind.service (the Next.js UI, port 9925).
+# Private: listens on 127.0.0.1 only; the browser reaches it through Next.js (/api/core/*).
+#
+# Install (as the same user that runs callmind.service):
+#   cp backend/deploy/callmind-api.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now callmind-api.service
+[Unit]
+Description=CallMind API (FastAPI, 127.0.0.1:8100) - backend for https://callmind.brb-tech.uz
+Documentation=file:///home/m.jumanazarov/callmind/backend/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=exec
+WorkingDirectory=%h/callmind/backend
+EnvironmentFile=%h/callmind/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Tashkent
+# One worker on purpose: live call state and the event stream are per process.
+ExecStart=%h/callmind/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8100 --workers 1 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=always
+RestartSec=3
+StartLimitBurst=0
+TimeoutStopSec=20
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=default.target
