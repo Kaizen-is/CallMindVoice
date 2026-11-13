@@ -1,4 +1,4 @@
-# CallMind — handoff (state on 12 Nov 2026)
+# CallMind — handoff (state on 13 Nov 2026)
 
 Read this first when you start a new session (human or Claude). It says what
 CallMind is, where it runs, the rules we work by, what is done, and what comes
@@ -87,51 +87,52 @@ then the next.
 | 0 | FastAPI skeleton, shared login (`ovoz_session` cookie, same HMAC), shared SQLite, Alembic baseline, `/api/core` rewrite, systemd unit, CI job | **Live** (commit `9a8d024`) |
 | 1a | Knowledge search, Uzbek numbers, spoken-form text, intents, local answers, loan identity check + calendar | Done (`92d6bae`, `4ab9069`) — no endpoint yet |
 | 1b | STT/TTS engines + disk cache, LLM providers (streaming, Haiku fallback), `run_turn`, calls/billing, bus, Playground voice logic | Done (`51f403e`) — no endpoint yet |
-| **1c** | **Playground served by Python behind `?py=1`** | **Next — see below** |
-| 2 | Phone bridge + Twilio routes in FastAPI (same paths, `x-bridge-secret`); switch by pointing the bridge's `NEXT_BASE_URL` | |
+| 1c | Playground voice call served by Python behind `?py=1` | Done — **not deployed yet** (see below) |
+| **2** | **Phone bridge + Twilio routes in FastAPI (same paths, `x-bridge-secret`); switch by pointing the bridge's `NEXT_BASE_URL`** | **Next**, once 1c is checked on the live site |
 | 3 | Public demo + logistics (`/api/demo/*`, `/api/logistics/*`, per-IP limits) | |
 | 4 | Console areas one by one: each page gets one `GET /api/core/views/<page>` and its server actions become `fetch` calls (agents, knowledge + ingest, calls/inbox/escalations, analytics, team/settings, billing, developers + `/api/v1/*`, models/labs/benchmark) | |
 | 5 | Login moves; delete the TypeScript backend (`src/lib/{db,auth,engine,llm,rag,speech,…}`, `src/app/api/*`, `src/app/actions/*`) | |
 | later | PostgreSQL; voice roadmap (streaming runtime) in the same Python codebase | |
 
-### Step 1c in detail (the next task)
+### Step 1c — the Playground call from Python (done, 13 Nov)
 
-Serve the Playground's voice call from Python, switchable per browser:
+Open the Playground with **`?py=1`** in the address
+(`https://callmind.brb-tech.uz/app/playground?py=1`) and the voice call goes to
+FastAPI instead of the Next.js routes; without it nothing changes.
 
-- **Endpoints** (in a new `backend/app/routers/playground.py` etc., all behind `LoggedIn`):
-  - `POST /playground/call` — JSON `{agentId, lang, voice, ttsEngine}` → NDJSON
-    stream: `call`, then the opening line (`reply`, `audio`…, or `voice:false`), `done`.
-    Port of `src/app/api/playground/call/route.ts`.
-  - `POST /playground/turn` — multipart `audio` (WAV ≤ 1 400 000 bytes) or `text`,
-    `callId`, `lang`, `legacy`, `sttEngine`, `ttsEngine`, `voice`; `?prefetch=1` →
-    transcribe now, answer 202. Errors: 400 `bad_audio`, 410 `ended`, 404
-    `no_agent`, 409 `busy_call`. Stream: `heard`, `filler`, `reply`/`more`/`audio`,
-    `final` with `ms` = `{stt, retrieval, llm, llmFirst, firstSegment, firstAudio,
-    fast}`, `detail`, `done`. Port of `src/app/api/playground/turn/route.ts`.
-  - `POST /playground/end` — JSON `{callId}` → 204 (`close_playground_call`).
-  - `POST /speech/live` — multipart `sid`, `op` (feed|finish|reset|close), `audio`
-    (16 kHz PCM) → `{text}`; Zipformer runs in a thread
-    (`asyncio.to_thread`). Port of `src/app/api/speech/live/route.ts`.
-  - `GET /stream` — SSE from `app.engine.bus`: a `heartbeat` event, then events,
-    `: ping` every 25 s.
-- All the logic exists already (`app/playground.py`, `app/playground_voice.py` —
-  `event_stream`, `SpeakAsWritten`, `voice_pick`, `filler_for`, `heard_in`…,
-  `app/engine/conversation.py`). FastAPI multipart needs the `python-multipart`
-  package (add to `pyproject.toml`).
-- **Client switch**: in `src/app/app/playground/playground.tsx` use
-  `/api/core/playground/*` and `/api/core/speech/live` when the page URL has
-  `?py=1`; the hang-up goes as `fetch(..., {keepalive: true, body: new Blob([json],
-  {type: 'application/json'})})`.
-- **Tests**: FastAPI `TestClient` with the fakes in `backend/tests/fakes.py`
-  (scripted LLM/TTS/STT), checking the NDJSON event order against the TypeScript
-  routes.
-- **Deploy**: install the new Python deps into `backend/.venv`, restart
-  `callmind-api.service`, rebuild + restart the site (client switch). Then compare
-  "You stopped → agent spoke" with and without `?py=1` on the same agent.
-- Later in step 1/4: the page-load side effects `closeIdlePlaygroundCalls`
-  (console layout) and `ensureBankAgent` (Playground page) move into view
-  endpoints; while both backends run, the TypeScript `publish()` should also post
-  its events to Python so the live board sees calls from either side.
+| Through the site | Python (`backend/app/routers/`) | Port of |
+|---|---|---|
+| `POST /api/core/playground/call` | `playground.py` | `src/app/api/playground/call/route.ts` |
+| `POST /api/core/playground/turn` (`?prefetch=1`) | `playground.py` | `…/playground/turn/route.ts` |
+| `POST /api/core/playground/end` | `playground.py` | `…/playground/end/route.ts` |
+| `POST /api/core/speech/live` | `live.py` (Zipformer in a thread) | `src/app/api/speech/live/route.ts` |
+| `GET /api/core/stream` | `live.py` (SSE from `app.engine.bus`) | `src/app/api/stream/route.ts` |
+
+- Same request fields, status codes (`bad_request`, `bad_audio`, `ended`, `no_agent`,
+  `busy_call`; live: `bad_session`, `piece_too_large`, `bad_op`,
+  `zipformer_not_available`, `zipformer_failed`) and NDJSON events as the TypeScript.
+- Page: `callApi()` / `pythonBackend()` in `src/app/app/playground/playground.tsx`.
+  The hang-up (`keepalive` fetch and the `pagehide` beacon) now sends an
+  `application/json` Blob on **both** backends — it was a text/plain string, which the
+  edge proxy refuses, so closing the tab mid-call may not have ended the call before.
+- Tests: `backend/tests/test_playground_routes.py` (TestClient, scripted TTS/STT,
+  local engine): event order per route, refusals, the prefetched transcript reused,
+  STT failure, legacy mode, billing once, live ops, SSE heartbeat/events/ping.
+- New Python dependency: `python-multipart`.
+- **Deploy** (user): `git pull`, `backend/.venv/bin/pip install -e "backend[zipformer]"`,
+  restart `callmind-api.service`, build + restart the site. Then on the same agent compare
+  "You stopped → agent spoke" with and without `?py=1`, and hang up to check the call
+  is billed once (Calls page).
+- **Not moved yet**: the wallboard/inbox still use the Next.js `/api/stream`. Python's
+  bus only sees calls Python handled, so until the TypeScript `publish()` also posts
+  its events to Python (or everything is in Python), don't switch the wallboard.
+  Page-load side effects `closeIdlePlaygroundCalls` (console layout) and
+  `ensureBankAgent` (Playground page) still run in Next.js — fine, same database.
+- **Local PC**: Python's HTTPS (httpx, certifi) does not trust the office CA either.
+  Point it at a bundle that includes the Windows store: build it once with
+  `python -c "import ssl,certifi;open('ca.pem','w').write(open(certifi.where()).read()+''.join(ssl.DER_cert_to_PEM_cert(c) for s in ('ROOT','CA') for c,e,t in ssl.enum_certificates(s) if e=='x509_asn'))"`
+  and start uvicorn with `SSL_CERT_FILE=<path>\ca.pem`. Without it Claude/Gemini fail
+  and the Python side answers with the local engine.
 
 ## 5. How ported code is proven identical
 
@@ -177,13 +178,34 @@ reachable through the BRB GlobalProtect VPN). Commit `d3fb787`.
   network admins: **allow 10.10.50.4 → 172.22.202.1:443**, plus one line in the
   server's `/etc/hosts`: `172.22.202.1  tts-stt-proxy-test.brb.uz`. Until then, do
   not deploy `d3fb787` expecting BRB to work there (the option would show and fail).
-- **STT** from the same proxy is planned; add it like the TTS (a client in
-  `brb.ts`/`brb.py`, an engine in `stt.ts`/`stt.py`, the pickers, parity scenarios).
+### BRB Whisper STT (commit `8b424c2`)
+
+Our own speech-to-text: Whisper on a Triton server, `stt-service.brb.uz:443`, model
+`stt`, KServe v2 **gRPC** (TLS). Engine id `brb` ("BRB Whisper" in the pickers).
+
+- Code: `src/lib/speech/brb-stt.ts` (Node `http2`, hand-written protobuf for
+  `ModelMetadata`/`ModelInfer`) and `backend/app/speech/brb_stt.py` (`grpcio`, raw
+  bytes). It asks the model's metadata once, then fills each input by its datatype
+  (FP32 waveform, INT32/INT64 length, BYTES language/prompt/WAV, UINT8 WAV).
+  Timeouts 5 s connect / 20 s answer. Errors: `brb_stt_unreachable` (gRPC 14),
+  `brb_stt_timeout` (4), `brb_stt_grpc_<code>: <detail>`.
+- Parity: `make-golden-brb-stt.cjs` → `golden_brb_stt.json`, replayed against a
+  fake Triton by `test_brb_stt_parity.py`.
+- `.env`: `BRB_STT_URL` (e.g. `stt-service.brb.uz:443`), `BRB_STT_MODEL` (default `stt`).
+- **Status: built, not yet tried against the real host** — from the dev PC the
+  connection is reset (VPN/route). Needs the same kind of network route on the server.
 
 ## 7. Running it locally (Windows)
 
 Prerequisites: Git, Node.js 22 LTS (≥ 22.5), and for the backend Python 3.12.
 GlobalProtect connected if you want the BRB model.
+
+**Corporate HTTPS inspection**: the office network re-signs TLS with its own CA
+("Organization Certificate Authority"). Node does not trust it by default, so every
+outside call (Claude, Gemini, ElevenLabs/Speko, BRB) fails with
+`UNABLE_TO_VERIFY_LEAF_SIGNATURE` and the Playground silently falls back to the
+browser voice / local answers. Fix once per PC: `setx NODE_USE_SYSTEM_CA 1` (new
+terminals pick it up), or start the dev server with `NODE_USE_SYSTEM_CA=1`.
 
 ```bash
 git clone -b develop https://gitlab.brb-tech.uz/Q.Raximov/callmind.git
@@ -202,7 +224,8 @@ npm ci
 
 The deploy benchmark does not run in `npm run dev` (it would spend the BRB limit).
 
-Python backend (optional locally; the site does not need it until step 1c):
+Python backend (needed locally for `?py=1` in the Playground; `.claude/launch.json`
+has `site` and `api` entries that start both):
 
 ```bash
 cd backend
@@ -219,7 +242,7 @@ database; `CALLMIND_DOTENV=0`). With the API running locally, the site's
 `/api/core/*` reaches it through the same rewrite (`CORE_API_URL`, default
 `http://127.0.0.1:8100`).
 
-## 8. Commits of 12 Nov 2026 (all on `develop`, pushed)
+## 8. Recent commits (all on `develop`, pushed)
 
 | Commit | What | In production |
 |---|---|---|
@@ -227,14 +250,17 @@ database; `CALLMIND_DOTENV=0`). With the API running locally, the site's
 | `9a8d024` | FastAPI foundation behind `/api/core` | yes (`callmind-api.service`) |
 | `92d6bae`, `4ab9069`, `51f403e` | Python ports (search, text, LLM, speech, turn engine) | code only, no endpoint uses it |
 | `d3fb787` | BRB TTS engine (site + backend) | **no** — waits for the network route |
+| `1238fa6` | This handoff doc, `CLAUDE.md`, the golden generators | docs only |
+| `8b424c2` (13 Nov) | Claude Haiku (`claude-haiku-5-5`) is the default LLM (agent model → account default → server default); spoken payment dates worked out in code (`namedDay` / `named_day` in `loan-call`, the model only gets the result); 24 kHz audio in Playground voice calls; a toast when BRB fails and the browser voice takes over; BRB Whisper STT. New Python deps: `grpcio`, `tzdata` (Windows) | **no** — needs `pip install` + build + restarts |
 
 ## 9. Open items
 
-1. **Step 1c** (section 4).
-2. Ask the network admins for the route to the BRB proxy (section 6), then deploy
-   `d3fb787` and run one render on the live site.
-3. BRB STT, when the proxy has it. Ask what the limit is (per minute / day /
-   characters) and whether there will be a production URL (today's is `-test`).
+1. **Deploy and check step 1c** on the live site (section 4), then step 2.
+2. Ask the network admins for the routes to the BRB proxy and to
+   `stt-service.brb.uz:443` (section 6), then deploy and run one TTS render and one
+   BRB Whisper transcription on the live site.
+3. Try BRB Whisper against the real host. Ask BRB what the TTS limit is (per minute /
+   day / characters) and whether there will be a production URL (today's is `-test`).
 4. `npm run seed` says "start the app once" but the app only creates the database
    on its first query; make the seed script create it itself.
 5. Not confirmed yet: `https://callmind.brb-tech.uz/api/core/me` shows the

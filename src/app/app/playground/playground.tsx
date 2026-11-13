@@ -137,6 +137,25 @@ function legacyVoice(): boolean {
   return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('legacy') === '1';
 }
 
+/**
+ * `?py=1` on the Playground's address serves the voice call from the Python
+ * backend (`/api/core/*`, FastAPI) instead of this app's own routes — the same
+ * call, to compare both on the same agent while the server code moves.
+ */
+function pythonBackend(): boolean {
+  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('py') === '1';
+}
+
+/** A voice-call endpoint (`/playground/call`, `/speech/live`…) on the backend this page talks to. */
+function callApi(path: string): string {
+  return pythonBackend() ? `/api/core${path}` : `/api${path}`;
+}
+
+/** The hang-up body: JSON in a Blob, so `keepalive` and beacons say `application/json` (the edge refuses text/plain). */
+function hangUpBody(callId: string): Blob {
+  return new Blob([JSON.stringify({ callId })], { type: 'application/json' });
+}
+
 interface Msg {
   id: string;
   role: 'caller' | 'agent';
@@ -344,7 +363,7 @@ export function Playground({
   // caller would otherwise still be transcribed, and those words would be sent
   // with the next phrase.
   const live = useLiveTranscript({
-    url: speech.streamUrl,
+    url: speech.streamUrl && pythonBackend() ? callApi('/speech/live') : speech.streamUrl,
     active: sttEngine === 'local' && speech.stt.local && isSessionActive && !muted,
   });
   // The agent's own voice is not the caller's words; drop it between turns.
@@ -882,7 +901,7 @@ export function Playground({
   callPrefetchRef.current = ({ wav, durationSec, rms }) => {
     if (streamingStt()) return; // nothing to prefetch: the transcript is already live
     if (callPhaseRef.current !== 'live' || !callIdRef.current || durationSec < 0.3 || rms < 0.0015 || wav.size <= 44) return;
-    void fetch('/api/playground/turn?prefetch=1', { method: 'POST', body: callForm(wav) }).catch(() => {});
+    void fetch(callApi('/playground/turn?prefetch=1'), { method: 'POST', body: callForm(wav) }).catch(() => {});
   };
 
   callUtteranceRef.current = async ({ wav, durationSec, rms }, timing) => {
@@ -911,7 +930,7 @@ export function Playground({
     // A 409 means the previous turn is still being written down — a moment's wait.
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        res = await fetch('/api/playground/turn', {
+        res = await fetch(callApi('/playground/turn'), {
           method: 'POST',
           body: callForm(wav, streamedText),
           signal: controller.signal,
@@ -960,7 +979,7 @@ export function Playground({
     const seq = ++callSeqRef.current;
     const controller = new AbortController();
     callAbortRef.current = controller;
-    const call = fetch('/api/playground/call', {
+    const call = fetch(callApi('/playground/call'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1000,9 +1019,7 @@ export function Playground({
     const id = callIdRef.current;
     callIdRef.current = null;
     if (id) {
-      void fetch('/api/playground/end', { method: 'POST', body: JSON.stringify({ callId: id }), keepalive: true }).catch(
-        () => {},
-      );
+      void fetch(callApi('/playground/end'), { method: 'POST', body: hangUpBody(id), keepalive: true }).catch(() => {});
     }
     outRef.current?.tone('hangup');
     setCallPhase('idle');
@@ -1023,7 +1040,7 @@ export function Playground({
     const onHide = () => {
       const id = callIdRef.current;
       if (id && callPhaseRef.current !== 'idle') {
-        navigator.sendBeacon?.('/api/playground/end', JSON.stringify({ callId: id }));
+        navigator.sendBeacon?.(callApi('/playground/end'), hangUpBody(id));
       }
     };
     window.addEventListener('pagehide', onHide);

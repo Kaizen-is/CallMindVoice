@@ -46,7 +46,7 @@ Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:81
 | `app/speech/` | STT (Kotib, Whisper, GAPI, Zipformer, Speko gemini-3.5 / Scribe, Gemini), TTS (own server, ElevenLabs via Speko) with the shared disk cache, number words, spoken-form text |
 | `app/engine/` | The turn (`run_turn`), call start / end / billing, the live event bus |
 | `app/playground.py`, `app/playground_voice.py` | The Playground call: opening line, fillers, voicing a reply while it is written |
-| `app/routers/` | One router per area (`system.py` today) |
+| `app/routers/` | One router per area: `system.py`, `playground.py` (the Playground call), `live.py` (live Zipformer words, SSE feed) |
 | `alembic/` | Schema migrations from now on (baseline `0001_baseline` = today's schema) |
 | `tests/` | pytest; `fixtures/schema.sql` is the database structure without data; `fixtures/golden_*.json` are outputs of the original TypeScript the Python must reproduce exactly |
 | `deploy/callmind-api.service` | systemd unit |
@@ -59,6 +59,11 @@ Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:81
 | `/api/core/readyz` | `GET /readyz` | database, schema and session secret OK |
 | `/api/core/me` | `GET /me` | logged-in user and company |
 | `/api/core/diagnostics/ndjson`, `/sse` | `GET /diagnostics/…` | streaming checks (login required) |
+| `/api/core/playground/call` | `POST /playground/call` | Playground call picked up: NDJSON `call`, opening line, its voice |
+| `/api/core/playground/turn` | `POST /playground/turn` | one spoken turn (multipart; `?prefetch=1` → 202) |
+| `/api/core/playground/end` | `POST /playground/end` | hang up, bill once → 204 |
+| `/api/core/speech/live` | `POST /speech/live` | live Zipformer words (multipart `sid`, `op`, `audio`) |
+| `/api/core/stream` | `GET /stream` | SSE feed of this process's bus events |
 
 ## Deploy (on the server)
 
