@@ -9,6 +9,7 @@ import { INDUSTRIES } from '@/lib/catalog';
 import { translator } from '@/lib/i18n';
 import type { UiLocale } from '@/lib/types';
 import { IconAlert, IconCheck, IconEye, IconEyeOff, IconLock } from '@/components/icons';
+import { useHydrated } from '@/hooks/use-hydrated';
 
 const initial: FormState = {};
 
@@ -17,6 +18,8 @@ export function SignupForm({ locale = 'uz' }: { locale?: UiLocale }) {
   const [state, action, pending] = useActionState(signUpAction, initial);
   const [show, setShow] = useState(false);
   const [password, setPassword] = useState('');
+  // Sent before the scripts run, the form is refused by the edge proxy (see useHydrated).
+  const ready = useHydrated();
 
   const benefits = [
     t('auth.signup.benefit1'),
@@ -136,7 +139,7 @@ export function SignupForm({ locale = 'uz' }: { locale?: UiLocale }) {
             </div>
           )}
 
-          <Button type="submit" variant="primary" size="lg" full loading={pending}>
+          <Button type="submit" variant="primary" size="lg" full loading={pending} disabled={!ready}>
             {t('auth.signup.submit')}
           </Button>
 

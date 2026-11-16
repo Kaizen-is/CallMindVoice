@@ -14,7 +14,10 @@ Rules:
   `callmind.service` runs, except as build-and-restart in one command; restarts are the
   user's. Check builds in a separate copy.
 - The edge proxy rejects `POST` with `Content-Type: text/plain`: browser calls send JSON
-  or multipart (hang-up beacons: an `application/json` Blob).
+  or multipart (hang-up beacons: an `application/json` Blob). It also rejects multipart
+  fields whose name contains `:` (React's no-JS `$ACTION_n:m` fields); see
+  `src/instrumentation-client.ts`. Visitors from the office network skip this filter, so
+  test from outside (or through the public address from the server).
 - Python ports must behave exactly like the TypeScript: golden fixtures from
   `backend/tools/golden/`, parity tests in `backend/tests/`, JS/Python differences in
   `backend/app/jscompat.py`. Schema changes only as Alembic migrations in `backend/alembic/`.

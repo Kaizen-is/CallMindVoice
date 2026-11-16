@@ -16,7 +16,8 @@ export function AuthShell({
       <div className="pointer-events-none absolute inset-0 grid-bg" />
       <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[900px] -translate-x-1/2 aurora opacity-60" />
 
-      <header className="relative z-10 flex items-center justify-between px-5 py-5">
+      {/* Above <main> (z-10), or the open language menu sits under the form and taps miss it. */}
+      <header className="relative z-20 flex items-center justify-between px-5 py-5">
         <Link href="/">
           <Wordmark />
         </Link>
