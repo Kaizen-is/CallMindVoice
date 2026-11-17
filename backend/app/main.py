@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.auth import ApiKeyError
 from app.config import get_settings
-from app.routers import live, playground, system
+from app.routers import live, playground, speech, system
 
 
 def create_app() -> FastAPI:
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(system.router)
     app.include_router(playground.router)
     app.include_router(live.router)
+    app.include_router(speech.router)
     return app
 
 

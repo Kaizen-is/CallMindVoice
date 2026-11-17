@@ -46,6 +46,20 @@ const serverActionOrigins = (process.env.SERVER_ACTIONS_ALLOWED_ORIGINS ?? '')
  */
 const coreApiUrl = (process.env.CORE_API_URL ?? 'http://127.0.0.1:8100').replace(/\/+$/, '');
 
+/**
+ * Routes the Python backend serves at their original paths: their TypeScript
+ * route files are gone, and the pages keep calling the same URLs. Each entry
+ * forwards `/api/<path>` to the backend's `/<path>`.
+ */
+const pythonRoutes = [
+  // Phase 1 — the Playground voice call and the console's speech routes.
+  '/api/playground/:path*',
+  '/api/speech/live',
+  '/api/speech/tts',
+  '/api/speech/stt',
+  '/api/models/stt',
+];
+
 const nextConfig: NextConfig = {
   // sherpa-onnx-node is a native addon (Zipformer STT): loaded at runtime, never bundled.
   serverExternalPackages: ['mammoth', 'unpdf', 'sherpa-onnx-node'],
@@ -53,7 +67,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return {
       // Before the app's own routes, so /api/core/* is always the Python backend.
-      beforeFiles: [{ source: '/api/core/:path*', destination: `${coreApiUrl}/:path*` }],
+      beforeFiles: [
+        { source: '/api/core/:path*', destination: `${coreApiUrl}/:path*` },
+        ...pythonRoutes.map((source) => ({ source, destination: `${coreApiUrl}${source.slice('/api'.length)}` })),
+      ],
       afterFiles: [],
       fallback: [],
     };
