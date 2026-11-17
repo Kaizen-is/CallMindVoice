@@ -22,7 +22,7 @@ everything (calls, transcripts, analytics, billing).
 |---|---|---|
 | Web app (UI **and** today's backend) | `src/` — Next.js 16 (App Router, server actions) | **Not the Next.js you know**: read `node_modules/next/dist/docs/` before writing Next code (`AGENTS.md`). |
 | Python backend (being moved in) | `backend/` — FastAPI | Takes over the server code step by step (section 4). |
-| Phone bridge | `telephony-bridge/` | Asterisk/SIP side; calls `/api/telephony/bridge/*`. |
+| Phone bridge | `telephony-bridge/` | Asterisk/SIP side; calls `/api/telephony/bridge/*`. The only phone path: the unused Twilio webhook was removed on 17 Nov. |
 | Database | `data/ovoz.db` (SQLite, WAL) | Shared by both apps. Schema changes: Alembic in `backend/alembic/` only. |
 | Disk TTS cache | `data/tts-cache/<sha1>.pcm` | Shared by both apps (same keys). |
 | Uzbek STT model | `models/uzbek-zipformer/` | In git (~70 MB int8 ONNX). |
@@ -87,8 +87,8 @@ then the next.
 | 0 | FastAPI skeleton, shared login (`ovoz_session` cookie, same HMAC), shared SQLite, Alembic baseline, `/api/core` rewrite, systemd unit, CI job | **Live** (commit `9a8d024`) |
 | 1a | Knowledge search, Uzbek numbers, spoken-form text, intents, local answers, loan identity check + calendar | Done (`92d6bae`, `4ab9069`) — no endpoint yet |
 | 1b | STT/TTS engines + disk cache, LLM providers (streaming, Haiku fallback), `run_turn`, calls/billing, bus, Playground voice logic | Done (`51f403e`) — no endpoint yet |
-| 1c | Playground voice call served by Python behind `?py=1` | Done — **not deployed yet** (see below) |
-| **2** | **Phone bridge + Twilio routes in FastAPI (same paths, `x-bridge-secret`); switch by pointing the bridge's `NEXT_BASE_URL`** | **Next**, once 1c is checked on the live site |
+| 1c | Playground voice call served by Python behind `?py=1` | **Live** since 13 Nov (`779f979`) — **waiting for a manual test** (see below) |
+| **2** | **Phone bridge routes in FastAPI (`/api/telephony/bridge/{turn,filler,end}`, same paths, `x-bridge-secret`); switch by pointing the bridge's `NEXT_BASE_URL`** | **Next**, once 1c is checked on the live site |
 | 3 | Public demo + logistics (`/api/demo/*`, `/api/logistics/*`, per-IP limits) | |
 | 4 | Console areas one by one: each page gets one `GET /api/core/views/<page>` and its server actions become `fetch` calls (agents, knowledge + ingest, calls/inbox/escalations, analytics, team/settings, billing, developers + `/api/v1/*`, models/labs/benchmark) | |
 | 5 | Login moves; delete the TypeScript backend (`src/lib/{db,auth,engine,llm,rag,speech,…}`, `src/app/api/*`, `src/app/actions/*`) | |
@@ -255,7 +255,7 @@ database; `CALLMIND_DOTENV=0`). With the API running locally, the site's
 
 ## 9. Open items
 
-1. **Deploy and check step 1c** on the live site (section 4), then step 2.
+1. **Test step 1c** on the live site (`/app/playground?py=1`, section 4), then step 2.
 2. Ask the network admins for the routes to the BRB proxy and to
    `stt-service.brb.uz:443` (section 6), then deploy and run one TTS render and one
    BRB Whisper transcription on the live site.

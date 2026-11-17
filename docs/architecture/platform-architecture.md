@@ -84,7 +84,6 @@ One foundation, four product areas, listed in the order they have to become real
 | Public API | `POST /api/v1/answer`, `GET /api/v1/calls`, `POST /api/v1/documents`; keys `ovoz_sk_…`, SHA-256 hash, scopes `read`/`write` | No rate limits, expiry or quotas |
 | Webhooks | HMAC-signed, fire-and-forget, no retries | Secret stored in plaintext |
 | Phone | `telephony-bridge/bridge.mjs`: Asterisk **AudioSocket** over TCP, slin 8 kHz, 20 ms frames, energy VAD (350 ms), barge-in, fillers | **No SIP transfer** (plays the line and hangs up); DTMF ignored; one static number per bridge |
-| Phone (secondary) | Twilio `<Gather>/<Say>` | Twilio's own STT/TTS voice; media streams not implemented |
 | STT | Kotib (own, batch), Whisper (batch), GAPI (batch), **Zipformer** (in-process sherpa-onnx, streaming via 250 ms HTTP polls), gemini-3.5 and ElevenLabs Scribe (via Speko, batch), Gemini Flash-Lite (batch) | Metadata in a static TS list (`src/lib/speech/registry.ts`) |
 | TTS | Own TTS server (`generate_v2/stream`, HTTP chunked, 8 kHz), ElevenLabs v3 and v4 Turbo (via Speko, HTTP chunked) | Disk cache for fixed lines |
 | LLM | OpenAI (streams), Ollama (streams only with `onDelta`), **Gemini and Claude not streamed**, local extractive fallback (`synthesizeLocal`) | **No tool calling in any provider**; no fallback to a second hosted model |
@@ -130,7 +129,7 @@ One foundation, four product areas, listed in the order they have to become real
 | S10 | Call audio never recorded (`calls.recording_url` never written); retention only on `model_usage` | `db.ts:177`, `usage-log.ts:49` | Medium (banks need recordings) |
 | S11 | STT and LLM usage rows lack `tenant_id`; billing is a fixed rate card; the wallet can go negative | `stt.ts:181`, `provider.ts:488-499`, `calls.ts:139,249` | Medium |
 | S12 | Admins can assign any role, including `owner`; any role can create voice clones (no consent record) | `ops.ts:283-314`, `actions/voices.ts:88-139` | Medium |
-| S13 | Twilio signature checked without the query string while follow-up URLs carry `?callId=` (inferred from code) | `twilio/voice/route.ts:29-31,68,92` | Low |
+| S13 | ~~Twilio signature checked without the query string~~ — moot: the Twilio route was removed on 17 Nov 2026 | — | — |
 
 ### B.4 Reuse as-is
 - RAG and ingestion; knowledge gaps.
@@ -385,7 +384,7 @@ sequenceDiagram
   - Escalation and handoff decisions.
   - Persistence of turns, workflow state and audit.
 - **Separate module, same deployment** as the control plane. It shares the DB and code, and an extra service would add a hop for nothing. It can be split later if load or isolation demands it.
-- **Interfaces:** `/internal/v1/calls`, `/turns` (NDJSON stream), `/events`, `/end` (E.10). Every route that runs a turn today (demo, playground, logistics, bridge, Twilio) becomes a client of the same brain API, so one escalation semantic replaces five.
+- **Interfaces:** `/internal/v1/calls`, `/turns` (NDJSON stream), `/events`, `/end` (E.10). Every route that runs a turn today (demo, playground, logistics, bridge) becomes a client of the same brain API, so one escalation semantic replaces four.
 - **Refactor steps:**
   - Split `runTurn` into ports: `Retriever`, `AnswerGenerator` (streaming), `EscalationPolicy`, `TurnStore` (transactional), `Notifier`.
   - Move the summary out of the turn.
@@ -1073,7 +1072,7 @@ Phase 7                          gate ▲  (build only if it passes)
 - **Acceptance:**
   - Simulator phone p50 −40% vs baseline.
   - WER and intent accuracy unchanged.
-  - Demo, playground, logistics, bridge and Twilio all pass a manual run-through.
+  - Demo, playground, logistics and bridge all pass a manual run-through.
 - **Risks:** the bridge and app must deploy together; version the frame format.
 - **Effort:** ~6 engineer-weeks.
 - **Roles:** TS backend (lead), Python (bridge).

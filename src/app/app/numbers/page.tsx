@@ -24,7 +24,6 @@ export default async function NumbersPage() {
       numbers={numbers}
       telephony={telephonyStatus()}
       canEdit={user.role === 'owner' || user.role === 'admin'}
-      twilioWebhookUrl={`${process.env.TWILIO_WEBHOOK_BASE_URL ?? 'https://your-domain.example'}/api/telephony/twilio/voice`}
       locale={user.locale}
     />
   );
