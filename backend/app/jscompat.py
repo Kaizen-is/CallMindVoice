@@ -244,6 +244,27 @@ def js_truthy(value: object) -> bool:
     return bool(value)
 
 
+_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def _is_array_index(key: str) -> bool:
+    return key.isascii() and key.isdigit() and str(int(key)) == key and int(key) <= 4294967294
+
+
+def js_key_order(obj: dict) -> list[tuple[str, object]]:
+    """
+    An object's keys in JavaScript's order: integer-like keys ("0", "7") first, ascending, then the rest
+    in insertion order. So `{"1": …, "0": …}` built in Python is written `{"0": …, "1": …}`, as
+    JSON.stringify writes it (e.g. an agent's business hours, days "1"…"6" then "0").
+    """
+    items = [(str(k), x) for k, x in obj.items()]
+    indexed = [kv for kv in items if _is_array_index(kv[0])]
+    if not indexed:
+        return items
+    indexed.sort(key=lambda kv: int(kv[0]))
+    return indexed + [kv for kv in items if not _is_array_index(kv[0])]
+
+
 def js_json(value: object) -> str:
     """
     `JSON.stringify(value)`: compact, non-ASCII kept as is, numbers written as JavaScript writes
@@ -255,13 +276,15 @@ def js_json(value: object) -> str:
         if v is None or v is True or v is False:
             return json.dumps(v)
         if isinstance(v, str):
-            return json.dumps(v, ensure_ascii=False)
+            # Half of a surrogate pair (a string cut through an emoji) is written as `\ud83d`, as JSON.stringify does.
+            return _LONE_SURROGATE.sub(lambda m: f"\\u{ord(m.group(0)):04x}", json.dumps(v, ensure_ascii=False))
         if isinstance(v, (int, float)):
             if isinstance(v, float) and not math.isfinite(v):
                 return "null"
             return js_number_str(v)
         if isinstance(v, dict):
-            return "{" + ",".join(f"{json.dumps(str(k), ensure_ascii=False)}:{enc(x)}" for k, x in v.items()) + "}"
+            items = js_key_order(v)
+            return "{" + ",".join(f"{json.dumps(k, ensure_ascii=False)}:{enc(x)}" for k, x in items) + "}"
         if isinstance(v, (list, tuple)):
             return "[" + ",".join(enc(x) for x in v) + "]"
         raise TypeError(f"not JSON serialisable: {type(v).__name__}")
