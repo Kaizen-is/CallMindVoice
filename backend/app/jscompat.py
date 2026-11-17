@@ -138,7 +138,9 @@ def js_log(x: float) -> float:
 
 # ── strings, numbers and truthiness ─────────────────────────────────
 
-_JS_TRIM_CHARS = JS_S
+# JS_S spelled out: as a class body it holds the range U+2000-U+200A, but `str.strip` would read
+# that `-` as a literal hyphen (and skip U+2001-U+2009).
+_JS_TRIM_CHARS = "\t\n\v\f\r   " + "".join(map(chr, range(0x2000, 0x200B))) + "    　﻿"
 
 
 def js_trim(s: str) -> str:
@@ -237,3 +239,44 @@ def js_json(value: object) -> str:
         raise TypeError(f"not JSON serialisable: {type(v).__name__}")
 
     return enc(value)
+
+
+def js_utf8(s: str) -> bytes:
+    """`Buffer.from(s, 'utf8')`: a lone surrogate becomes U+FFFD instead of an encoding error."""
+    return s.encode("utf-16-le", "surrogatepass").decode("utf-16-le", "replace").encode("utf-8")
+
+
+def js_number(s: str) -> float:
+    """
+    `Number(s)` for a string: JavaScript whitespace trimmed, '' is 0, 0x/0o/0b integers,
+    `Infinity`, and otherwise a plain decimal or NaN (no `inf`, `nan` or `1_000` as in `float`).
+    """
+    import re
+
+    t = js_trim(s)
+    if not t:
+        return 0.0
+    radix = re.fullmatch(r"0([xX][0-9a-fA-F]+|[oO][0-7]+|[bB][01]+)", t)
+    if radix:
+        try:
+            return float(int(t[2:], {"x": 16, "o": 8, "b": 2}[t[1].lower()]))
+        except OverflowError:
+            return math.inf
+    if re.fullmatch(r"[+-]?(?:(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|Infinity)", t):
+        return float(t.replace("Infinity", "inf"))
+    return math.nan
+
+
+def js_json_parse(raw: bytes) -> object:
+    """
+    `await request.json()`: the body read as UTF-8 (BOM dropped, bad bytes replaced), then
+    `JSON.parse`, which refuses NaN and Infinity. Raises ValueError where JavaScript throws.
+    """
+    import json
+
+    text = raw.decode("utf-8", errors="replace").removeprefix("﻿")
+
+    def refuse(literal: str) -> object:
+        raise ValueError(f"not JSON: {literal}")
+
+    return json.loads(text, parse_constant=refuse)

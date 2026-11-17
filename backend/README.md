@@ -46,7 +46,7 @@ Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:81
 | `app/speech/` | STT (Kotib, Whisper, GAPI, Zipformer, Speko gemini-3.5 / Scribe, Gemini), TTS (own server, ElevenLabs via Speko) with the shared disk cache, number words, spoken-form text |
 | `app/engine/` | The turn (`run_turn`), call start / end / billing, the live event bus |
 | `app/playground.py`, `app/playground_voice.py` | The Playground call: opening line, fillers, voicing a reply while it is written |
-| `app/routers/` | One router per area: `system.py`, `playground.py` (the Playground call), `live.py` (live Zipformer words, SSE feed) |
+| `app/routers/` | One router per area: `system.py`, `playground.py` (the Playground call), `live.py` (live Zipformer words, SSE feed), `bridge.py` (the Asterisk phone bridge) |
 | `alembic/` | Schema migrations from now on (baseline `0001_baseline` = today's schema) |
 | `tests/` | pytest; `fixtures/schema.sql` is the database structure without data; `fixtures/golden_*.json` are outputs of the original TypeScript the Python must reproduce exactly |
 | `deploy/callmind-api.service` | systemd unit |
@@ -64,6 +64,9 @@ Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:81
 | `/api/core/playground/end` | `POST /playground/end` | hang up, bill once → 204 |
 | `/api/core/speech/live` | `POST /speech/live` | live Zipformer words (multipart `sid`, `op`, `audio`) |
 | `/api/core/stream` | `GET /stream` | SSE feed of this process's bus events |
+| `/api/core/api/telephony/bridge/turn` | `POST /api/telephony/bridge/turn` | phone bridge: one caller utterance → streamed 8 kHz PCM reply (`x-bridge-secret`; same path as the Next.js route, so the bridge can also call this port directly) |
+| `/api/core/api/telephony/bridge/filler` | `GET /api/telephony/bridge/filler` | phone bridge: one holding line as PCM |
+| `/api/core/api/telephony/bridge/end` | `POST /api/telephony/bridge/end` | phone bridge: close and bill the call once |
 
 ## Deploy (on the server)
 

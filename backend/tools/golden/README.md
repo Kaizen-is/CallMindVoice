@@ -14,6 +14,7 @@ same inputs in Python and compare.
 | `make-golden-llm.cjs` | `golden_llm.json` | `generateAnswer` / `summarizeCall` / `resolveLlm` with scripted Gemini, OpenAI, Ollama and Claude replies: request bodies (prompts), Claude params, streamed pieces, answers, usage rows |
 | `make-golden-speech.cjs` | `golden_speech.json` | TTS cache keys and mtime stamps, TTS renders (own server, Speko, BRB), STT engines and choice, Playground segmenting |
 | `make-golden-turn.cjs` | `golden_turn.json` | `runTurn` on a real SQLite file: results, rows written, bus events |
+| `make-golden-bridge.cjs` | `golden_bridge.json` | the phone-bridge routes (`/api/telephony/bridge/*`) on the requests in `scenarios-bridge.json`: responses, calls and turns touched, usage, wallet |
 | `make-golden-auth.cjs` | (values in `test_auth_parity.py`) | session cookie, password hash and API key made the TypeScript way |
 
 How they work: `tsc` compiles the TypeScript to CommonJS in `./out` (gitignored);
@@ -30,6 +31,7 @@ node backend/tools/golden/make-golden-log.cjs backend/tests/fixtures/golden_math
 node backend/tools/golden/make-golden-llm.cjs backend/tests/fixtures/golden_llm.json
 node backend/tools/golden/make-golden-speech.cjs backend/tests/fixtures/golden_speech.json "$TMPDIR/golden-speech"
 node backend/tools/golden/make-golden-turn.cjs backend/tests/fixtures/golden_rag.json backend/tests/fixtures/golden_turn.json "$TMPDIR/golden-turn"
+node backend/tools/golden/make-golden-bridge.cjs backend/tools/golden/scenarios-bridge.json backend/tests/fixtures/golden_bridge.json "$TMPDIR/golden-bridge"
 ```
 
 (On Windows use a folder such as `%TEMP%\golden-speech` for the last argument.)

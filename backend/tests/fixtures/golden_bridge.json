@@ -1,0 +1,2297 @@
+{
+ "results": [
+  {
+   "name": "turn_secret_unset",
+   "status": 503,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"bridge_not_configured\"}",
+   "touched": null
+  },
+  {
+   "name": "turn_secret_empty",
+   "status": 503,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"bridge_not_configured\"}",
+   "touched": null
+  },
+  {
+   "name": "turn_no_header",
+   "status": 401,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"unauthorized\"}",
+   "touched": null
+  },
+  {
+   "name": "turn_wrong_secret",
+   "status": 401,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"unauthorized\"}",
+   "touched": null
+  },
+  {
+   "name": "turn_short_secret",
+   "status": 401,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"unauthorized\"}",
+   "touched": null
+  },
+  {
+   "name": "filler_secret_unset",
+   "status": 503,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"bridge_not_configured\"}",
+   "touched": null
+  },
+  {
+   "name": "filler_wrong_secret",
+   "status": 401,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"unauthorized\"}",
+   "touched": null
+  },
+  {
+   "name": "end_secret_unset",
+   "status": 503,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"bridge_not_configured\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "in_progress",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "end_wrong_secret",
+   "status": 401,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"unauthorized\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "in_progress",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "turn_json_body",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"expected_multipart_form\"}",
+   "touched": null
+  },
+  {
+   "name": "turn_no_content_type",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"expected_multipart_form\"}",
+   "touched": null
+  },
+  {
+   "name": "turn_unknown_number",
+   "status": 404,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"number_not_configured\",\"to\":\"+998700000000\"}",
+   "touched": null
+  },
+  {
+   "name": "turn_no_to",
+   "status": 404,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"number_not_configured\",\"to\":\"\"}",
+   "touched": null
+  },
+  {
+   "name": "turn_inactive_number",
+   "status": 404,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"number_not_configured\",\"to\":\"+998712000003\"}",
+   "touched": null
+  },
+  {
+   "name": "turn_draft_only_tenant",
+   "status": 409,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"agent_unavailable\"}",
+   "touched": null
+  },
+  {
+   "name": "turn_tenant_without_agents",
+   "status": 409,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"agent_unavailable\"}",
+   "touched": null
+  },
+  {
+   "name": "first_leg_greeting",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "minted:call",
+    "x-ovoz-escalate": "",
+    "x-ovoz-text": "QXNzYWxvbXUgYWxheWt1bSEgWHVzaCBrZWxpYnNpei4=",
+    "x-ovoz-engine": "none"
+   },
+   "body": "pcm|t1|greeting|uz|laylo|true|Assalomu alaykum! Xush kelibsiz.",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901234567",
+     "to_e164": "+998712000001",
+     "status": "ringing",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "first_leg_no_callid",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "minted:call",
+    "x-ovoz-escalate": "",
+    "x-ovoz-text": "QXNzYWxvbXUgYWxheWt1bSEgWHVzaCBrZWxpYnNpei4=",
+    "x-ovoz-engine": "none"
+   },
+   "body": "pcm|t1|greeting|uz|laylo|true|Assalomu alaykum! Xush kelibsiz.",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901234567",
+     "to_e164": "+998712000001",
+     "status": "ringing",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "first_leg_wins_over_callid",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "minted:call",
+    "x-ovoz-escalate": "",
+    "x-ovoz-text": "QXNzYWxvbXUgYWxheWt1bSEgWHVzaCBrZWxpYnNpei4=",
+    "x-ovoz-engine": "none"
+   },
+   "body": "pcm|t1|greeting|uz|laylo|true|Assalomu alaykum! Xush kelibsiz.",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "",
+     "to_e164": "+998712000001",
+     "status": "ringing",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "first_leg_ru_fallback_greeting",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "minted:call",
+    "x-ovoz-escalate": "",
+    "x-ovoz-text": "0JfQtNGA0LDQstGB0YLQstGD0LnRgtC1ISDQp9C10Lwg0LzQvtCz0YMg0L/QvtC80L7Rh9GMPw==",
+    "x-ovoz-engine": "none"
+   },
+   "body": "pcm|t2|greeting|ru|olga|true|Здравствуйте! Чем могу помочь?",
+   "touched": {
+    "call": {
+     "tenant_id": "t2",
+     "agent_id": "agt_ru",
+     "number_id": "num_ru",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "anonymous",
+     "to_e164": "+998712000002",
+     "status": "ringing",
+     "outcome": null,
+     "language": "ru",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "first_leg_en_blank_greeting",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "minted:call",
+    "x-ovoz-escalate": "",
+    "x-ovoz-text": "SGVsbG8hIEhvdyBjYW4gSSBoZWxwIHlvdT8=",
+    "x-ovoz-engine": "none"
+   },
+   "body": "pcm|t1|greeting|en|emma|true|Hello! How can I help you?",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_en",
+     "number_id": "num_en",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "",
+     "to_e164": "+998712000009",
+     "status": "ringing",
+     "outcome": null,
+     "language": "en",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "first_leg_cross_tenant_agent",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "minted:call",
+    "x-ovoz-escalate": "",
+    "x-ovoz-text": "0JfQtNGA0LDQstGB0YLQstGD0LnRgtC1ISDQp9C10Lwg0LzQvtCz0YMg0L/QvtC80L7Rh9GMPw==",
+    "x-ovoz-engine": "none"
+   },
+   "body": "pcm|t2|greeting|ru|olga|true|Здравствуйте! Чем могу помочь?",
+   "touched": {
+    "call": {
+     "tenant_id": "t2",
+     "agent_id": "agt_ru",
+     "number_id": "num_cross",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "",
+     "to_e164": "+998712000007",
+     "status": "ringing",
+     "outcome": null,
+     "language": "ru",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "first_leg_urlencoded",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "minted:call",
+    "x-ovoz-escalate": "",
+    "x-ovoz-text": "QXNzYWxvbXUgYWxheWt1bSEgWHVzaCBrZWxpYnNpei4=",
+    "x-ovoz-engine": "none"
+   },
+   "body": "pcm|t1|greeting|uz|laylo|true|Assalomu alaykum! Xush kelibsiz.",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998900000000",
+     "to_e164": "+998712000001",
+     "status": "ringing",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "first_leg_duplicate_fields",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "minted:call",
+    "x-ovoz-escalate": "",
+    "x-ovoz-text": "QXNzYWxvbXUgYWxheWt1bSEgWHVzaCBrZWxpYnNpei4=",
+    "x-ovoz-engine": "none"
+   },
+   "body": "pcm|t1|greeting|uz|laylo|true|Assalomu alaykum! Xush kelibsiz.",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "",
+     "to_e164": "+998712000001",
+     "status": "ringing",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "first_leg_tts_fails",
+   "status": 503,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"tts_unavailable\"}",
+   "touched": null
+  },
+  {
+   "name": "later_missing_audio",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"missing_audio\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "in_progress",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "later_audio_as_text",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"missing_audio\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "in_progress",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "later_empty_audio_file",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"empty_audio\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "in_progress",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "later_silence_reprompt",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "c_quiet",
+    "x-ovoz-escalate": "",
+    "x-ovoz-text": "VXpyLCBlc2hpdG9sbWFkaW0uIElsdGltb3MsIHRha3Jvcmxhbmcu",
+    "x-ovoz-engine": "kotib"
+   },
+   "body": "pcm|t1|reprompt|uz|laylo|true|Uzr, eshitolmadim. Iltimos, takrorlang.",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "in_progress",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "later_silence_reprompt_ru",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "c_other",
+    "x-ovoz-escalate": "",
+    "x-ovoz-text": "0JjQt9Cy0LjQvdC40YLQtSwg0Y8g0L3QtSDRgNCw0YHRgdC70YvRiNCw0LsuINCf0L7QstGC0L7RgNC40YLQtSwg0L/QvtC20LDQu9GD0LnRgdGC0LAu",
+    "x-ovoz-engine": "kotib"
+   },
+   "body": "pcm|t2|reprompt|ru|olga|true|Извините, я не расслышал. Повторите, пожалуйста.",
+   "touched": {
+    "call": {
+     "tenant_id": "t2",
+     "agent_id": "agt_ru",
+     "number_id": "num_ru",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000002",
+     "status": "in_progress",
+     "outcome": null,
+     "language": "ru",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": [
+     {
+      "ordinal": 0,
+      "role": "agent",
+      "text": "Здравствуйте, чем могу помочь сегодня?",
+      "language": "ru",
+      "confidence": null,
+      "has_latency": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "later_stt_fails",
+   "status": 503,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"stt_unreachable\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "in_progress",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "later_stt_crashes",
+   "status": 502,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"socket hang up\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "in_progress",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "bargein_half_mixed_spaces",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "c_talk",
+    "x-ovoz-escalate": "low_confidence",
+    "x-ovoz-text": "S2VjaGlyYXNpeiwgYnUgc2F2b2xnYSBhbmlxIGphdm9iIHRvcGEgb2xtYWRpbS4gTXV0YXhhc3Npc2ltaXpnYSB1bGFiIHFv4oCYeWF5bWk/",
+    "x-ovoz-engine": "kotib-uz"
+   },
+   "body": "stream|t1|reply|uz|laylo|false|0:Kechirasiz,|1:bu|2:savolga|3:aniq|4:javob|5:topa|6:olmadim.|7:Mutaxassisimizga|8:ulab|9:qo‘yaymi?|",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "escalating",
+     "outcome": null,
+     "language": "uz",
+     "intent": "howto",
+     "turns": 1,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 1,
+     "escalation_reason": "low_confidence",
+     "answered": 1,
+     "ended_at": null
+    },
+    "turns": [
+     {
+      "ordinal": 0,
+      "role": "agent",
+      "text": "Assalomu alaykum! Xush kelibsiz.",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 1,
+      "role": "caller",
+      "text": "Salom",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 2,
+      "role": "agent",
+      "text": "Klinikamiz dushanbadan jumagacha soat…",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 3,
+      "role": "caller",
+      "text": "Ish vaqtingiz qanday?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 4,
+      "role": "agent",
+      "text": "Kechirasiz, bu savolga aniq javob topa olmadim. Mutaxassisimizga ulab qo‘yaymi?",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 5,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "bargein_tiny_ratio",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "c_talk",
+    "x-ovoz-escalate": "low_confidence",
+    "x-ovoz-text": "QWZzdXNraSwgbWVuZGEgYnUgYm/Ku3lpY2hhIGFuaXEgbWHKvGx1bW90IHlv4oCYcS4gT3BlcmF0b3JnYSB1bGF5bWFuLg==",
+    "x-ovoz-engine": "kotib-uz"
+   },
+   "body": "stream|t1|reply|uz|laylo|false|0:Afsuski,|1:menda|2:bu|3:boʻyicha|4:aniq|5:maʼlumot|6:yo‘q.|7:Operatorga|8:ulayman.|",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "escalating",
+     "outcome": null,
+     "language": "uz",
+     "intent": "howto",
+     "turns": 2,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 1,
+     "escalation_reason": "low_confidence",
+     "answered": 1,
+     "ended_at": null
+    },
+    "turns": [
+     {
+      "ordinal": 0,
+      "role": "agent",
+      "text": "Assalomu alaykum! Xush kelibsiz.",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 1,
+      "role": "caller",
+      "text": "Salom",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 2,
+      "role": "agent",
+      "text": "Klinikamiz dushanbadan jumagacha soat…",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 3,
+      "role": "caller",
+      "text": "Ish vaqtingiz qanday?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 4,
+      "role": "agent",
+      "text": "Kechirasiz,…",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 5,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 6,
+      "role": "caller",
+      "text": "Dam olish kunlari-chi?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 7,
+      "role": "agent",
+      "text": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 8,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "bargein_ratio_not_a_number",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "c_talk",
+    "x-ovoz-escalate": "",
+    "x-ovoz-text": "U2l6Z2EgcmFobWF0ISBZYW5hIHNhdm9sbGFyaW5naXogYm/igJhsc2EsIHFv4oCYbmfigJhpcm9xIHFpbGluZy4gWGF5ciE=",
+    "x-ovoz-engine": "kotib-uz"
+   },
+   "body": "stream|t1|reply|uz|laylo|false|0:Sizga|1:rahmat!|2:Yana|3:savollaringiz|4:bo‘lsa,|5:qo‘ng‘iroq|6:qiling.|7:Xayr!|",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "escalating",
+     "outcome": null,
+     "language": "uz",
+     "intent": "howto",
+     "turns": 3,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 1,
+     "escalation_reason": "low_confidence",
+     "answered": 1,
+     "ended_at": null
+    },
+    "turns": [
+     {
+      "ordinal": 0,
+      "role": "agent",
+      "text": "Assalomu alaykum! Xush kelibsiz.",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 1,
+      "role": "caller",
+      "text": "Salom",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 2,
+      "role": "agent",
+      "text": "Klinikamiz dushanbadan jumagacha soat…",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 3,
+      "role": "caller",
+      "text": "Ish vaqtingiz qanday?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 4,
+      "role": "agent",
+      "text": "Kechirasiz,…",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 5,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 6,
+      "role": "caller",
+      "text": "Dam olish kunlari-chi?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 7,
+      "role": "agent",
+      "text": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 8,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 9,
+      "role": "caller",
+      "text": "Rahmat",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 10,
+      "role": "agent",
+      "text": "Sizga rahmat! Yana savollaringiz bo‘lsa, qo‘ng‘iroq qiling. Xayr!",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     }
+    ]
+   }
+  },
+  {
+   "name": "bargein_ratio_one",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "c_talk",
+    "x-ovoz-escalate": "low_confidence",
+    "x-ovoz-text": "S2VjaGlyYXNpeiwgYnUgc2F2b2xnYSBhbmlxIGphdm9iIHRvcGEgb2xtYWRpbS4gTXV0YXhhc3Npc2ltaXpnYSB1bGFiIHFv4oCYeWF5bWk/",
+    "x-ovoz-engine": "kotib-uz"
+   },
+   "body": "stream|t1|reply|uz|laylo|false|0:Kechirasiz,|1:bu|2:savolga|3:aniq|4:javob|5:topa|6:olmadim.|7:Mutaxassisimizga|8:ulab|9:qo‘yaymi?|",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "escalating",
+     "outcome": null,
+     "language": "uz",
+     "intent": "howto",
+     "turns": 4,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 1,
+     "escalation_reason": "low_confidence",
+     "answered": 1,
+     "ended_at": null
+    },
+    "turns": [
+     {
+      "ordinal": 0,
+      "role": "agent",
+      "text": "Assalomu alaykum! Xush kelibsiz.",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 1,
+      "role": "caller",
+      "text": "Salom",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 2,
+      "role": "agent",
+      "text": "Klinikamiz dushanbadan jumagacha soat…",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 3,
+      "role": "caller",
+      "text": "Ish vaqtingiz qanday?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 4,
+      "role": "agent",
+      "text": "Kechirasiz,…",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 5,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 6,
+      "role": "caller",
+      "text": "Dam olish kunlari-chi?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 7,
+      "role": "agent",
+      "text": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 8,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 9,
+      "role": "caller",
+      "text": "Rahmat",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 10,
+      "role": "agent",
+      "text": "Sizga rahmat! Yana savollaringiz bo‘lsa, qo‘ng‘iroq qiling. Xayr!",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 11,
+      "role": "caller",
+      "text": "Yana bitta savol",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 12,
+      "role": "agent",
+      "text": "Kechirasiz, bu savolga aniq javob topa olmadim. Mutaxassisimizga ulab qo‘yaymi?",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 13,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "bargein_ratio_dot",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "c_talk",
+    "x-ovoz-escalate": "low_confidence",
+    "x-ovoz-text": "QWZzdXNraSwgbWVuZGEgYnUgYm/Ku3lpY2hhIGFuaXEgbWHKvGx1bW90IHlv4oCYcS4gT3BlcmF0b3JnYSB1bGF5bWFuLg==",
+    "x-ovoz-engine": "kotib-uz"
+   },
+   "body": "stream|t1|reply|uz|laylo|false|0:Afsuski,|1:menda|2:bu|3:boʻyicha|4:aniq|5:maʼlumot|6:yo‘q.|7:Operatorga|8:ulayman.|",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "escalating",
+     "outcome": null,
+     "language": "uz",
+     "intent": "howto",
+     "turns": 5,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 1,
+     "escalation_reason": "low_confidence",
+     "answered": 1,
+     "ended_at": null
+    },
+    "turns": [
+     {
+      "ordinal": 0,
+      "role": "agent",
+      "text": "Assalomu alaykum! Xush kelibsiz.",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 1,
+      "role": "caller",
+      "text": "Salom",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 2,
+      "role": "agent",
+      "text": "Klinikamiz dushanbadan jumagacha soat…",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 3,
+      "role": "caller",
+      "text": "Ish vaqtingiz qanday?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 4,
+      "role": "agent",
+      "text": "Kechirasiz,…",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 5,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 6,
+      "role": "caller",
+      "text": "Dam olish kunlari-chi?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 7,
+      "role": "agent",
+      "text": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 8,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 9,
+      "role": "caller",
+      "text": "Rahmat",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 10,
+      "role": "agent",
+      "text": "Sizga rahmat! Yana savollaringiz bo‘lsa, qo‘ng‘iroq qiling. Xayr!",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 11,
+      "role": "caller",
+      "text": "Yana bitta savol",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 12,
+      "role": "agent",
+      "text": "Kechirasiz, bu savolga aniq javob topa olmadim.…",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 13,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 14,
+      "role": "caller",
+      "text": "Narxlar qancha?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 15,
+      "role": "agent",
+      "text": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 16,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "bargein_other_tenant_call",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"missing_audio\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t2",
+     "agent_id": "agt_ru",
+     "number_id": "num_ru",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000002",
+     "status": "in_progress",
+     "outcome": null,
+     "language": "ru",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": [
+     {
+      "ordinal": 0,
+      "role": "agent",
+      "text": "Здравствуйте, чем могу помочь сегодня?",
+      "language": "ru",
+      "confidence": null,
+      "has_latency": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "later_escalation",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "c_human",
+    "x-ovoz-escalate": "explicit_request",
+    "x-ovoz-text": "QWxiYXR0YSwgaG96aXIgb3BlcmF0b3JnYSB1bGF5bWFuLiBCaXIgZGFxaXFhIGt1dGliIHR1cmluZy4=",
+    "x-ovoz-engine": "kotib-uz"
+   },
+   "body": "stream|t1|reply|uz|laylo|false|0:Albatta,|1:hozir|2:operatorga|3:ulayman.|4:Bir|5:daqiqa|6:kutib|7:turing.|",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "escalating",
+     "outcome": null,
+     "language": "uz",
+     "intent": "human",
+     "turns": 1,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 1,
+     "escalation_reason": "explicit_request",
+     "answered": 1,
+     "ended_at": null
+    },
+    "turns": [
+     {
+      "ordinal": 0,
+      "role": "caller",
+      "text": "Operator bilan gaplashmoqchiman",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 1,
+      "role": "agent",
+      "text": "Albatta, hozir operatorga ulayman. Bir daqiqa kutib turing.",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 2,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "later_stream_cut",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-callid": "c_crack",
+    "x-ovoz-escalate": "low_confidence",
+    "x-ovoz-text": "S2VjaGlyYXNpeiwgYnUgc2F2b2xnYSBhbmlxIGphdm9iIHRvcGEgb2xtYWRpbS4gTXV0YXhhc3Npc2ltaXpnYSB1bGFiIHFv4oCYeWF5bWk/",
+    "x-ovoz-engine": "kotib-uz"
+   },
+   "body": "stream|t1|reply|uz|crack|false|",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_crack",
+     "number_id": "num_crack",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000008",
+     "status": "escalating",
+     "outcome": null,
+     "language": "uz",
+     "intent": "howto",
+     "turns": 1,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 1,
+     "escalation_reason": "low_confidence",
+     "answered": 1,
+     "ended_at": null
+    },
+    "turns": [
+     {
+      "ordinal": 0,
+      "role": "caller",
+      "text": "Ish vaqtingiz qanday?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 1,
+      "role": "agent",
+      "text": "Kechirasiz, bu savolga aniq javob topa olmadim. Mutaxassisimizga ulab qo‘yaymi?",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 2,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "filler_default_index",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t1|filler|uz|laylo|true|Bir daqiqa.",
+   "touched": null
+  },
+  {
+   "name": "filler_index_2",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t1|filler|uz|laylo|true|Shu zahoti qarayman.",
+   "touched": null
+  },
+  {
+   "name": "filler_index_wraps",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t1|filler|uz|laylo|true|Hozir tekshiraman.",
+   "touched": null
+  },
+  {
+   "name": "filler_index_negative",
+   "status": 502,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"filler_failed\"}",
+   "touched": null
+  },
+  {
+   "name": "filler_index_negative_zero",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t1|filler|uz|laylo|true|Bir daqiqa.",
+   "touched": null
+  },
+  {
+   "name": "filler_index_fraction",
+   "status": 502,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"filler_failed\"}",
+   "touched": null
+  },
+  {
+   "name": "filler_index_nan",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t1|filler|uz|laylo|true|Bir daqiqa.",
+   "touched": null
+  },
+  {
+   "name": "filler_index_blank",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t1|filler|uz|laylo|true|Bir daqiqa.",
+   "touched": null
+  },
+  {
+   "name": "filler_index_spaced",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t1|filler|uz|laylo|true|Aniqlab beraman.",
+   "touched": null
+  },
+  {
+   "name": "filler_index_hex",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t1|filler|uz|laylo|true|Aniqlab beraman.",
+   "touched": null
+  },
+  {
+   "name": "filler_index_infinity",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t1|filler|uz|laylo|true|Bir daqiqa.",
+   "touched": null
+  },
+  {
+   "name": "filler_index_huge",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t1|filler|uz|laylo|true|Bir daqiqa.",
+   "touched": null
+  },
+  {
+   "name": "filler_index_duplicate",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t1|filler|uz|laylo|true|Hozir tekshiraman.",
+   "touched": null
+  },
+  {
+   "name": "filler_plus_as_space",
+   "status": 404,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"number_not_configured\",\"to\":\" 998712000001\"}",
+   "touched": null
+  },
+  {
+   "name": "filler_ru",
+   "status": 200,
+   "headers": {
+    "content-type": "audio/L16; rate=8000; channels=1",
+    "cache-control": "no-store",
+    "x-ovoz-count": "4"
+   },
+   "body": "pcm|t2|filler|ru|olga|true|Уточняю.",
+   "touched": null
+  },
+  {
+   "name": "filler_unknown_number",
+   "status": 404,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"number_not_configured\",\"to\":\"+998700000000\"}",
+   "touched": null
+  },
+  {
+   "name": "filler_no_to",
+   "status": 404,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"number_not_configured\",\"to\":\"\"}",
+   "touched": null
+  },
+  {
+   "name": "filler_draft_only",
+   "status": 409,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"agent_unavailable\"}",
+   "touched": null
+  },
+  {
+   "name": "filler_tts_fails",
+   "status": 503,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"filler_failed\"}",
+   "touched": null
+  },
+  {
+   "name": "end_not_json",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"invalid_json\"}",
+   "touched": null
+  },
+  {
+   "name": "end_empty_body",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"invalid_json\"}",
+   "touched": null
+  },
+  {
+   "name": "end_nan_literal",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"invalid_json\"}",
+   "touched": null
+  },
+  {
+   "name": "end_null_body",
+   "status": 500,
+   "threw": "TypeError"
+  },
+  {
+   "name": "end_string_body",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"missing_callId\"}",
+   "touched": null
+  },
+  {
+   "name": "end_array_body",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"missing_callId\"}",
+   "touched": null
+  },
+  {
+   "name": "end_blank_callid",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"missing_callId\"}",
+   "touched": null
+  },
+  {
+   "name": "end_null_callid",
+   "status": 400,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"missing_callId\"}",
+   "touched": null
+  },
+  {
+   "name": "end_numeric_callid",
+   "status": 500,
+   "threw": "TypeError"
+  },
+  {
+   "name": "end_unknown_call",
+   "status": 404,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"error\":\"call_not_found\"}",
+   "touched": null
+  },
+  {
+   "name": "end_with_duration",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"ok\":true,\"callId\":\"c_end1\",\"outcome\":\"resolved_by_ai\",\"durationMs\":95500,\"cost\":0.0509,\"avg\":\"object\",\"p95\":\"object\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "completed",
+     "outcome": "resolved_by_ai",
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 95500,
+     "cost_usd": 0.0509,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": "2026-11-12T05:01:35.500Z"
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "end_again_is_idempotent",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"ok\":true,\"alreadyClosed\":true,\"callId\":\"c_end1\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "completed",
+     "outcome": "resolved_by_ai",
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 95500,
+     "cost_usd": 0.0509,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": "2026-11-12T05:01:35.500Z"
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "end_zero_duration_voicemail",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"ok\":true,\"callId\":\"c_end2\",\"outcome\":\"voicemail\",\"durationMs\":1000,\"cost\":0.0005,\"avg\":\"object\",\"p95\":\"object\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "completed",
+     "outcome": "voicemail",
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 1000,
+     "cost_usd": 0.0005,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": "2026-11-12T05:00:00.000Z"
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "end_fractional_ms_truncated",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"ok\":true,\"callId\":\"c_end3\",\"outcome\":\"resolved_by_ai\",\"durationMs\":61234,\"cost\":0.0327,\"avg\":\"object\",\"p95\":\"object\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "completed",
+     "outcome": "resolved_by_ai",
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 61234,
+     "cost_usd": 0.0327,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": "2026-11-12T05:01:01.234Z"
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "end_status_abandoned",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"ok\":true,\"alreadyClosed\":true,\"callId\":\"c_end4\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "abandoned",
+     "outcome": null,
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 0,
+     "cost_usd": 0,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": null
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "end_huge_duration_throws",
+   "status": 500,
+   "threw": "RangeError"
+  },
+  {
+   "name": "end_talked_call",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"ok\":true,\"callId\":\"c_talk\",\"outcome\":\"resolved_by_operator\",\"durationMs\":42000,\"cost\":0.0224,\"avg\":\"number\",\"p95\":\"number\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "completed",
+     "outcome": "resolved_by_operator",
+     "language": "uz",
+     "intent": "howto",
+     "turns": 5,
+     "duration_ms": 42000,
+     "cost_usd": 0.0224,
+     "escalated": 1,
+     "escalation_reason": "low_confidence",
+     "answered": 1,
+     "ended_at": "2026-11-12T05:00:42.000Z"
+    },
+    "turns": [
+     {
+      "ordinal": 0,
+      "role": "agent",
+      "text": "Assalomu alaykum! Xush kelibsiz.",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 1,
+      "role": "caller",
+      "text": "Salom",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 2,
+      "role": "agent",
+      "text": "Klinikamiz dushanbadan jumagacha soat…",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 3,
+      "role": "caller",
+      "text": "Ish vaqtingiz qanday?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 4,
+      "role": "agent",
+      "text": "Kechirasiz,…",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 5,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 6,
+      "role": "caller",
+      "text": "Dam olish kunlari-chi?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 7,
+      "role": "agent",
+      "text": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 8,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 9,
+      "role": "caller",
+      "text": "Rahmat",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 10,
+      "role": "agent",
+      "text": "Sizga rahmat! Yana savollaringiz bo‘lsa, qo‘ng‘iroq qiling. Xayr!",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 11,
+      "role": "caller",
+      "text": "Yana bitta savol",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 12,
+      "role": "agent",
+      "text": "Kechirasiz, bu savolga aniq javob topa olmadim.…",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 13,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 14,
+      "role": "caller",
+      "text": "Narxlar qancha?",
+      "language": "uz",
+      "confidence": null,
+      "has_latency": 0
+     },
+     {
+      "ordinal": 15,
+      "role": "agent",
+      "text": "Afsuski, menda bu boʻyicha aniq maʼlumot yo‘q. Operatorga ulayman.",
+      "language": "uz",
+      "confidence": 0,
+      "has_latency": 1
+     },
+     {
+      "ordinal": 16,
+      "role": "system",
+      "text": "__unanswered__",
+      "language": null,
+      "confidence": null,
+      "has_latency": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "end_duration_exponent_operator",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"ok\":true,\"callId\":\"c_end6\",\"outcome\":\"abandoned\",\"durationMs\":150000,\"cost\":0.08,\"avg\":\"object\",\"p95\":\"object\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "completed",
+     "outcome": "abandoned",
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": 150000,
+     "cost_usd": 0.08,
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": "2026-11-12T05:02:30.000Z"
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "end_duration_as_string",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"ok\":true,\"callId\":\"c_end5\",\"outcome\":\"resolved_by_ai\",\"durationMs\":\"number\",\"cost\":\"number\",\"avg\":\"object\",\"p95\":\"object\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "completed",
+     "outcome": "resolved_by_ai",
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": "number",
+     "cost_usd": "number",
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": "x"
+    },
+    "turns": []
+   }
+  },
+  {
+   "name": "end_duration_negative",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "{\"ok\":true,\"callId\":\"c_end7\",\"outcome\":\"resolved_by_ai\",\"durationMs\":\"number\",\"cost\":\"number\",\"avg\":\"object\",\"p95\":\"object\"}",
+   "touched": {
+    "call": {
+     "tenant_id": "t1",
+     "agent_id": "agt_rec",
+     "number_id": "num_rec",
+     "direction": "inbound",
+     "channel": "voice",
+     "from_e164": "+998901112233",
+     "to_e164": "+998712000001",
+     "status": "completed",
+     "outcome": "resolved_by_ai",
+     "language": "uz",
+     "intent": null,
+     "turns": 0,
+     "duration_ms": "number",
+     "cost_usd": "number",
+     "escalated": 0,
+     "escalation_reason": null,
+     "answered": 0,
+     "ended_at": "x"
+    },
+    "turns": []
+   }
+  }
+ ],
+ "finals": {
+  "usageDaily": [
+   {
+    "day": "2026-11-12",
+    "calls": 5,
+    "ai_resolved": 2,
+    "escalated": 1,
+    "abandoned": 1,
+    "minutes": 5.8289,
+    "cost_usd": 0.1865,
+    "csat_sum": 0,
+    "csat_count": 0
+   }
+  ],
+  "wallet": {
+   "balance": 44170,
+   "ledger": [
+    {
+     "kind": "debit",
+     "amount_uzs": 1592,
+     "balance_after": 48408,
+     "note": "AI call · 1.6 min"
+    },
+    {
+     "kind": "debit",
+     "amount_uzs": 17,
+     "balance_after": 48391,
+     "note": "AI call · 0.0 min"
+    },
+    {
+     "kind": "debit",
+     "amount_uzs": 1021,
+     "balance_after": 47370,
+     "note": "AI call · 1.0 min"
+    },
+    {
+     "kind": "debit",
+     "amount_uzs": 700,
+     "balance_after": 46670,
+     "note": "AI call · 0.7 min"
+    },
+    {
+     "kind": "debit",
+     "amount_uzs": 2500,
+     "balance_after": 44170,
+     "note": "AI call · 2.5 min"
+    }
+   ]
+  },
+  "escalations": [
+   {
+    "call_id": "c_crack",
+    "reason": "low_confidence",
+    "priority": "normal",
+    "status": "waiting"
+   },
+   {
+    "call_id": "c_human",
+    "reason": "explicit_request",
+    "priority": "high",
+    "status": "waiting"
+   },
+   {
+    "call_id": "c_talk",
+    "reason": "low_confidence",
+    "priority": "normal",
+    "status": "waiting"
+   }
+  ],
+  "callCount": 21
+ }
+}

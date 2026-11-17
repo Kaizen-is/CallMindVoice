@@ -36,6 +36,11 @@
     "../../../src/lib/speech/brb-stt.ts",
     "../../../src/lib/engine/conversation.ts",
     "../../../src/lib/engine/calls.ts",
-    "../../../src/lib/db.ts"
+    "../../../src/lib/db.ts",
+    "../../../src/lib/speech/fillers.ts",
+    "../../../src/lib/telephony/bridge.ts",
+    "../../../src/app/api/telephony/bridge/turn/route.ts",
+    "../../../src/app/api/telephony/bridge/filler/route.ts",
+    "../../../src/app/api/telephony/bridge/end/route.ts"
   ]
 }

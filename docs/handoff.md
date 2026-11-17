@@ -1,4 +1,4 @@
-# CallMind — handoff (state on 13 Nov 2026)
+# CallMind — handoff (state on 17 Nov 2026)
 
 Read this first when you start a new session (human or Claude). It says what
 CallMind is, where it runs, the rules we work by, what is done, and what comes
@@ -87,9 +87,9 @@ then the next.
 | 0 | FastAPI skeleton, shared login (`ovoz_session` cookie, same HMAC), shared SQLite, Alembic baseline, `/api/core` rewrite, systemd unit, CI job | **Live** (commit `9a8d024`) |
 | 1a | Knowledge search, Uzbek numbers, spoken-form text, intents, local answers, loan identity check + calendar | Done (`92d6bae`, `4ab9069`) — no endpoint yet |
 | 1b | STT/TTS engines + disk cache, LLM providers (streaming, Haiku fallback), `run_turn`, calls/billing, bus, Playground voice logic | Done (`51f403e`) — no endpoint yet |
-| 1c | Playground voice call served by Python behind `?py=1` | **Live** since 13 Nov (`779f979`) — **waiting for a manual test** (see below) |
-| **2** | **Phone bridge routes in FastAPI (`/api/telephony/bridge/{turn,filler,end}`, same paths, `x-bridge-secret`); switch by pointing the bridge's `NEXT_BASE_URL`** | **Next**, once 1c is checked on the live site |
-| 3 | Public demo + logistics (`/api/demo/*`, `/api/logistics/*`, per-IP limits) | |
+| 1c | Playground voice call served by Python behind `?py=1` | **Live** since 13 Nov (`779f979`), tested on the live site 17 Nov |
+| 2 | Phone bridge routes in FastAPI (`/api/telephony/bridge/{turn,filler,end}`, same paths, `x-bridge-secret`); switch by pointing the bridge's `NEXT_BASE_URL` | Done 17 Nov — **not switched on yet** (see below) |
+| **3** | **Public demo + logistics (`/api/demo/*`, `/api/logistics/*`, per-IP limits)** | **Next** |
 | 4 | Console areas one by one: each page gets one `GET /api/core/views/<page>` and its server actions become `fetch` calls (agents, knowledge + ingest, calls/inbox/escalations, analytics, team/settings, billing, developers + `/api/v1/*`, models/labs/benchmark) | |
 | 5 | Login moves; delete the TypeScript backend (`src/lib/{db,auth,engine,llm,rag,speech,…}`, `src/app/api/*`, `src/app/actions/*`) | |
 | later | PostgreSQL; voice roadmap (streaming runtime) in the same Python codebase | |
@@ -133,6 +133,41 @@ FastAPI instead of the Next.js routes; without it nothing changes.
   `python -c "import ssl,certifi;open('ca.pem','w').write(open(certifi.where()).read()+''.join(ssl.DER_cert_to_PEM_cert(c) for s in ('ROOT','CA') for c,e,t in ssl.enum_certificates(s) if e=='x509_asn'))"`
   and start uvicorn with `SSL_CERT_FILE=<path>\ca.pem`. Without it Claude/Gemini fail
   and the Python side answers with the local engine.
+
+### Step 2 — the phone bridge from Python (done 17 Nov, not switched on yet)
+
+The three endpoints the Asterisk bridge (`telephony-bridge/bridge.mjs`) calls now also
+exist in FastAPI, **at the same paths**, in `backend/app/routers/bridge.py`:
+
+| Path | Port of | What |
+|---|---|---|
+| `POST /api/telephony/bridge/turn` | `src/app/api/telephony/bridge/turn/route.ts` | first leg: open the call, play the greeting; later legs: barge-in trim, STT → `run_turn` → streamed 8 kHz PCM, metadata in `x-ovoz-*` headers |
+| `GET /api/telephony/bridge/filler` | `…/bridge/filler/route.ts` | one holding line (`?to=&i=`), `x-ovoz-count` |
+| `POST /api/telephony/bridge/end` | `…/bridge/end/route.ts` | close and bill the call once (`durationSec` pins the end time) |
+
+- Same `x-bridge-secret` gate (`BRIDGE_SHARED_SECRET`: unset ⇒ 503, wrong ⇒ 401), same
+  status codes, headers and bodies. Proven by `backend/tests/test_bridge_parity.py`:
+  80 requests (`backend/tools/golden/scenarios-bridge.json`) replayed against the
+  recorded TypeScript (`fixtures/golden_bridge.json`, made by `make-golden-bridge.cjs`)
+  on a real database with scripted TTS/STT. Every response must match, along with the
+  calls and turns each request touched, daily usage, the wallet and escalations.
+- JavaScript details reproduced: `Number()` parsing of `spokenRatio` / `i`, the first value
+  of a repeated form field or query parameter, JavaScript's `\s` when trimming a reply
+  after barge-in, `lines[i % n]` going `undefined` for negative or fractional `i`, the
+  ms truncation of the end time, `JSON.parse` refusing `NaN`.
+- **Switching** (not done; nothing uses these routes yet, and `BRIDGE_SHARED_SECRET` is
+  not set on production):
+  1. Put `BRIDGE_SHARED_SECRET` in the server `.env` (the API reads it like the site does)
+     and restart `callmind-api.service`.
+  2. Point the bridge's `NEXT_BASE_URL` at Python, then restart the bridge. Use
+     `http://127.0.0.1:8100` if the bridge runs on the CallMind server, or
+     `https://callmind.brb-tech.uz/api/core` if it runs elsewhere (through the site's rewrite).
+  3. Going back to Next.js is the same change undone: the TypeScript routes stay in place.
+- Phone calls voice with the own TTS server (`TTS_BASE_URL`), as before. Locally,
+  without it, `/filler` answers `503 filler_failed`, exactly like the TypeScript.
+- Also fixed: `js_trim` in `backend/app/jscompat.py` stripped `-` from the ends of a string
+  (and missed the U+2001–U+2009 spaces), so `"-5"` became `"5"`. It now trims exactly like
+  JavaScript's `trim()`; the whole suite still matches the TypeScript.
 
 ## 5. How ported code is proven identical
 
@@ -255,7 +290,11 @@ database; `CALLMIND_DOTENV=0`). With the API running locally, the site's
 
 ## 9. Open items
 
-1. **Test step 1c** on the live site (`/app/playground?py=1`, section 4), then step 2.
+1. Step 2 is code only: switch the phone bridge to Python when a real phone line is
+   connected (section 4, "Switching"), then start step 3. Small parity gap found on the
+   way: the Playground routes (`routers/playground.py`) read the **last** value of a
+   repeated form field where the TypeScript reads the first (the bridge routes do it right).
+   The page never repeats a field, so nothing breaks today.
 2. Ask the network admins for the routes to the BRB proxy and to
    `stt-service.brb.uz:443` (section 6), then deploy and run one TTS render and one
    BRB Whisper transcription on the live site.
