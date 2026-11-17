@@ -15,6 +15,7 @@ same inputs in Python and compare.
 | `make-golden-speech.cjs` | `golden_speech.json` | TTS cache keys and mtime stamps, TTS renders (own server, Speko, BRB), STT engines and choice, Playground segmenting |
 | `make-golden-turn.cjs` | `golden_turn.json` | `runTurn` on a real SQLite file: results, rows written, bus events |
 | `make-golden-auth.cjs` | (values in `test_auth_parity.py`) | session cookie, password hash and API key made the TypeScript way |
+| `make-golden-ops.cjs` | `golden_ops.json` | `seededRandom` streams; 36 simulated calls (simulator.ts) and the demo history (demo-data.ts) on a real SQLite file, clock pinned, zone Asia/Tashkent: every row written and every bus event |
 
 How they work: `tsc` compiles the TypeScript to CommonJS in `./out` (gitignored);
 each script swaps in recorders for `fetch`, the Anthropic SDK, the usage log or the
@@ -30,7 +31,10 @@ node backend/tools/golden/make-golden-log.cjs backend/tests/fixtures/golden_math
 node backend/tools/golden/make-golden-llm.cjs backend/tests/fixtures/golden_llm.json
 node backend/tools/golden/make-golden-speech.cjs backend/tests/fixtures/golden_speech.json "$TMPDIR/golden-speech"
 node backend/tools/golden/make-golden-turn.cjs backend/tests/fixtures/golden_rag.json backend/tests/fixtures/golden_turn.json "$TMPDIR/golden-turn"
+node --experimental-sqlite backend/tools/golden/make-golden-ops.cjs backend/tests/fixtures/golden_rag.json backend/tests/fixtures/golden_ops.json "$TMPDIR/golden-ops"
 ```
+
+(`--experimental-sqlite` is needed on Node 22.5–22.12; `make-golden-ops.cjs` regenerates byte for byte.)
 
 (On Windows use a folder such as `%TEMP%\golden-speech` for the last argument.)
 A `TS2688 … 'node'` warning from `tsc` is harmless when `@types/node` is not

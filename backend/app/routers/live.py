@@ -7,14 +7,15 @@ Next.js rewrite: /api/core/speech/live and /api/core/stream.
 import asyncio
 import contextlib
 import logging
+from typing import Annotated
 
 import numpy as np
 import regex as re
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.datastructures import UploadFile
 
-from app.auth import LoggedIn
+from app.auth import LoggedIn, Session, current_session
 from app.engine.bus import subscribe
 from app.ids import now_iso
 from app.jscompat import js_json
@@ -91,8 +92,14 @@ SSE_HEADERS = {
 
 
 @router.get("/stream")
-async def stream(session: LoggedIn) -> StreamingResponse:
-    """Server-sent events for the live wallboard and operator inbox, scoped to the caller's company."""
+async def stream(session: Annotated[Session | None, Depends(current_session)]) -> Response:
+    """Server-sent events for the live wallboard and operator inbox, scoped to the caller's company.
+
+    The site serves it as /api/stream (the browser's EventSource in use-live.ts) and /api/core/stream.
+    """
+    if session is None:
+        # As src/app/api/stream/route.ts: `new Response('Unauthorized', { status: 401 })`.
+        return Response("Unauthorized", status_code=401, media_type="text/plain;charset=UTF-8")
     tenant_id = session.tenant["id"]
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[dict] = asyncio.Queue()

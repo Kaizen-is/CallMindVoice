@@ -13,6 +13,7 @@ Authentication, compatible with the Next.js app (`src/lib/auth.ts`,
 import base64
 import hashlib
 import hmac
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -24,6 +25,7 @@ from fastapi.responses import JSONResponse
 from app import db
 from app.config import get_settings
 from app.ids import now_iso, parse_iso
+from app.jscompat import JS_S, js_trim
 
 COOKIE = "ovoz_session"
 
@@ -193,6 +195,10 @@ class ApiAuth:
     scopes: list[str]
 
 
+# `/^Bearer\s+(\S+)$/i` with JavaScript's \s (Python's split() and \s also take \x1c-\x1f and \x85).
+_BEARER = re.compile(rf"Bearer[{JS_S}]+([^{JS_S}]+)\Z", re.IGNORECASE | re.ASCII)
+
+
 def api_key_hash(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -209,11 +215,10 @@ class ApiKeyError(Exception):
 
 def check_api_key(authorization: str | None, scope: Literal["read", "write", "admin"]) -> ApiAuth:
     """Resolve a `Bearer ovoz_sk_…` header and check its scope, like `requireApiKey`."""
-    header = (authorization or "").strip()
-    parts = header.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
+    match = _BEARER.match(js_trim(authorization or ""))
+    if not match:
         raise ApiKeyError(401, "unauthorized", "Provide an API key as `Authorization: Bearer ovoz_sk_...`.")
-    raw = parts[1]
+    raw = match.group(1)
     if not raw.startswith("ovoz_sk_"):
         raise ApiKeyError(401, "unauthorized", "Malformed API key. Keys start with `ovoz_sk_`.")
 
