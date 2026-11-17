@@ -1,13 +1,13 @@
 /**
  * /demo — the public, login-free demo of the bank's loan-reminder agent.
- * Everything that makes it safe to leave open lives in `@/lib/demo`.
+ * Everything that makes it safe to leave open lives in the Python backend
+ * (`backend/app/demo.py`); this page reads its data from `GET /views/demo`.
  */
 import type { Metadata, Viewport } from 'next';
 import { Geist } from 'next/font/google';
 import { headers } from 'next/headers';
-import { after } from 'next/server';
-import { DEMO_IDENTITY, DEMO_PERSONA, demoAgent, demoVoices, warmDemo } from '@/lib/demo';
-import { demoLang } from '@/lib/demo-shared';
+import { coreGet } from '@/lib/core';
+import { demoLang, type DemoLang } from '@/lib/demo-shared';
 import { DemoCall } from './demo-call';
 import './view-transitions.css';
 
@@ -57,6 +57,14 @@ export const viewport: Viewport = {
   ],
 };
 
+/** `GET /views/demo`: the demo agent's presence and voices, and how the page names everyone. */
+interface DemoView {
+  available: boolean;
+  identity: { agent: Record<DemoLang, string>; org: Record<DemoLang, string> };
+  persona: { name: Record<DemoLang, string>; birthYear: string };
+  voices: Array<{ id: string; name: string; group: 'builtin' | 'clone' | 'design' }>;
+}
+
 export default async function DemoPage({
   searchParams,
 }: {
@@ -64,19 +72,17 @@ export default async function DemoPage({
 }) {
   const params = await searchParams;
   const lang = demoLang(params.lang);
-  const agent = demoAgent();
-  const voices = agent ? demoVoices(agent) : [];
+  // Python also renders both opening lines ahead of the visitor's tap, once it has answered.
+  const { available, identity, persona, voices } = await coreGet<DemoView>('/views/demo');
   const voice = typeof params.voice === 'string' && voices.some((v) => v.id === params.voice) ? params.voice : '';
-  // Render both opening lines ahead of the visitor's tap.
-  if (agent) after(() => warmDemo(agent));
 
   return (
     <DemoCall
       fontClass={geist.variable}
       initialLang={lang}
-      available={Boolean(agent)}
-      identity={{ agent: { ...DEMO_IDENTITY.agent }, org: { ...DEMO_IDENTITY.org } }}
-      persona={{ name: { ...DEMO_PERSONA.name }, birthYear: DEMO_PERSONA.birthYear }}
+      available={available}
+      identity={{ agent: { ...identity.agent }, org: { ...identity.org } }}
+      persona={{ name: { ...persona.name }, birthYear: persona.birthYear }}
       voices={voices}
       initialVoice={voice}
     />
