@@ -11,6 +11,7 @@ the difference would change stored data or scores:
 """
 
 import math
+import re
 import struct
 
 # JavaScript's \s, exactly (ECMAScript WhiteSpace + LineTerminator), as the body of a character class.
@@ -138,7 +139,36 @@ def js_log(x: float) -> float:
 
 # ── strings, numbers and truthiness ─────────────────────────────────
 
-_JS_TRIM_CHARS = JS_S
+# The same characters as JS_S, spelled out one by one: JS_S is a character-class body, where
+# " - " is a range — used as a plain set it would strip "-" and miss  … .
+_JS_TRIM_CHARS = "\t\n\v\f\r   " + "".join(chr(c) for c in range(0x2000, 0x200B)) + "    　﻿"
+
+_JS_DECIMAL = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
+_JS_RADIX = re.compile(r"0([xXoObB])([0-9a-fA-F]+)")
+
+
+def js_number(s: str) -> float:
+    """`Number(s)` for a string: '' and whitespace are 0; anything not a JS numeric literal is NaN.
+
+    (Python's `float()` also accepts '1_000', 'nan', 'inf' and 'infinity', which JavaScript does not.)
+    """
+    text = s.strip(_JS_TRIM_CHARS)
+    if not text:
+        return 0.0
+    if _JS_DECIMAL.fullmatch(text):
+        return float(text)
+    if text in ("Infinity", "+Infinity"):
+        return math.inf
+    if text == "-Infinity":
+        return -math.inf
+    radix = _JS_RADIX.fullmatch(text)
+    if radix:
+        base = {"x": 16, "o": 8, "b": 2}[radix.group(1).lower()]
+        try:
+            return float(int(radix.group(2), base))
+        except ValueError:
+            return math.nan
+    return math.nan
 
 
 def js_trim(s: str) -> str:

@@ -58,6 +58,8 @@ const pythonRoutes = [
   '/api/speech/tts',
   '/api/speech/stt',
   '/api/models/stt',
+  // Phase 2 — the phone line: the AudioSocket bridge's turn, filler and end calls.
+  '/api/telephony/:path*',
 ];
 
 const nextConfig: NextConfig = {
