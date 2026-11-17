@@ -15,6 +15,7 @@ same inputs in Python and compare.
 | `make-golden-speech.cjs` | `golden_speech.json` | TTS cache keys and mtime stamps, TTS renders (own server, Speko, BRB), STT engines and choice, Playground segmenting |
 | `make-golden-turn.cjs` | `golden_turn.json` | `runTurn` on a real SQLite file: results, rows written, bus events |
 | `make-golden-auth.cjs` | (values in `test_auth_parity.py`) | session cookie, password hash and API key made the TypeScript way |
+| `make-golden-logistics.cjs` | `golden_logistics.json` | the logistics demo's lookup: numbers read from speech, shipments found, day labels and the whole prompt part, at pinned moments |
 
 How they work: `tsc` compiles the TypeScript to CommonJS in `./out` (gitignored);
 each script swaps in recorders for `fetch`, the Anthropic SDK, the usage log or the
@@ -30,6 +31,7 @@ node backend/tools/golden/make-golden-log.cjs backend/tests/fixtures/golden_math
 node backend/tools/golden/make-golden-llm.cjs backend/tests/fixtures/golden_llm.json
 node backend/tools/golden/make-golden-speech.cjs backend/tests/fixtures/golden_speech.json "$TMPDIR/golden-speech"
 node backend/tools/golden/make-golden-turn.cjs backend/tests/fixtures/golden_rag.json backend/tests/fixtures/golden_turn.json "$TMPDIR/golden-turn"
+node backend/tools/golden/make-golden-logistics.cjs backend/tests/fixtures/golden_logistics.json
 ```
 
 (On Windows use a folder such as `%TEMP%\golden-speech` for the last argument.)

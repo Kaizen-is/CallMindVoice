@@ -26,6 +26,7 @@
     "../../../src/lib/rag/retrieve.ts",
     "../../../src/lib/starter-packs.ts",
     "../../../src/lib/speech/numbers.ts",
+    "../../../src/lib/logistics-data.ts",
     "../../../src/lib/speech/normalize.ts",
     "../../../src/lib/llm/local.ts",
     "../../../src/lib/llm/loan-call.ts",

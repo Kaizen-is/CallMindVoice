@@ -46,6 +46,7 @@ Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:81
 | `app/speech/` | STT (Kotib, Whisper, GAPI, Zipformer, Speko gemini-3.5 / Scribe, Gemini), TTS (own server, ElevenLabs via Speko) with the shared disk cache, number words, spoken-form text |
 | `app/engine/` | The turn (`run_turn`), call start / end / billing, the live event bus |
 | `app/playground.py`, `app/playground_voice.py` | The Playground call: opening line, fillers, voicing a reply while it is written |
+| `app/demo.py`, `app/logistics.py`, `app/logistics_data.py` | The public demos (`/demo`, `/logistics`): per-address rate limits, demo calls (never billed), the opening / greeting, voicing a reply while it is written, the logistics shipment lookup |
 | `app/routers/` | One router per area: `system.py`, `playground.py` (the Playground call), `live.py` (live Zipformer words, SSE feed) |
 | `alembic/` | Schema migrations from now on (baseline `0001_baseline` = today's schema) |
 | `tests/` | pytest; `fixtures/schema.sql` is the database structure without data; `fixtures/golden_*.json` are outputs of the original TypeScript the Python must reproduce exactly |
@@ -64,6 +65,9 @@ Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:81
 | `/api/core/playground/end` | `POST /playground/end` | hang up, bill once → 204 |
 | `/api/core/speech/live` | `POST /speech/live` | live Zipformer words (multipart `sid`, `op`, `audio`) |
 | `/api/core/stream` | `GET /stream` | SSE feed of this process's bus events |
+| `/api/demo/{call,turn,end}` (via `pythonRoutes` in `next.config.ts`) | `POST /demo/…` | the public bank demo (no login; per-address limits): NDJSON as the Playground's, `?prefetch=1` → 202, end → 204 |
+| `/api/logistics/{call,turn,end}` | `POST /logistics/…` | the public logistics demo (GAPI for Uzbek, the shipment lookup) |
+| (page data) | `GET /views/demo`, `GET /views/logistics?voice=` | what the public /demo and /logistics pages render; also warms the openings' / greetings' voice (no login) |
 
 ## Deploy (on the server)
 

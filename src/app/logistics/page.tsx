@@ -1,14 +1,13 @@
 /**
  * /logistics — the public, login-free demo of a cargo company's phone agent:
  * the visitor calls and asks where their parcel from China is.
- * Everything that makes it safe to leave open lives in `@/lib/logistics`.
+ * Everything that makes it safe to leave open lives in the Python backend
+ * (`backend/app/logistics.py`); this page reads its data from `GET /views/logistics`.
  */
 import type { Metadata, Viewport } from 'next';
 import { Geist } from 'next/font/google';
-import { after } from 'next/server';
+import { coreGet } from '@/lib/core';
 import { demoLang } from '@/lib/demo-shared';
-import { LOGISTICS_VOICES, TRY_TRACKS, logisticsAgent, logisticsVoice, warmLogistics } from '@/lib/logistics';
-import { gapiConfigured } from '@/lib/speech/gapi';
 import { LogisticsCall } from './logistics-call';
 import '@/app/demo/view-transitions.css';
 
@@ -42,6 +41,14 @@ const IDENTITY = {
   org: { uz: 'Xitoy → Oʻzbekiston yuk yetkazib berish', ru: 'Доставка грузов Китай → Узбекистан' },
 };
 
+/** `GET /views/logistics`: whether GAPI is set up, the two voices, the numbers to try, the picked voice. */
+interface LogisticsView {
+  available: boolean;
+  voices: Array<{ id: string; name: string; group: 'builtin' }>;
+  tracks: string[];
+  initialVoice: string;
+}
+
 export default async function LogisticsPage({
   searchParams,
 }: {
@@ -49,20 +56,20 @@ export default async function LogisticsPage({
 }) {
   const params = await searchParams;
   const lang = demoLang(params.lang);
-  const agent = logisticsAgent();
-  // Render the greetings and fillers ahead of the visitor's tap.
-  after(() => warmLogistics(agent));
-  const tracks = TRY_TRACKS.join(' · ');
+  // Python creates the demo's agent on first use and renders the greetings ahead of the visitor's tap.
+  const voice = typeof params.voice === 'string' ? `?voice=${encodeURIComponent(params.voice)}` : '';
+  const view = await coreGet<LogisticsView>(`/views/logistics${voice}`);
+  const tracks = view.tracks.join(' · ');
 
   return (
     <LogisticsCall
       fontClass={geist.variable}
       initialLang={lang}
-      available={gapiConfigured()}
+      available={view.available}
       identity={IDENTITY}
       persona={{ name: { uz: tracks, ru: tracks }, birthYear: '' }}
-      voices={LOGISTICS_VOICES}
-      initialVoice={logisticsVoice(params.voice)}
+      voices={view.voices}
+      initialVoice={view.initialVoice}
     />
   );
 }
