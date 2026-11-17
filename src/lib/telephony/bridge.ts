@@ -6,8 +6,8 @@
  * DID into a tenant + live agent. Both were copy-pasted per route; they live
  * here now so the auth semantics cannot drift between endpoints.
  *
- * Gating style mirrors `api/telephony/twilio/voice`: env unset ⇒ 503 (the
- * feature is not provisioned), header mismatch ⇒ 401.
+ * Gating: env unset ⇒ 503 (the feature is not provisioned), header
+ * mismatch ⇒ 401.
  */
 import 'server-only';
 import { timingSafeEqual } from 'node:crypto';

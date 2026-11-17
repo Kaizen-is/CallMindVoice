@@ -153,7 +153,7 @@ export interface PhoneNumber {
   tenant_id: string;
   e164: string;
   label: string;
-  provider: 'simulator' | 'twilio' | 'sip';
+  provider: 'simulator' | 'sip';
   region: string;
   agent_id: string | null;
   status: string;

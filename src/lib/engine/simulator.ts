@@ -1,14 +1,15 @@
 /**
  * Traffic simulator.
  *
- * Real telephony needs a Twilio account, a purchased number and a public
- * webhook URL — none of which belong in a first-run experience. The simulator
+ * Real telephony needs the Asterisk / FreePBX bridge and a connected number —
+ * neither belongs in a first-run experience. The simulator
  * drives the *same* engine the phone lines drive (`runTurn`), so what you watch
  * on the live wallboard is genuine retrieval, genuine generation and genuine
  * escalation decisions against your own documents. Only the audio transport is
  * modelled rather than carried.
  *
- * See src/lib/telephony/twilio.ts for the production path this stands in for.
+ * The production path it stands in for: telephony-bridge/ and the
+ * /api/telephony/bridge/* routes.
  */
 import 'server-only';
 import { get } from '@/lib/db';

@@ -38,7 +38,7 @@ export function LiveBoard({
   todayDeflection: number;
   waiting: number;
   simulated: number;
-  telephony: { configured: boolean; mode: 'asterisk' | 'twilio' | 'simulator' };
+  telephony: { configured: boolean; mode: 'asterisk' | 'simulator' };
 }) {
   const t = translator(locale);
   const { connected } = useLive([
@@ -68,9 +68,7 @@ export function LiveBoard({
           <span className="text-ink-2">
             {telephony.mode === 'asterisk'
               ? t('live.asteriskBridge', 'Asterisk / FreePBX bridge')
-              : telephony.mode === 'twilio'
-                ? t('live.twilioTrunk', 'Twilio SIP trunk')
-                : t('live.simulatorTransport', 'Simulator transport')}
+              : t('live.simulatorTransport', 'Simulator transport')}
           </span>
         </span>
         {simulated > 0 && (

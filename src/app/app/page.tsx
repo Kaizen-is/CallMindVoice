@@ -195,9 +195,7 @@ export default async function DashboardPage() {
                 value={
                   telephony.mode === 'asterisk'
                     ? t('dash.engine.asterisk', 'Asterisk / FreePBX bridge')
-                    : telephony.mode === 'twilio'
-                      ? 'Twilio SIP'
-                      : t('dash.engine.simulator', 'Built-in simulator')
+                    : t('dash.engine.simulator', 'Built-in simulator')
                 }
                 hosted={telephony.configured}
               />

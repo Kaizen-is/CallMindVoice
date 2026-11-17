@@ -8,7 +8,7 @@ import type { UiLocale } from './types';
  *
  * Russian and Uzbek strings are a first careful pass — have a native speaker
  * review before the copy is considered final. Brand/units (Ovoz, FAQ, PDF, SIP,
- * Twilio, BM25, API, ms, MB, TLS, AES, SLA, SSO) are intentionally left as-is.
+ * BM25, API, ms, MB, TLS, AES, SLA, SSO) are intentionally left as-is.
  */
 type Dict = Record<string, string>;
 
@@ -57,7 +57,7 @@ const en: Dict = {
     'Documents are split along their own structure, embedded, and indexed so the agent can find the one paragraph that answers a question — and cite it.',
   'lp.how.s3t': 'Point a number at it',
   'lp.how.s3b':
-    'Connect a SIP trunk or a Twilio number. The agent picks up, answers in the caller’s language, and escalates the moment it is unsure.',
+    'Connect a SIP trunk or your existing PBX. The agent picks up, answers in the caller’s language, and escalates the moment it is unsure.',
 
   'lp.lang.eyebrow': 'Built here, not localised later',
   'lp.lang.title': 'Uzbek is a first-class language, not a checkbox',
@@ -91,7 +91,7 @@ const en: Dict = {
     'Unanswered questions are collected and ranked by frequency, so improving the agent is a to-do list rather than a guessing game.',
   'lp.feat.f5t': 'Any telephony you already run',
   'lp.feat.f5b':
-    'Twilio Elastic SIP, a local carrier trunk, or your existing PBX. Numbers, routing and business hours are configured in the console.',
+    'A local carrier SIP trunk or your existing PBX (Asterisk / FreePBX). Numbers, routing and business hours are configured in the console.',
   'lp.feat.f6t': 'An API under everything',
   'lp.feat.f6b':
     'Keys, webhooks and a documented REST surface, so the agent can sit inside the CRM your team already lives in.',
@@ -244,7 +244,7 @@ const ru: Dict = {
     'Документы разбиваются по их собственной структуре, векторизуются и индексируются, чтобы агент нашёл именно тот абзац, который отвечает на вопрос, — и сослался на него.',
   'lp.how.s3t': 'Направьте на него номер',
   'lp.how.s3b':
-    'Подключите SIP-транк или номер Twilio. Агент поднимает трубку, отвечает на языке звонящего и передаёт разговор человеку, как только не уверен.',
+    'Подключите SIP-транк или вашу АТС. Агент поднимает трубку, отвечает на языке звонящего и передаёт разговор человеку, как только не уверен.',
 
   'lp.lang.eyebrow': 'Сделано здесь, а не локализовано потом',
   'lp.lang.title': 'Узбекский — полноценный язык, а не галочка',
@@ -278,7 +278,7 @@ const ru: Dict = {
     'Оставшиеся без ответа вопросы собираются и ранжируются по частоте, так что улучшение агента — это список задач, а не игра в угадайку.',
   'lp.feat.f5t': 'Любая телефония, что у вас уже есть',
   'lp.feat.f5b':
-    'Twilio Elastic SIP, транк местного оператора или ваша нынешняя АТС. Номера, маршрутизация и часы работы настраиваются в консоли.',
+    'SIP-транк местного оператора или ваша нынешняя АТС (Asterisk / FreePBX). Номера, маршрутизация и часы работы настраиваются в консоли.',
   'lp.feat.f6t': 'API под всем этим',
   'lp.feat.f6b':
     'Ключи, вебхуки и документированный REST, чтобы агент жил внутри той CRM, где уже работает ваша команда.',
@@ -431,7 +431,7 @@ const uz: Dict = {
     'Hujjatlar o‘z tuzilishi bo‘yicha bo‘linadi, vektorlanadi va indekslanadi — shunda agent savolga javob beradigan aynan bitta xatboshini topadi va unga havola qiladi.',
   'lp.how.s3t': 'Unga raqam ulang',
   'lp.how.s3b':
-    'SIP-trank yoki Twilio raqamini ulang. Agent go‘shakni ko‘taradi, qo‘ng‘iroq qiluvchining tilida javob beradi va ishonchsiz bo‘lgan zahoti odamga uzatadi.',
+    'SIP-trank yoki mavjud ATSingizni ulang. Agent go‘shakni ko‘taradi, qo‘ng‘iroq qiluvchining tilida javob beradi va ishonchsiz bo‘lgan zahoti odamga uzatadi.',
 
   'lp.lang.eyebrow': 'Shu yerda qurilgan, keyin lokallashtirilmagan',
   'lp.lang.title': 'O‘zbek tili — to‘laqonli til, belgilanadigan katakcha emas',
@@ -465,7 +465,7 @@ const uz: Dict = {
     'Javobsiz qolgan savollar yig‘ilib, chastotasi bo‘yicha tartiblanadi — shunda agentni yaxshilash taxmin o‘yini emas, vazifalar ro‘yxatiga aylanadi.',
   'lp.feat.f5t': 'Siz ishlatayotgan istalgan telefoniya',
   'lp.feat.f5b':
-    'Twilio Elastic SIP, mahalliy operator tranki yoki mavjud ATSingiz. Raqamlar, marshrutlash va ish soatlari konsolda sozlanadi.',
+    'Mahalliy operator SIP tranki yoki mavjud ATSingiz (Asterisk / FreePBX). Raqamlar, marshrutlash va ish soatlari konsolda sozlanadi.',
   'lp.feat.f6t': 'Hammasining ostida API',
   'lp.feat.f6b':
     'Kalitlar, vebhuklar va hujjatlashtirilgan REST — shunda agent jamoangiz allaqachon ishlaydigan CRM ichida tura oladi.',
@@ -618,7 +618,7 @@ const uzCyrl: Dict = {
     'Ҳужжатлар ўз тузилиши бўйича бўлинади, векторланади ва индексланади — шунда агент саволга жавоб берадиган айнан битта хатбошини топади ва унга ҳавола қилади.',
   'lp.how.s3t': 'Унга рақам уланг',
   'lp.how.s3b':
-    'SIP-транк ёки Twilio рақамини уланг. Агент гўшакни кўтаради, қўнғироқ қилувчининг тилида жавоб беради ва ишончсиз бўлган заҳоти одамга узатади.',
+    'SIP-транк ёки мавжуд АТСингизни уланг. Агент гўшакни кўтаради, қўнғироқ қилувчининг тилида жавоб беради ва ишончсиз бўлган заҳоти одамга узатади.',
 
   'lp.lang.eyebrow': 'Шу ерда қурилган, кейин локаллаштирилмаган',
   'lp.lang.title': 'Ўзбек тили — тўлақонли тил, белгиланадиган катакча эмас',
@@ -652,7 +652,7 @@ const uzCyrl: Dict = {
     'Жавобсиз қолган саволлар йиғилиб, частотаси бўйича тартибланади — шунда агентни яхшилаш тахмин ўйини эмас, вазифалар рўйхатига айланади.',
   'lp.feat.f5t': 'Сиз ишлатаётган исталган телефония',
   'lp.feat.f5b':
-    'Twilio Elastic SIP, маҳаллий оператор транки ёки мавжуд АТСингиз. Рақамлар, маршрутлаш ва иш соатлари консолда созланади.',
+    'Маҳаллий оператор SIP транки ёки мавжуд АТСингиз (Asterisk / FreePBX). Рақамлар, маршрутлаш ва иш соатлари консолда созланади.',
   'lp.feat.f6t': 'Ҳаммасининг остида API',
   'lp.feat.f6b':
     'Калитлар, вебхуклар ва ҳужжатлаштирилган REST — шунда агент жамоангиз аллақачон ишлайдиган CRM ичида тура олади.',

@@ -38,15 +38,11 @@ export default async function SettingsPage() {
         embeddingHosted: embedding.hosted,
         telephony: telephony.mode === 'asterisk'
           ? t('settings.engine.asteriskBridge', 'Asterisk / FreePBX bridge')
-          : telephony.mode === 'twilio'
-            ? 'Twilio Elastic SIP'
-            : t('settings.engine.builtinSimulator', 'Built-in simulator'),
+          : t('settings.engine.builtinSimulator', 'Built-in simulator'),
         telephonyHosted: telephony.configured,
         telephonyHint: telephony.mode === 'asterisk'
           ? 'BRIDGE_SHARED_SECRET'
-          : telephony.mode === 'twilio'
-            ? 'TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN'
-            : 'BRIDGE_SHARED_SECRET / TWILIO credentials',
+          : 'BRIDGE_SHARED_SECRET',
       }}
       stats={knowledgeStats(tenant.id)}
     />

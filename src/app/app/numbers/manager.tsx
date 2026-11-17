@@ -25,17 +25,14 @@ export function NumbersManager({
   numbers,
   telephony,
   canEdit,
-  twilioWebhookUrl,
   locale,
 }: {
   numbers: Row[];
   telephony: {
     configured: boolean;
-    mode: 'asterisk' | 'twilio' | 'simulator';
-    accountSid: string | null;
+    mode: 'asterisk' | 'simulator';
   };
   canEdit: boolean;
-  twilioWebhookUrl: string;
   locale: UiLocale;
 }) {
   const t = translator(locale);
@@ -53,7 +50,7 @@ export function NumbersManager({
         title={t('nav.numbers', 'Phone numbers')}
         subtitle={t(
           'numbers.subtitle',
-          'The lines your agent answers. Connect Asterisk / FreePBX, Twilio, or use the simulator while you test.',
+          'The lines your agent answers. Connect Asterisk / FreePBX, or use the simulator while you test.',
         )}
         actions={
           canEdit ? (
@@ -77,12 +74,7 @@ export function NumbersManager({
             <h3 className="text-[13.5px] font-semibold text-ink">
               {telephony.mode === 'asterisk'
                 ? t('numbers.asteriskConnected', 'Asterisk / FreePBX bridge configured')
-                : telephony.mode === 'twilio'
-                  ? t('numbers.twilioConnected', 'Twilio connected ({sid})').replace(
-                      '{sid}',
-                      telephony.accountSid ?? '',
-                    )
-                  : t('numbers.simulatorTitle', 'Running on the built-in simulator')}
+                : t('numbers.simulatorTitle', 'Running on the built-in simulator')}
             </h3>
             <p className="mt-1 text-[12.5px] leading-relaxed text-ink-2">
               {telephony.mode === 'asterisk'
@@ -90,28 +82,16 @@ export function NumbersManager({
                     'numbers.asteriskDesc',
                     'The authenticated AudioSocket bridge can send live Asterisk calls through this agent.',
                   )
-                : telephony.mode === 'twilio'
-                  ? t(
-                      'numbers.twilioDesc',
-                      'Point your Twilio number at the webhook below and real calls will flow through the same engine.',
-                    )
-                  : t(
-                      'numbers.simulatorDesc',
-                      'Configure the Asterisk / FreePBX bridge or Twilio to take real calls. Until then, simulated traffic exercises the identical pipeline.',
-                    )}
+                : t(
+                    'numbers.simulatorDesc',
+                    'Configure the Asterisk / FreePBX bridge to take real calls. Until then, simulated traffic exercises the identical pipeline.',
+                  )}
             </p>
             {telephony.mode === 'asterisk' ? (
               <div className="mt-3">
                 <CopyField
                   label={t('numbers.bridgeEndpointLabel', 'Bridge turn endpoint (HTTP POST)')}
                   value="/api/telephony/bridge/turn"
-                />
-              </div>
-            ) : telephony.mode === 'twilio' ? (
-              <div className="mt-3">
-                <CopyField
-                  label={t('numbers.webhookLabel', 'Voice webhook (HTTP POST)')}
-                  value={twilioWebhookUrl}
                 />
               </div>
             ) : null}
@@ -130,7 +110,7 @@ export function NumbersManager({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-[14px] font-medium text-ink">{n.e164}</span>
-                    <Badge tone={n.provider === 'twilio' ? 'success' : 'neutral'}>{t(`provider.${n.provider}`, n.provider)}</Badge>
+                    <Badge tone={n.provider === 'sip' ? 'success' : 'neutral'}>{t(`provider.${n.provider}`, n.provider)}</Badge>
                     <Badge tone="neutral">{n.region}</Badge>
                   </div>
                   <p className="mt-0.5 text-[12.5px] text-ink-3">
@@ -167,7 +147,7 @@ export function NumbersManager({
         title={t('numbers.connect', 'Connect a number')}
         description={t(
           'numbers.modalDesc',
-          'The number must already exist in Asterisk / FreePBX, with your carrier, or in Twilio — this points it at your agent.',
+          'The number must already exist in Asterisk / FreePBX or with your carrier — this points it at your agent.',
         )}
         footer={
           <>
@@ -220,7 +200,6 @@ export function NumbersManager({
             >
               <option value="simulator">{t('numbers.optSimulator', 'Simulator (no real calls)')}</option>
               <option value="sip">{t('numbers.optAsterisk', 'Asterisk / FreePBX or carrier SIP')}</option>
-              <option value="twilio">Twilio</option>
             </Select>
           </Field>
         </div>

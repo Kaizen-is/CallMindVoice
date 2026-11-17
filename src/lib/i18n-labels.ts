@@ -33,7 +33,6 @@ export const LABEL_DICTS: Record<UiLocale, Record<string, string>> = {
     'escstatus.missed': 'Missed',
 
     'provider.simulator': 'Simulator',
-    'provider.twilio': 'Twilio',
     'provider.sip': 'SIP',
 
     'intent.price': 'Pricing',
@@ -173,7 +172,6 @@ export const LABEL_DICTS: Record<UiLocale, Record<string, string>> = {
     'escstatus.missed': 'Пропущен',
 
     'provider.simulator': 'Симулятор',
-    'provider.twilio': 'Twilio',
     'provider.sip': 'SIP',
 
     'intent.price': 'Цены',
@@ -313,7 +311,6 @@ export const LABEL_DICTS: Record<UiLocale, Record<string, string>> = {
     'escstatus.missed': 'Oʻtkazib yuborilgan',
 
     'provider.simulator': 'Simulyator',
-    'provider.twilio': 'Twilio',
     'provider.sip': 'SIP',
 
     'intent.price': 'Narxlar',
@@ -453,7 +450,6 @@ export const LABEL_DICTS: Record<UiLocale, Record<string, string>> = {
     'escstatus.missed': 'Ўтказиб юборилган',
 
     'provider.simulator': 'Симулятор',
-    'provider.twilio': 'Twilio',
     'provider.sip': 'SIP',
 
     'intent.price': 'Нархлар',
