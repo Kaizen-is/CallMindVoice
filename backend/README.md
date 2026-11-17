@@ -64,6 +64,8 @@ Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:81
 | `/api/core/playground/end` | `POST /playground/end` | hang up, bill once → 204 |
 | `/api/core/speech/live` | `POST /speech/live` | live Zipformer words (multipart `sid`, `op`, `audio`) |
 | `/api/core/stream` | `GET /stream` | SSE feed of this process's bus events |
+| `/api/core/views/{overview,analytics,numbers,team,settings,developers,billing}` | `GET /views/…` (`dashboard_views.py`) | the data those console pages render (`app/dashboards.py`, `app/analytics.py`) |
+| (server actions in `src/app/actions/ops.ts`) | `POST /actions/<name>` (`workspace_actions.py`) | numbers, team, API keys, webhooks, speech-lab history, company settings, plan, top-up, knowledge gaps (`app/workspace.py`) |
 
 ## Deploy (on the server)
 

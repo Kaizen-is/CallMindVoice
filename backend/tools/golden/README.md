@@ -15,6 +15,8 @@ same inputs in Python and compare.
 | `make-golden-speech.cjs` | `golden_speech.json` | TTS cache keys and mtime stamps, TTS renders (own server, Speko, BRB), STT engines and choice, Playground segmenting |
 | `make-golden-turn.cjs` | `golden_turn.json` | `runTurn` on a real SQLite file: results, rows written, bus events |
 | `make-golden-auth.cjs` | (values in `test_auth_parity.py`) | session cookie, password hash and API key made the TypeScript way |
+| `make-golden-workspace.cjs` | `golden_workspace.json` | the console pages' data (overview, analytics, numbers, team, settings, developers, billing) and 62 workspace server-action calls on a seeded SQLite file, frozen clock: answers and rows added/removed |
+| `make-golden-url.cjs` | `golden_url.json` | `new URL(input).protocol` (or a throw) for 2,300 inputs — the webhook form's URL check |
 
 How they work: `tsc` compiles the TypeScript to CommonJS in `./out` (gitignored);
 each script swaps in recorders for `fetch`, the Anthropic SDK, the usage log or the
@@ -30,6 +32,10 @@ node backend/tools/golden/make-golden-log.cjs backend/tests/fixtures/golden_math
 node backend/tools/golden/make-golden-llm.cjs backend/tests/fixtures/golden_llm.json
 node backend/tools/golden/make-golden-speech.cjs backend/tests/fixtures/golden_speech.json "$TMPDIR/golden-speech"
 node backend/tools/golden/make-golden-turn.cjs backend/tests/fixtures/golden_rag.json backend/tests/fixtures/golden_turn.json "$TMPDIR/golden-turn"
+node backend/tools/golden/make-golden-url.cjs backend/tests/fixtures/golden_url.json
+# workspace: from a checkout of b68a116 (the server actions in ops.ts are thin proxies after the port)
+npx tsc -p backend/tools/golden/tsconfig-workspace.json
+node --experimental-sqlite backend/tools/golden/make-golden-workspace.cjs backend/tests/fixtures/golden_workspace.json "$TMPDIR/golden-workspace"
 ```
 
 (On Windows use a folder such as `%TEMP%\golden-speech` for the last argument.)

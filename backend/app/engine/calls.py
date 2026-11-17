@@ -30,6 +30,17 @@ COST_PER_MINUTE = (
     + RATE_CARD["platformPerMin"]
 )
 
+# Comparable-cost model for deflection savings: a fully-loaded contact-centre seat at $650/month,
+# 22 working days, 8-hour shifts, 65% occupancy. Telephony is charged on both sides, so it is left
+# out of both figures (see OPERATOR_ASSUMPTIONS in calls.ts).
+OPERATOR_ASSUMPTIONS = {"loadedMonthlyCost": 650, "workingDays": 22, "shiftHours": 8, "occupancy": 0.65}
+OPERATOR_MINUTES_PER_MONTH = (
+    OPERATOR_ASSUMPTIONS["workingDays"] * OPERATOR_ASSUMPTIONS["shiftHours"] * 60 * OPERATOR_ASSUMPTIONS["occupancy"]
+)
+OPERATOR_COST_PER_MINUTE = OPERATOR_ASSUMPTIONS["loadedMonthlyCost"] / OPERATOR_MINUTES_PER_MONTH
+# What one deflected minute is actually worth, telephony held constant.
+SAVING_PER_DEFLECTED_MINUTE = max(0, OPERATOR_COST_PER_MINUTE - (COST_PER_MINUTE - RATE_CARD["telephonyPerMin"]))
+
 
 def percentile(sorted_values: list[float], p: float) -> float:
     """`percentile` from utils.ts (nearest rank)."""

@@ -1,13 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requireSession } from '@/lib/auth';
-import { all } from '@/lib/db';
-import { daily, intents, knowledgeGaps, knowledgeStats, overview } from '@/lib/analytics';
-import { liveAgent } from '@/lib/engine/calls';
-import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
-import { tenantDefaultLlm } from '@/lib/llm/choice';
-import { telephonyStatus } from '@/lib/telephony/status';
-import type { Call } from '@/lib/types';
+import { coreGet } from '@/lib/core';
+import type { OverviewData } from '@/lib/workspace-views';
 import { fmtInt, fmtLatency, fmtMoney, fmtPct, relativeTime } from '@/lib/utils';
 import { translator, type Translate } from '@/lib/i18n';
 import { StatCard } from '@/components/console/stat-card';
@@ -33,33 +28,13 @@ export const metadata: Metadata = { title: 'Overview' };
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const { tenant, user } = await requireSession();
+  const { user } = await requireSession();
   const t = translator(user.locale);
 
-  const stats = overview(tenant.id, 30);
-  const prev = overview(tenant.id, 60);
-  const trend = daily(tenant.id, 30);
-  const kb = knowledgeStats(tenant.id);
-  const gaps = knowledgeGaps(tenant.id, 5);
-  const topIntents = intents(tenant.id, 30, 5);
-  const agent = liveAgent(tenant.id);
-  const telephony = telephonyStatus();
-
-  const recent = all<Call>(
-    `SELECT * FROM calls WHERE tenant_id=? ORDER BY started_at DESC LIMIT 8`,
-    tenant.id,
-  );
-
-  // Second 30-day window, derived by subtracting the recent window from 60 days.
-  const priorCalls = Math.max(0, prev.totalCalls - stats.totalCalls);
-  const callsDelta = priorCalls > 0 ? ((stats.totalCalls - priorCalls) / priorCalls) * 100 : null;
-
-  const setupDone = {
-    knowledge: kb.ready > 0,
-    agent: agent?.status === 'live',
-    number: true,
-    tested: stats.totalCalls > 0,
-  };
+  // Last 30 days, the change against the 30 days before, the setup checklist and the engines
+  // (backend/app/dashboards.py).
+  const { stats, trend, kb, gaps, topIntents, recent, callsDelta, setupDone, llm, telephony } =
+    await coreGet<OverviewData>('/views/overview');
   const setupRemaining = Object.values(setupDone).filter((v) => !v).length;
 
   return (
@@ -187,8 +162,8 @@ export default async function DashboardPage() {
             <div className="mt-3.5 space-y-2.5 text-[12.5px]">
               <EngineRow
                 label={t('dash.engine.answer', 'Answer generation')}
-                value={engineIsHosted(tenantDefaultLlm(tenant.id)) ? engineLabel(tenantDefaultLlm(tenant.id)) : t('dash.engine.localSynth', 'Local synthesiser')}
-                hosted={engineIsHosted()}
+                value={llm.hosted ? llm.label : t('dash.engine.localSynth', 'Local synthesiser')}
+                hosted={llm.serverHosted}
               />
               <EngineRow
                 label={t('dash.engine.telephony', 'Telephony')}

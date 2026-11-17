@@ -11,9 +11,11 @@ import { agentLlm, tenantDefaultLlm } from '@/lib/llm/choice';
 import { summarizeCall } from '@/lib/llm/provider';
 import { telephonyStatus } from '@/lib/telephony/status';
 import type { Agent, Call, Escalation, Locale, SpeechTest, Turn } from '@/lib/types';
-import { generateApiKey } from '@/lib/auth';
-import { inviteMember } from '@/lib/provision';
+import { corePost } from '@/lib/core';
 import type { Role } from '@/lib/types';
+
+/** What most workspace actions answer (the Python backend, `backend/app/workspace.py`). */
+type ActionResult = { ok: boolean; message: string };
 
 /* ── simulator ───────────────────────────────────────────────── */
 
@@ -213,44 +215,25 @@ export async function refreshSummaryAction(escalationId: string) {
   return { ok: true, summary };
 }
 
+/*
+ * Workspace administration: the work happens in Python (`POST /actions/<name>`,
+ * backend/app/workspace.py) with the same role checks, rows and audit entries;
+ * a failed check throws here (CoreError 403), as ForbiddenError did. These
+ * proxies only forward the arguments and refresh the pages that changed.
+ */
+
 /* ── numbers ─────────────────────────────────────────────────── */
 
 export async function addNumberAction(input: { e164: string; label: string; provider: string }) {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  const e164 = input.e164.trim();
-  if (!/^\+\d{7,15}$/.test(e164)) {
-    return { ok: false, message: 'Use international format, for example +998712000000.' };
-  }
-  if (get('SELECT id FROM phone_numbers WHERE tenant_id=? AND e164=?', session.tenant.id, e164)) {
-    return { ok: false, message: 'That number is already connected.' };
-  }
-  const agent = liveAgent(session.tenant.id);
-  const numberId = id('num');
-  run(
-    `INSERT INTO phone_numbers (id, tenant_id, e164, label, provider, region, agent_id, status,
-       capabilities, monthly_cost, created_at)
-     VALUES (?,?,?,?,?, 'Tashkent', ?, 'active', 'voice', 3.0, ?)`,
-    numberId,
-    session.tenant.id,
-    e164,
-    input.label.trim() || 'Line',
-    input.provider,
-    agent?.id ?? null,
-    now(),
-  );
-  audit(session.tenant.id, session.user, 'number.added', numberId, { e164 });
-  revalidatePath('/app/numbers');
-  return { ok: true, message: `${e164} connected.` };
+  const r = await corePost<ActionResult>('/actions/addNumberAction', { input });
+  if (r.ok) revalidatePath('/app/numbers');
+  return r;
 }
 
 export async function removeNumberAction(numberId: string) {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  run('DELETE FROM phone_numbers WHERE id=? AND tenant_id=?', numberId, session.tenant.id);
-  audit(session.tenant.id, session.user, 'number.removed', numberId);
+  const r = await corePost<ActionResult>('/actions/removeNumberAction', { numberId });
   revalidatePath('/app/numbers');
-  return { ok: true, message: 'Number released.' };
+  return r;
 }
 
 /* ── team ────────────────────────────────────────────────────── */
@@ -261,128 +244,51 @@ export async function inviteMemberAction(input: {
   role: Role;
   password: string;
 }) {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  if (input.password.length < 8) return { ok: false, message: 'Password must be 8+ characters.' };
-  try {
-    inviteMember({
-      tenantId: session.tenant.id,
-      email: input.email,
-      name: input.name,
-      role: input.role,
-      password: input.password,
-      actor: { id: session.user.id, name: session.user.name },
-    });
-    revalidatePath('/app/team');
-    return { ok: true, message: `${input.name} added as ${input.role}.` };
-  } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : 'Could not add that person.' };
-  }
+  const r = await corePost<ActionResult>('/actions/inviteMemberAction', { input });
+  if (r.ok) revalidatePath('/app/team');
+  return r;
 }
 
 export async function changeRoleAction(userId: string, role: Role) {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  if (userId === session.user.id) return { ok: false, message: 'You cannot change your own role.' };
-  run(
-    'UPDATE users SET role=?, updated_at=? WHERE id=? AND tenant_id=?',
-    role,
-    now(),
-    userId,
-    session.tenant.id,
-  );
-  audit(session.tenant.id, session.user, 'team.role_changed', userId, { role });
-  revalidatePath('/app/team');
-  return { ok: true, message: 'Role updated.' };
+  const r = await corePost<ActionResult>('/actions/changeRoleAction', { userId, role });
+  if (r.ok) revalidatePath('/app/team');
+  return r;
 }
 
 export async function setMemberStatusAction(userId: string, status: 'active' | 'disabled') {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  if (userId === session.user.id) return { ok: false, message: 'You cannot disable yourself.' };
-  run(
-    'UPDATE users SET status=?, updated_at=? WHERE id=? AND tenant_id=?',
-    status,
-    now(),
-    userId,
-    session.tenant.id,
-  );
-  if (status === 'disabled') run('DELETE FROM sessions WHERE user_id=?', userId);
-  audit(session.tenant.id, session.user, 'team.status_changed', userId, { status });
-  revalidatePath('/app/team');
-  return { ok: true, message: status === 'disabled' ? 'Access revoked.' : 'Access restored.' };
+  const r = await corePost<ActionResult>('/actions/setMemberStatusAction', { userId, status });
+  if (r.ok) revalidatePath('/app/team');
+  return r;
 }
 
 /* ── developers ──────────────────────────────────────────────── */
 
 export async function createApiKeyAction(name: string, scopes: string) {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  const { raw, prefix, hash } = generateApiKey();
-  const keyId = id('key');
-  run(
-    `INSERT INTO api_keys (id, tenant_id, name, prefix, hash, scopes, created_by, created_at)
-     VALUES (?,?,?,?,?,?,?,?)`,
-    keyId,
-    session.tenant.id,
-    name.trim() || 'API key',
-    prefix,
-    hash,
+  // The key is returned exactly once — only its hash is stored.
+  const r = await corePost<{ ok: boolean; key: string; message: string }>('/actions/createApiKeyAction', {
+    name,
     scopes,
-    session.user.id,
-    now(),
-  );
-  audit(session.tenant.id, session.user, 'apikey.created', keyId, { name, scopes });
+  });
   revalidatePath('/app/developers');
-  // Returned exactly once — only the hash is stored.
-  return { ok: true, key: raw, message: 'Copy this key now — it will not be shown again.' };
+  return r;
 }
 
 export async function revokeApiKeyAction(keyId: string) {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  run(
-    'UPDATE api_keys SET revoked_at=? WHERE id=? AND tenant_id=?',
-    now(),
-    keyId,
-    session.tenant.id,
-  );
-  audit(session.tenant.id, session.user, 'apikey.revoked', keyId);
+  const r = await corePost<ActionResult>('/actions/revokeApiKeyAction', { keyId });
   revalidatePath('/app/developers');
-  return { ok: true, message: 'Key revoked.' };
+  return r;
 }
 
 export async function saveWebhookAction(url: string, events: string) {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:') return { ok: false, message: 'Webhook URLs must use HTTPS.' };
-  } catch {
-    return { ok: false, message: 'That is not a valid URL.' };
-  }
-  const hookId = id('whk');
-  run(
-    `INSERT INTO webhooks (id, tenant_id, url, events, secret, status, created_at)
-     VALUES (?,?,?,?,?, 'active', ?)`,
-    hookId,
-    session.tenant.id,
-    url,
-    events,
-    generateApiKey().raw.replace('ovoz_sk_', 'whsec_'),
-    now(),
-  );
-  audit(session.tenant.id, session.user, 'webhook.created', hookId, { url });
-  revalidatePath('/app/developers');
-  return { ok: true, message: 'Webhook registered.' };
+  const r = await corePost<ActionResult>('/actions/saveWebhookAction', { url, events });
+  if (r.ok) revalidatePath('/app/developers');
+  return r;
 }
 
 export async function deleteWebhookAction(hookId: string) {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  run('DELETE FROM webhooks WHERE id=? AND tenant_id=?', hookId, session.tenant.id);
+  const r = await corePost<ActionResult>('/actions/deleteWebhookAction', { hookId });
   revalidatePath('/app/developers');
-  return { ok: true, message: 'Webhook removed.' };
+  return r;
 }
 
 /* ── developer speech lab ────────────────────────────────────── */
@@ -398,34 +304,12 @@ export async function saveSpeechTestAction(input: {
   output?: string | null;
   voice?: string | null;
 }): Promise<{ ok: true; test: SpeechTest } | { ok: false; message: string }> {
-  const session = await requireSession();
-  if (input.kind !== 'stt' && input.kind !== 'tts') {
-    return { ok: false, message: 'Unknown test kind.' };
-  }
-  const test: SpeechTest = {
-    id: id('spt'),
-    tenant_id: session.tenant.id,
-    user_id: session.user.id,
-    kind: input.kind,
-    input: input.input?.slice(0, 4000) ?? null,
-    output: input.output?.slice(0, 8000) ?? null,
-    voice: input.voice ?? null,
-    created_at: now(),
-  };
-  run(
-    `INSERT INTO speech_tests (id, tenant_id, user_id, kind, input, output, voice, created_at)
-     VALUES (?,?,?,?,?,?,?,?)`,
-    test.id,
-    test.tenant_id,
-    test.user_id,
-    test.kind,
-    test.input,
-    test.output,
-    test.voice,
-    test.created_at,
+  const r = await corePost<{ ok: true; test: SpeechTest } | { ok: false; message: string }>(
+    '/actions/saveSpeechTestAction',
+    { input },
   );
-  revalidatePath(input.kind === 'stt' ? '/app/dev/stt' : '/app/dev/tts');
-  return { ok: true, test };
+  if (r.ok) revalidatePath(input.kind === 'stt' ? '/app/dev/stt' : '/app/dev/tts');
+  return r;
 }
 
 /* ── settings & billing ──────────────────────────────────────── */
@@ -436,36 +320,16 @@ export async function updateTenantAction(input: {
   timezone: string;
   country: string;
 }) {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  run(
-    'UPDATE tenants SET name=?, industry=?, timezone=?, country=?, updated_at=? WHERE id=?',
-    input.name.trim(),
-    input.industry,
-    input.timezone,
-    input.country,
-    now(),
-    session.tenant.id,
-  );
-  audit(session.tenant.id, session.user, 'tenant.updated', session.tenant.id, input);
+  const r = await corePost<ActionResult>('/actions/updateTenantAction', { input });
   revalidatePath('/app', 'layout');
-  return { ok: true, message: 'Saved.' };
+  return r;
 }
 
 export async function changePlanAction(plan: string) {
-  const session = await requireSession();
-  requireRole(session, 'owner');
-  run(
-    'UPDATE tenants SET plan=?, plan_started=?, updated_at=? WHERE id=?',
-    plan,
-    now(),
-    now(),
-    session.tenant.id,
-  );
-  audit(session.tenant.id, session.user, 'billing.plan_changed', session.tenant.id, { plan });
+  const r = await corePost<ActionResult>('/actions/changePlanAction', { plan });
   revalidatePath('/app/billing');
   revalidatePath('/app', 'layout');
-  return { ok: true, message: `Switched to the ${plan} plan.` };
+  return r;
 }
 
 /**
@@ -476,59 +340,24 @@ export async function changePlanAction(plan: string) {
 export async function topUpAction(
   amountUzs: number,
 ): Promise<{ ok: false; message: string } | { ok: true; balance: number; message: string }> {
-  const session = await requireSession();
-  requireRole(session, 'owner');
-  const amount = Math.round(Number(amountUzs));
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return { ok: false, message: 'Enter an amount greater than zero.' };
-  }
-  run(
-    'UPDATE tenants SET balance_uzs = balance_uzs + ?, updated_at=? WHERE id=?',
-    amount,
-    now(),
-    session.tenant.id,
+  const r = await corePost<{ ok: false; message: string } | { ok: true; balance: number; message: string }>(
+    '/actions/topUpAction',
+    { amountUzs },
   );
-  const balance =
-    get<{ balance_uzs: number }>('SELECT balance_uzs FROM tenants WHERE id=?', session.tenant.id)
-      ?.balance_uzs ?? 0;
-  run(
-    `INSERT INTO wallet_ledger (id, tenant_id, kind, amount_uzs, balance_after, note, created_at)
-     VALUES (?,?, 'topup', ?, ?, ?, ?)`,
-    id('wl'),
-    session.tenant.id,
-    amount,
-    balance,
-    'Manual top-up',
-    now(),
-  );
-  audit(session.tenant.id, session.user, 'billing.topup', session.tenant.id, { amount });
-  revalidatePath('/app/billing');
-  return { ok: true, balance, message: 'Balance topped up.' };
+  if (r.ok) revalidatePath('/app/billing');
+  return r;
 }
 
 export async function resolveGapAction(gapId: string, answer: string) {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  run(
-    `UPDATE knowledge_gaps SET status='answered', answer=? WHERE id=? AND tenant_id=?`,
-    answer,
-    gapId,
-    session.tenant.id,
-  );
+  const r = await corePost<ActionResult>('/actions/resolveGapAction', { gapId, answer });
   revalidatePath('/app');
   revalidatePath('/app/analytics');
-  return { ok: true, message: 'Marked as answered.' };
+  return r;
 }
 
 export async function ignoreGapAction(gapId: string) {
-  const session = await requireSession();
-  requireRole(session, 'admin');
-  run(
-    `UPDATE knowledge_gaps SET status='ignored' WHERE id=? AND tenant_id=?`,
-    gapId,
-    session.tenant.id,
-  );
+  const r = await corePost<ActionResult>('/actions/ignoreGapAction', { gapId });
   revalidatePath('/app');
   revalidatePath('/app/analytics');
-  return { ok: true, message: 'Dismissed.' };
+  return r;
 }

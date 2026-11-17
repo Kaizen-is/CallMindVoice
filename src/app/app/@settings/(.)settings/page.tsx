@@ -1,10 +1,7 @@
 import { requireSession } from '@/lib/auth';
 import { translator } from '@/lib/i18n';
-import { knowledgeStats } from '@/lib/analytics';
-import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
-import { tenantDefaultLlm } from '@/lib/llm/choice';
-import { embeddingEngine } from '@/lib/rag/embed';
-import { telephonyStatus } from '@/lib/telephony/status';
+import { coreGet } from '@/lib/core';
+import type { SettingsData } from '@/lib/workspace-views';
 import { SettingsPanel } from '@/app/app/settings/panel';
 import { SettingsModalSignal } from '@/components/console/settings-modal';
 
@@ -13,9 +10,8 @@ export const dynamic = 'force-dynamic';
 // Intercepted (modal) view of /app/settings.
 export default async function SettingsModal() {
   const { tenant, user } = await requireSession();
-  const embedding = embeddingEngine();
   const t = translator(user.locale);
-  const telephony = telephonyStatus();
+  const { llm, embedding, telephony, stats } = await coreGet<SettingsData>('/views/settings');
 
   return (
     <>
@@ -34,8 +30,8 @@ export default async function SettingsModal() {
       user={{ name: user.name, email: user.email, role: user.role, locale: user.locale }}
       canEdit={user.role === 'owner' || user.role === 'admin'}
       engines={{
-        generation: engineIsHosted(tenantDefaultLlm(tenant.id)) ? engineLabel(tenantDefaultLlm(tenant.id)) : t('settings.engine.localGeneration', 'Local extractive synthesiser'),
-        generationHosted: engineIsHosted(),
+        generation: llm.hosted ? llm.label : t('settings.engine.localGeneration', 'Local extractive synthesiser'),
+        generationHosted: llm.serverHosted,
         embedding: embedding.id,
         embeddingHosted: embedding.hosted,
         telephony: telephony.mode === 'asterisk'
@@ -46,7 +42,7 @@ export default async function SettingsModal() {
           ? 'BRIDGE_SHARED_SECRET'
           : 'BRIDGE_SHARED_SECRET',
       }}
-      stats={knowledgeStats(tenant.id)}
+      stats={stats}
       />
     </>
   );
