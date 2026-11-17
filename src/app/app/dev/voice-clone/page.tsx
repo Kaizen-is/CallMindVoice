@@ -1,26 +1,18 @@
 import type { Metadata } from 'next';
+import type { ComponentProps } from 'react';
 import { requireSession } from '@/lib/auth';
-import { listCustomVoices } from '@/lib/voices';
+import { coreGet } from '@/lib/core';
 import { CloneLab } from './clone-lab';
 
 export const metadata: Metadata = { title: 'Voice Cloning' };
 export const dynamic = 'force-dynamic';
 
-export default async function VoiceClonePage() {
-  const { tenant, user } = await requireSession();
-  const voices = listCustomVoices(tenant.id, 'clone').map((v) => ({
-    id: v.id,
-    name: v.name,
-    mode: v.mode,
-    detail: v.ref_text,
-    created_at: v.created_at,
-  }));
+/** The account's cloned voices and whether the own TTS is set up, from `GET /views/dev/voice-clone`. */
+type CloneData = Omit<ComponentProps<typeof CloneLab>, 'locale'>;
 
-  return (
-    <CloneLab
-      locale={user.locale}
-      voices={voices}
-      speech={{ tts: Boolean(process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN) }}
-    />
-  );
+export default async function VoiceClonePage() {
+  const { user } = await requireSession();
+  const data = await coreGet<CloneData>('/views/dev/voice-clone');
+
+  return <CloneLab locale={user.locale} voices={data.voices} speech={data.speech} />;
 }

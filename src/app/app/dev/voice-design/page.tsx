@@ -1,26 +1,18 @@
 import type { Metadata } from 'next';
+import type { ComponentProps } from 'react';
 import { requireSession } from '@/lib/auth';
-import { listCustomVoices } from '@/lib/voices';
+import { coreGet } from '@/lib/core';
 import { DesignLab } from './design-lab';
 
 export const metadata: Metadata = { title: 'Voice Design' };
 export const dynamic = 'force-dynamic';
 
-export default async function VoiceDesignPage() {
-  const { tenant, user } = await requireSession();
-  const voices = listCustomVoices(tenant.id, 'design').map((v) => ({
-    id: v.id,
-    name: v.name,
-    mode: v.mode,
-    detail: v.voice_design,
-    created_at: v.created_at,
-  }));
+/** The account's designed voices and whether the own TTS is set up, from `GET /views/dev/voice-design`. */
+type DesignData = Omit<ComponentProps<typeof DesignLab>, 'locale'>;
 
-  return (
-    <DesignLab
-      locale={user.locale}
-      voices={voices}
-      speech={{ tts: Boolean(process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN) }}
-    />
-  );
+export default async function VoiceDesignPage() {
+  const { user } = await requireSession();
+  const data = await coreGet<DesignData>('/views/dev/voice-design');
+
+  return <DesignLab locale={user.locale} voices={data.voices} speech={data.speech} />;
 }

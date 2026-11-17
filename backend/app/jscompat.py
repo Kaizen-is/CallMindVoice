@@ -244,6 +244,27 @@ def js_truthy(value: object) -> bool:
     return bool(value)
 
 
+_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def _is_array_index(key: str) -> bool:
+    return key.isascii() and key.isdigit() and str(int(key)) == key and int(key) <= 4294967294
+
+
+def js_key_order(obj: dict) -> list[tuple[str, object]]:
+    """
+    An object's keys in JavaScript's order: integer-like keys ("0", "7") first, ascending, then the rest
+    in insertion order. So `{"1": …, "0": …}` built in Python is written `{"0": …, "1": …}`, as
+    JSON.stringify writes it (e.g. an agent's business hours, days "1"…"6" then "0").
+    """
+    items = [(str(k), x) for k, x in obj.items()]
+    indexed = [kv for kv in items if _is_array_index(kv[0])]
+    if not indexed:
+        return items
+    indexed.sort(key=lambda kv: int(kv[0]))
+    return indexed + [kv for kv in items if not _is_array_index(kv[0])]
+
+
 def js_json(value: object) -> str:
     """
     `JSON.stringify(value)`: compact, non-ASCII kept as is, numbers written as JavaScript writes
@@ -261,7 +282,8 @@ def js_json(value: object) -> str:
                 return "null"
             return js_number_str(v)
         if isinstance(v, dict):
-            return "{" + ",".join(f"{string(str(k))}:{enc(x)}" for k, x in v.items()) + "}"
+            # Integer-like keys first (JavaScript's property order); keys escaped like any string.
+            return "{" + ",".join(f"{string(k)}:{enc(x)}" for k, x in js_key_order(v)) + "}"
         if isinstance(v, (list, tuple)):
             return "[" + ",".join(enc(x) for x in v) + "]"
         raise TypeError(f"not JSON serialisable: {type(v).__name__}")
