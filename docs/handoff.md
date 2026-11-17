@@ -1,4 +1,4 @@
-# CallMind — handoff (state on 13 Nov 2026)
+# CallMind — handoff (state on 17 Nov 2026)
 
 Read this first when you start a new session (human or Claude). It says what
 CallMind is, where it runs, the rules we work by, what is done, and what comes
@@ -20,11 +20,11 @@ everything (calls, transcripts, analytics, billing).
 
 | Part | Where | Notes |
 |---|---|---|
-| Web app (UI **and** today's backend) | `src/` — Next.js 16 (App Router, server actions) | **Not the Next.js you know**: read `node_modules/next/dist/docs/` before writing Next code (`AGENTS.md`). |
-| Python backend (being moved in) | `backend/` — FastAPI | Takes over the server code step by step (section 4). |
-| Phone bridge | `telephony-bridge/` | Asterisk/SIP side; calls `/api/telephony/bridge/*`. The only phone path: the unused Twilio webhook was removed on 17 Nov. |
-| Database | `data/ovoz.db` (SQLite, WAL) | Shared by both apps. Schema changes: Alembic in `backend/alembic/` only. |
-| Disk TTS cache | `data/tts-cache/<sha1>.pcm` | Shared by both apps (same keys). |
+| Web UI | `src/` — Next.js 16 (App Router) | Pages and components only; server actions are thin proxies to Python (`src/app/actions/`, `src/lib/core.ts`). **Not the Next.js you know**: read `node_modules/next/dist/docs/` before writing Next code (`AGENTS.md`). |
+| Backend (all server code) | `backend/` — FastAPI, Python 3.12 | Calls, turn engine, speech, knowledge base, console data and actions, login, public API, phone line (section 4). |
+| Phone bridge | `telephony-bridge/bridge.py` (Python; `bridge.mjs` kept until the server switches) | Asterisk AudioSocket side; calls `/api/telephony/bridge/*`. The only phone path: the unused Twilio webhook was removed on 17 Nov. |
+| Database | `data/ovoz.db` (SQLite, WAL) | Created and migrated by the API at start (`backend/app/schema.py`); new schema changes: Alembic in `backend/alembic/` only. |
+| Disk TTS cache | `data/tts-cache/<sha1>.pcm` | Written by the API. |
 | Uzbek STT model | `models/uzbek-zipformer/` | In git (~70 MB int8 ONNX). |
 
 ## 2. Where it runs
@@ -38,8 +38,11 @@ https://callmind.brb-tech.uz
 | `callmind.service` | `next start` (the site), `EnvironmentFile=~/callmind/.env` | 9925 |
 | `callmind-api.service` | uvicorn `app.main:app` from `backend/.venv` (unit file: `backend/deploy/`) | 127.0.0.1:8100 |
 
-The browser only talks to Next.js; `next.config.ts` forwards `/api/core/*` to the
-Python API (`/api/core/me` → `GET /me`), cookie included, streaming unbuffered.
+The browser only talks to Next.js; `next.config.ts` forwards `/api/core/*` and the
+original API paths (`pythonRoutes`: Playground, speech, telephony, demos, `/api/stream`,
+`/api/v1/*`) to the Python API, cookie included, streaming unbuffered. Pages get their
+data from Python (`GET /views/<page>`) and every server action forwards to it, so **the
+site does not work without `callmind-api.service`** (signed-out pages still render).
 
 **Deploying** (done by the user, who owns production):
 
@@ -73,66 +76,68 @@ a separate copy of the repo. When `backend/pyproject.toml` dependencies change:
   tests; section 5). CI (`.gitlab-ci.yml`) runs `tsc`, `npm audit`, ruff + pytest
   for `backend/`, the build, and an isolated smoke test.
 - **Schema**: only via Alembic migrations in `backend/alembic/` (baseline
-  `0001_baseline` = the schema of 12 Nov 2026). The TypeScript migrations in
-  `src/lib/db.ts` are frozen.
+  `0001_baseline` = the schema of 12 Nov 2026). The original ten migrations
+  (`001_core` … `010_agent_tts`, from the former `src/lib/db.ts`) are applied by
+  `backend/app/schema.py` when the API starts; never add to that list.
 
-## 4. The move to Python — plan and status
+## 4. The move to Python — done (17 Nov 2026)
 
-Goal: all server logic in FastAPI (the team knows Python); Next.js stays the UI.
-The live site keeps working throughout; each step is built, tested on the site,
-then the next.
+All server code is in FastAPI; Next.js is only the UI. SQLite, the pages and the
+components are unchanged. Every step was tested on the site before the next one.
+Work is on the local branch `server` of `D:\WORK\callmind-server` (not pushed).
 
-| Step | What | Status |
+| Phase | What moved to Python | Commits |
 |---|---|---|
-| 0 | FastAPI skeleton, shared login (`ovoz_session` cookie, same HMAC), shared SQLite, Alembic baseline, `/api/core` rewrite, systemd unit, CI job | **Live** (commit `9a8d024`) |
-| 1a | Knowledge search, Uzbek numbers, spoken-form text, intents, local answers, loan identity check + calendar | Done (`92d6bae`, `4ab9069`) — no endpoint yet |
-| 1b | STT/TTS engines + disk cache, LLM providers (streaming, Haiku fallback), `run_turn`, calls/billing, bus, Playground voice logic | Done (`51f403e`) — no endpoint yet |
-| 1c | Playground voice call served by Python behind `?py=1` | **Live** since 13 Nov (`779f979`) — **waiting for a manual test** (see below) |
-| **2** | **Phone bridge routes in FastAPI (`/api/telephony/bridge/{turn,filler,end}`, same paths, `x-bridge-secret`); switch by pointing the bridge's `NEXT_BASE_URL`** | **Next**, once 1c is checked on the live site |
-| 3 | Public demo + logistics (`/api/demo/*`, `/api/logistics/*`, per-IP limits) | |
-| 4 | Console areas one by one: each page gets one `GET /api/core/views/<page>` and its server actions become `fetch` calls (agents, knowledge + ingest, calls/inbox/escalations, analytics, team/settings, billing, developers + `/api/v1/*`, models/labs/benchmark) | |
-| 5 | Login moves; delete the TypeScript backend (`src/lib/{db,auth,engine,llm,rag,speech,…}`, `src/app/api/*`, `src/app/actions/*`) | |
-| later | PostgreSQL; voice roadmap (streaming runtime) in the same Python codebase | |
+| 0–1c | Foundation, shared login, ports of search / text / LLM / speech / turn engine, Playground call behind `?py=1` | `9a8d024` … `779f979` |
+| 1 | Playground call (`/api/playground/*`), live Zipformer (`/api/speech/live`), TTS / STT (`/api/speech/{tts,stt}`, `/api/models/stt`) at their original paths | `dce03b0` |
+| 2 | Phone line: `/api/telephony/bridge/{turn,filler,end}`; the bridge itself as `telephony-bridge/bridge.py` (+ `backend/deploy/callmind-bridge.service`) | `e2147f8` |
+| 3 | Public demos `/api/demo/*`, `/api/logistics/*` and their page data | `c47d1d8` |
+| 4 | Every console page's data (`GET /views/<page>`) and all 53 server actions; `/api/stream`; public API `/api/v1/*` (calls, answer, documents); knowledge-base ingest (PDF text identical to pdf.js) | `b68a116` … `1377346` |
+| 5 | Login / sign-up / sign-out; `src/lib/auth.ts` asks `GET /session`; the TypeScript backend (`src/lib/{db,engine,llm,rag,speech,…}`, every `src/app/api/*` route, `src/instrumentation*.ts`) deleted; schema created by the API at start; benchmark scheduled by the API | `550d18a`, `017dc75` … `d363d06` |
 
-### Step 1c — the Playground call from Python (done, 13 Nov)
+What is left in TypeScript is UI: pages, components, hooks, translations, the
+types the pages use (`src/lib/types.ts`), browser helpers (`audio.ts`,
+`playground-shared.ts`, `demo-shared.ts`) and the server-action proxies.
 
-Open the Playground with **`?py=1`** in the address
-(`https://callmind.brb-tech.uz/app/playground?py=1`) and the voice call goes to
-FastAPI instead of the Next.js routes; without it nothing changes.
+**How it was checked**: golden fixtures from the original TypeScript and parity tests
+for every area (section 5); side-by-side runs of TypeScript and Python on copies of
+the real database (identical results and rows); the TypeScript and Python phone
+bridges against a simulated Asterisk call (same requests, byte-identical audio);
+then the production build (`next build`) on this PC with only Python behind it:
+every page, sign-in / sign-out / sign-up and onboarding, knowledge upload and
+retrieval, and the voice checks (TTS, streaming TTS, GAPI, Scribe, a full Playground
+call, live Zipformer) — all passing.
 
-| Through the site | Python (`backend/app/routers/`) | Port of |
-|---|---|---|
-| `POST /api/core/playground/call` | `playground.py` | `src/app/api/playground/call/route.ts` |
-| `POST /api/core/playground/turn` (`?prefetch=1`) | `playground.py` | `…/playground/turn/route.ts` |
-| `POST /api/core/playground/end` | `playground.py` | `…/playground/end/route.ts` |
-| `POST /api/core/speech/live` | `live.py` (Zipformer in a thread) | `src/app/api/speech/live/route.ts` |
-| `GET /api/core/stream` | `live.py` (SSE from `app.engine.bus`) | `src/app/api/stream/route.ts` |
+**Deploying this** (the user; production is theirs). New Python dependencies
+(`pdfminer.six`, `mammoth`, `ada-url`, `python-multipart`, …); npm packages removed
+(`@anthropic-ai/sdk`, `mammoth`, `unpdf`). In this order:
 
-- Same request fields, status codes (`bad_request`, `bad_audio`, `ended`, `no_agent`,
-  `busy_call`; live: `bad_session`, `piece_too_large`, `bad_op`,
-  `zipformer_not_available`, `zipformer_failed`) and NDJSON events as the TypeScript.
-- Page: `callApi()` / `pythonBackend()` in `src/app/app/playground/playground.tsx`.
-  The hang-up (`keepalive` fetch and the `pagehide` beacon) now sends an
-  `application/json` Blob on **both** backends — it was a text/plain string, which the
-  edge proxy refuses, so closing the tab mid-call may not have ended the call before.
-- Tests: `backend/tests/test_playground_routes.py` (TestClient, scripted TTS/STT,
-  local engine): event order per route, refusals, the prefetched transcript reused,
-  STT failure, legacy mode, billing once, live ops, SSE heartbeat/events/ping.
-- New Python dependency: `python-multipart`.
-- **Deploy** (user): `git pull`, `backend/.venv/bin/pip install -e "backend[zipformer]"`,
-  restart `callmind-api.service`, build + restart the site. Then on the same agent compare
-  "You stopped → agent spoke" with and without `?py=1`, and hang up to check the call
-  is billed once (Calls page).
-- **Not moved yet**: the wallboard/inbox still use the Next.js `/api/stream`. Python's
-  bus only sees calls Python handled, so until the TypeScript `publish()` also posts
-  its events to Python (or everything is in Python), don't switch the wallboard.
-  Page-load side effects `closeIdlePlaygroundCalls` (console layout) and
-  `ensureBankAgent` (Playground page) still run in Next.js — fine, same database.
-- **Local PC**: Python's HTTPS (httpx, certifi) does not trust the office CA either.
-  Point it at a bundle that includes the Windows store: build it once with
-  `python -c "import ssl,certifi;open('ca.pem','w').write(open(certifi.where()).read()+''.join(ssl.DER_cert_to_PEM_cert(c) for s in ('ROOT','CA') for c,e,t in ssl.enum_certificates(s) if e=='x509_asn'))"`
-  and start uvicorn with `SSL_CERT_FILE=<path>\ca.pem`. Without it Claude/Gemini fail
-  and the Python side answers with the local engine.
+```bash
+cd ~/callmind && git pull && backend/.venv/bin/pip install -e "backend[zipformer]"
+```
+```bash
+systemctl --user restart callmind-api.service && curl -s http://127.0.0.1:8100/readyz
+```
+```bash
+cd ~/callmind && npm ci && npm run build && systemctl --user restart callmind.service
+```
+```bash
+systemctl --user restart callmind-api.service
+```
+
+The API goes first (the new API also serves the old site), then build + restart the
+site in one command, then the API once more so it sees the new build id and runs
+the deploy benchmark once (`callmind-api.service` now sets `NODE_ENV=production`).
+The phone bridge can stay on `bridge.mjs` (same paths, now answered by Python);
+switch to `bridge.py` separately with a test call, as described in
+`backend/deploy/callmind-bridge.service` (roll back the same way).
+
+**Risks the ports noted** (behaviour kept exactly as the TypeScript had it; worth
+fixing later as separate changes): webhook secrets are visible to analysts on the
+Developers page; `setMemberStatusAction` signs out sessions without checking the
+tenant; the client address falls back to `127.0.0.1` without `x-forwarded-for`;
+Python PDF text extraction is 3–4× slower than unpdf (runs off the event loop);
+a knowledge term `constructor` makes BM25 NaN for that tenant (JavaScript quirk, kept).
 
 ## 5. How ported code is proven identical
 
@@ -216,15 +221,14 @@ npm ci
 1. Put a `.env` next to `package.json` (copy the server's, or fill in
    `.env.example`). `SEED_ADMIN_PASSWORD` is the local admin's password.
 2. `npm run dev` → http://localhost:3000.
-3. The database is created on the first query: on `/login`, try any email and
-   password once (it fails, and `data\ovoz.db` now exists).
+3. Start the Python API (below); it creates `data\ovoz.db` with every table on start.
 4. In a second terminal (in the folder with `package.json`): `npm run seed` —
-   creates the bank company and `admintest@callmind.uz`.
+   creates the bank company and `admintest@callmind.uz` (the API must have started once).
 5. Log in as `admintest@callmind.uz` / `SEED_ADMIN_PASSWORD`.
 
 The deploy benchmark does not run in `npm run dev` (it would spend the BRB limit).
 
-Python backend (needed locally for `?py=1` in the Playground; `.claude/launch.json`
+Python backend (required: the site gets all its data from it; `.claude/launch.json`
 has `site` and `api` entries that start both):
 
 ```bash
@@ -255,7 +259,9 @@ database; `CALLMIND_DOTENV=0`). With the API running locally, the site's
 
 ## 9. Open items
 
-1. **Test step 1c** on the live site (`/app/playground?py=1`, section 4), then step 2.
+1. **Deploy the Python-only version** (section 4, "Deploying this") and check the
+   live site: sign in, a Playground call, a knowledge upload, one phone call; then
+   switch the phone bridge to `bridge.py`.
 2. Ask the network admins for the routes to the BRB proxy and to
    `stt-service.brb.uz:443` (section 6), then deploy and run one TTS render and one
    BRB Whisper transcription on the live site.

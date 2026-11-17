@@ -6,6 +6,13 @@ TypeScript** on fixed inputs and write what it produced to
 `backend/tests/fixtures/golden_*.json`; the `test_*_parity.py` tests replay the
 same inputs in Python and compare.
 
+**The original TypeScript is no longer in the tree** (removed in Phase 5, the
+commit after `1377346`). To regenerate a fixture, use a checkout that still has it:
+`git worktree add ../callmind-ts ac9d4d1` (the code before the move to Python),
+`npm ci` there, copy this folder (`backend/tools/golden/`) into it, and run the
+commands below from that folder; copy the fixture back. `golden_migrations.json` is
+the `MIGRATIONS` list of that checkout's `src/lib/db.ts`.
+
 | Script | Fixture | What it records |
 |---|---|---|
 | `make-golden-rag.cjs` | `golden_rag.json` | text folding, embeddings (byte-exact), chunking, a 30-chunk corpus and 25 searches |

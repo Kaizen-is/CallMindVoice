@@ -3,7 +3,7 @@
 # CallMind — notes for Claude sessions
 
 Start with `docs/handoff.md`: what CallMind is, where it runs, what is done, and the
-next task (step 1c of the move to the Python backend). Backend details:
+next steps (deploying the Python-only backend). Backend details:
 `backend/README.md`; proving ports identical to the TypeScript:
 `backend/tools/golden/README.md`.
 
