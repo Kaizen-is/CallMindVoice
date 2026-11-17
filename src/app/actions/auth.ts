@@ -92,8 +92,13 @@ export async function setLocaleAction(locale: UiLocale) {
  * Public locale switch — usable by signed-out visitors on the marketing site.
  * Persists to a year-long cookie, and mirrors into the user/tenant records when
  * a session exists so the console and the landing page stay in sync.
+ *
+ * Takes the form's `locale` field rather than a bound argument: a bound action
+ * makes React add a hidden `$ACTION_n:m` field, which the edge proxy refuses
+ * when the form is sent before the page's scripts run (see instrumentation-client.ts).
  */
-export async function setPublicLocaleAction(locale: UiLocale) {
+export async function setPublicLocaleAction(formData: FormData) {
+  const locale = String(formData.get('locale') ?? '') as UiLocale;
   if (!LOCALES.includes(locale)) return;
   (await cookies()).set('ovoz_locale', locale, {
     path: '/',

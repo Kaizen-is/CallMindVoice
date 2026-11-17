@@ -41,7 +41,9 @@ export function LocaleSwitcher({ locale, className }: { locale: UiLocale; classN
 
       <div className="lang-switch-menu absolute right-0 z-50 mt-1.5 w-[184px] overflow-hidden rounded-[12px] bg-overlay p-1 shadow-e3 hairline">
         {ORDER.map((code) => (
-          <form key={code} action={setPublicLocaleAction.bind(null, code)}>
+          // The language goes as a field, not a bound argument: see setPublicLocaleAction.
+          <form key={code} action={setPublicLocaleAction}>
+            <input type="hidden" name="locale" value={code} />
             <button
               type="submit"
               className={cn(

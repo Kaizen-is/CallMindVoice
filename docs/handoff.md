@@ -69,6 +69,13 @@ a separate copy of the repo. When `backend/pyproject.toml` dependencies change:
   Every browser → server call sends JSON or multipart. Server actions are
   relabelled by `src/instrumentation-client.ts`; `sendBeacon`/`keepalive` hang-ups
   must send an `application/json` Blob.
+  It also refuses (403) any multipart field whose **name contains a colon**. React adds
+  hidden `$ACTION_n:m` fields to forms with a bound or `useActionState` action; the same
+  file drops them from server-action requests, the login and signup buttons stay
+  disabled until the page has loaded (`useHydrated`), and the language switcher sends
+  its language as a plain field. Seen as "This page couldn't load" after pressing
+  login on a phone. The office network (192.168.77.x) skips this filter, so check
+  from outside — or from the server through `https://callmind.brb-tech.uz`.
 - **Ported code must match the TypeScript exactly** (golden fixtures + parity
   tests; section 5). CI (`.gitlab-ci.yml`) runs `tsc`, `npm audit`, ruff + pytest
   for `backend/`, the build, and an isolated smoke test.
@@ -87,7 +94,7 @@ then the next.
 | 0 | FastAPI skeleton, shared login (`ovoz_session` cookie, same HMAC), shared SQLite, Alembic baseline, `/api/core` rewrite, systemd unit, CI job | **Live** (commit `9a8d024`) |
 | 1a | Knowledge search, Uzbek numbers, spoken-form text, intents, local answers, loan identity check + calendar | Done (`92d6bae`, `4ab9069`) — no endpoint yet |
 | 1b | STT/TTS engines + disk cache, LLM providers (streaming, Haiku fallback), `run_turn`, calls/billing, bus, Playground voice logic | Done (`51f403e`) — no endpoint yet |
-| 1c | Playground voice call served by Python behind `?py=1` | **Live** since 13 Nov (`779f979`), tested on the live site 17 Nov |
+| 1c | Playground voice call served by Python behind `?py=1` | **Live** since 13 Nov (`779f979`); voice calls checked on 16 Nov (calls, live words, turns, hang-up) and tested again on 17 Nov |
 | 2 | Phone bridge routes in FastAPI (`/api/telephony/bridge/{turn,filler,end}`, same paths, `x-bridge-secret`); switch by pointing the bridge's `NEXT_BASE_URL` | Done 17 Nov — **not switched on yet** (see below) |
 | **3** | **Public demo + logistics (`/api/demo/*`, `/api/logistics/*`, per-IP limits)** | **Next** |
 | 4 | Console areas one by one: each page gets one `GET /api/core/views/<page>` and its server actions become `fetch` calls (agents, knowledge + ingest, calls/inbox/escalations, analytics, team/settings, billing, developers + `/api/v1/*`, models/labs/benchmark) | |
@@ -287,6 +294,7 @@ database; `CALLMIND_DOTENV=0`). With the API running locally, the site's
 | `d3fb787` | BRB TTS engine (site + backend) | **no** — waits for the network route |
 | `1238fa6` | This handoff doc, `CLAUDE.md`, the golden generators | docs only |
 | `8b424c2` (13 Nov) | Claude Haiku (`claude-haiku-5-5`) is the default LLM (agent model → account default → server default); spoken payment dates worked out in code (`namedDay` / `named_day` in `loan-call`, the model only gets the result); 24 kHz audio in Playground voice calls; a toast when BRB fails and the browser voice takes over; BRB Whisper STT. New Python deps: `grpcio`, `tzdata` (Windows) | **no** — needs `pip install` + build + restarts |
+| `b5f814d` (16 Nov) | Login, signup and the public language switch get past the edge's colon-field rule (section 3); the language menu on the auth pages takes taps again | yes (site build of 17 Nov) |
 
 ## 9. Open items
 
@@ -294,7 +302,9 @@ database; `CALLMIND_DOTENV=0`). With the API running locally, the site's
    connected (section 4, "Switching"), then start step 3. Small parity gap found on the
    way: the Playground routes (`routers/playground.py`) read the **last** value of a
    repeated form field where the TypeScript reads the first (the bridge routes do it right).
-   The page never repeats a field, so nothing breaks today.
+   The page never repeats a field, so nothing breaks today. Still worth doing for step 1c:
+   a few colleagues trying `/app/playground?py=1` from outside the office (their login was
+   blocked by the edge until the colon-field fix, section 3).
 2. Ask the network admins for the routes to the BRB proxy and to
    `stt-service.brb.uz:443` (section 6), then deploy and run one TTS render and one
    BRB Whisper transcription on the live site.

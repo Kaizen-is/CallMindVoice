@@ -8,6 +8,7 @@ import { Field, Input } from '@/components/ui/forms';
 import { translator } from '@/lib/i18n';
 import type { UiLocale } from '@/lib/types';
 import { IconAlert, IconEye, IconEyeOff, IconLock } from '@/components/icons';
+import { useHydrated } from '@/hooks/use-hydrated';
 
 const initial: FormState = {};
 
@@ -15,6 +16,8 @@ export function LoginForm({ locale = 'uz' }: { locale?: UiLocale }) {
   const t = translator(locale);
   const [state, action, pending] = useActionState(signInAction, initial);
   const [show, setShow] = useState(false);
+  // Sent before the scripts run, the form is refused by the edge proxy (see useHydrated).
+  const ready = useHydrated();
 
   return (
     <div className="w-full max-w-[400px]">
@@ -64,7 +67,7 @@ export function LoginForm({ locale = 'uz' }: { locale?: UiLocale }) {
             </div>
           </Field>
 
-          <Button type="submit" variant="primary" size="lg" full loading={pending}>
+          <Button type="submit" variant="primary" size="lg" full loading={pending} disabled={!ready}>
             {t('auth.login.submit')}
           </Button>
         </form>
