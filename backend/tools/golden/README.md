@@ -19,6 +19,7 @@ same inputs in Python and compare.
 | `make-golden-url.cjs` | `golden_url.json` | `new URL(input).protocol` (or a throw) for 2,300 inputs — the webhook form's URL check |
 | `make-golden-logistics.cjs` | `golden_logistics.json` | the logistics demo's lookup: numbers read from speech, shipments found, day labels and the whole prompt part, at pinned moments |
 | `make-golden-ops.cjs` | `golden_ops.json` | `seededRandom` streams; 36 simulated calls (simulator.ts) and the demo history (demo-data.ts) on a real SQLite file, clock pinned, zone Asia/Tashkent: every row written and every bus event |
+| `make-golden-knowledge.cjs` | `golden_knowledge.json` | every knowledge-base server action, the knowledge page's data and `POST /api/v1/documents` on a real SQLite file (uploads of every file type incl. a synthetic PDF and DOCX, pages, text, FAQ, starter packs, retrieval, reindex, delete, role checks): results, bus events, webhooks, every row written; ingest helpers on edge cases |
 
 How they work: `tsc` compiles the TypeScript to CommonJS in `./out` (gitignored);
 each script swaps in recorders for `fetch`, the Anthropic SDK, the usage log or the
@@ -40,9 +41,14 @@ npx tsc -p backend/tools/golden/tsconfig-workspace.json
 node --experimental-sqlite backend/tools/golden/make-golden-workspace.cjs backend/tests/fixtures/golden_workspace.json "$TMPDIR/golden-workspace"
 node backend/tools/golden/make-golden-logistics.cjs backend/tests/fixtures/golden_logistics.json
 node --experimental-sqlite backend/tools/golden/make-golden-ops.cjs backend/tests/fixtures/golden_rag.json backend/tests/fixtures/golden_ops.json "$TMPDIR/golden-ops"
+node --experimental-sqlite backend/tools/golden/make-golden-knowledge.cjs backend/tests/fixtures/golden_knowledge.json "$TMPDIR/golden-kb"
+node backend/tools/pdfjs-tables.cjs backend/app/rag/pdfjs_tables.json   # pdf.js's tables for app/rag/pdf_text.py (after an unpdf upgrade)
 ```
 
 (`--experimental-sqlite` is needed on Node 22.5–22.12; `make-golden-ops.cjs` regenerates byte for byte.)
+
+`make-golden-knowledge.cjs` patches db.ts's `id()` and `now()` with counters (the Python test does the
+same), so even IDs and timestamps compare exactly. Node 22 before 22.13 needs `--experimental-sqlite`.
 
 (On Windows use a folder such as `%TEMP%\golden-speech` for the last argument.)
 A `TS2688 … 'node'` warning from `tsc` is harmless when `@types/node` is not

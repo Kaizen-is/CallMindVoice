@@ -63,10 +63,9 @@ const pythonRoutes = [
   // Phase 3 — the public bank demo and logistics demo (no login, per-address limits).
   '/api/demo/:path*',
   '/api/logistics/:path*',
-  // Phase 4 — the live wallboard feed and the public API (API-key auth).
+  // Phase 4 — the live wallboard feed and the public API (API-key auth): calls, answer, documents.
   '/api/stream',
-  '/api/v1/calls',
-  '/api/v1/answer',
+  '/api/v1/:path*',
 ];
 
 const nextConfig: NextConfig = {

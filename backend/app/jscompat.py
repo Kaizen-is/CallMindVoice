@@ -235,6 +235,20 @@ def js_number_str(x: float) -> str:
     return f"{mantissa}e{'+' if e >= 0 else '-'}{abs(e)}"
 
 
+def js_max(*values: float) -> float:
+    """`Math.max(...)`: NaN if any argument is NaN (Python's max() skips over NaN depending on position)."""
+    if any(v != v for v in values):
+        return math.nan
+    return max(values) if values else -math.inf
+
+
+def js_min(*values: float) -> float:
+    """`Math.min(...)`: NaN if any argument is NaN."""
+    if any(v != v for v in values):
+        return math.nan
+    return min(values) if values else math.inf
+
+
 def js_truthy(value: object) -> bool:
     """JavaScript truthiness for a JSON value: `[]` and `{}` are true, `0`, `""` and null false."""
     if isinstance(value, (list, dict)):

@@ -39,6 +39,10 @@
     "../../../src/lib/engine/calls.ts",
     "../../../src/lib/engine/simulator.ts",
     "../../../src/lib/engine/demo-data.ts",
-    "../../../src/lib/db.ts"
+    "../../../src/lib/db.ts",
+    "../../../src/lib/rag/ingest.ts",
+    "../../../src/lib/analytics.ts",
+    "../../../src/app/actions/knowledge.ts",
+    "../../../src/app/api/v1/documents/route.ts"
   ]
 }

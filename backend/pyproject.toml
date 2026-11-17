@@ -24,6 +24,12 @@ dependencies = [
   "python-multipart>=0.0.9",
   # Time zones (the loan calendar): Linux has them built in, Windows Python does not.
   "tzdata; sys_platform == 'win32'",
+  # Knowledge-base uploads. PDF: pdfminer.six parses the file, app/rag/pdf_text.py lays the text out the
+  # way pdf.js (unpdf) did. Word: mammoth, the Python port of the JavaScript library the site used.
+  "pdfminer.six>=20260107",
+  "mammoth>=1.13",
+  # WHATWG URL parsing (Ada — the parser inside Node's `new URL`), for imported web pages.
+  "ada-url>=1.27",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +48,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.setuptools.package-data]
+# pdf.js's encoding and glyph tables (app/rag/pdf_text.py), copied by tools/pdfjs-tables.cjs.
+app = ["rag/pdfjs_tables.json"]
 
 [tool.ruff]
 line-length = 120
