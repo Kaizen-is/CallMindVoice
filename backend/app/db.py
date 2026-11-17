@@ -1,13 +1,12 @@
 """
 The shared SQLite database (`data/ovoz.db`).
 
-During the move both apps use the same file, opened the same way as
-`src/lib/db.ts`: WAL journal, foreign keys on, a 5 s busy timeout. SQLite
-handles two processes on one machine safely in WAL mode.
+Opened the way the TypeScript app opened it: WAL journal, foreign keys on, a
+5 s busy timeout (SQLite handles several processes on one machine safely in
+WAL mode: the API and the phone bridge's reports).
 
-The schema is NOT created or changed here. It still comes from the TypeScript
-migrations; from now on new schema changes are written as Alembic migrations
-in `backend/alembic/` instead.
+The schema is not created here: app/schema.py applies the original migrations
+when the API starts, and later changes are Alembic revisions in `backend/alembic/`.
 
 Queries use named parameters (`:tenant_id`), which also work on PostgreSQL
 when the database moves.

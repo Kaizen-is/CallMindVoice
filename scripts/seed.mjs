@@ -11,7 +11,7 @@
  *   npm run seed
  *
  * Needs node:sqlite (Node ≥ 22.13, or --experimental-sqlite on 22.5–22.12).
- * Run it while the dev server has already booted once, so migrations exist.
+ * Run it after the Python API has started once (it creates the database and its tables).
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -23,7 +23,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dbPath = path.join(root, 'data', 'ovoz.db');
 
 if (!fs.existsSync(dbPath)) {
-  console.error('data/ovoz.db does not exist yet — start the app once (npm run dev), then re-run.');
+  console.error('data/ovoz.db does not exist yet — start the Python API once (backend: uvicorn app.main:app), then re-run.');
   process.exit(1);
 }
 
