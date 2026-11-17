@@ -1,0 +1,75 @@
+BRB STT / TTS connection test — 2026-11-16 06:57 UTC
+From: Windows PC on GlobalProtect VPN (client address 192.168.250.4)
+
+Summary
+-------
+All three names resolve to 172.22.202.1 and TCP port 443 opens.
+tts-stt-proxy-test.brb.uz completes the TLS handshake (TLS 1.3, cert CN=*.brb.uz).
+stt-service.brb.uz and tts-service.brb.uz: the connection is RESET during the
+TLS handshake (right after the ClientHello with that SNI), so no gRPC request
+can be sent.
+
+=================== stt-service.brb.uz ===================
+--- curl -v https://stt-service.brb.uz/
+* Host stt-service.brb.uz:443 was resolved.
+* IPv6: (none)
+* IPv4: 172.22.202.1
+*   Trying 172.22.202.1:443...
+* schannel: disabled automatic use of client certificate
+* ALPN: curl offers http/1.1
+* Recv failure: Connection was reset
+* schannel: failed to receive handshake, SSL/TLS connection failed
+* closing connection #0
+curl: (35) Recv failure: Connection was reset
+
+--- openssl s_client -connect stt-service.brb.uz:443 -servername stt-service.brb.uz -alpn h2
+Connecting to 172.22.202.1
+write:errno=10054        (10054 = connection reset by peer)
+
+=================== tts-service.brb.uz ===================
+--- curl -v https://tts-service.brb.uz/
+* Host tts-service.brb.uz:443 was resolved.
+* IPv6: (none)
+* IPv4: 172.22.202.1
+*   Trying 172.22.202.1:443...
+* schannel: disabled automatic use of client certificate
+* ALPN: curl offers http/1.1
+* Recv failure: Connection was reset
+* schannel: failed to receive handshake, SSL/TLS connection failed
+* closing connection #0
+curl: (35) Recv failure: Connection was reset
+
+--- openssl s_client -connect tts-service.brb.uz:443 -servername tts-service.brb.uz -alpn h2
+Connecting to 172.22.202.1
+write:errno=10054        (10054 = connection reset by peer)
+
+=================== tts-stt-proxy-test.brb.uz (works, for comparison) ===================
+--- curl -v https://tts-stt-proxy-test.brb.uz/
+* Host tts-stt-proxy-test.brb.uz:443 was resolved.
+* IPv4: 172.22.202.1
+*   Trying 172.22.202.1:443...
+* ALPN: curl offers http/1.1
+* ALPN: server accepted http/1.1
+* Established connection to tts-stt-proxy-test.brb.uz (172.22.202.1 port 443) from 192.168.250.4 port 51262
+> GET / HTTP/1.1
+* Request completely sent off
+
+--- openssl s_client -connect tts-stt-proxy-test.brb.uz:443 -servername tts-stt-proxy-test.brb.uz -alpn h2
+Connecting to 172.22.202.1
+CONNECTION ESTABLISHED
+Protocol version: TLSv1.3
+Ciphersuite: TLS_AES_256_GCM_SHA384
+Peer certificate: C=UZ, L=Tashkent, O=BIZNESNI RIVOJLANTIRISH BANKI, AKSIYADORLIK TIJORAT BANKI, CN=*.brb.uz
+Verification: OK
+
+=================== From the application (gRPC client) ===================
+Request: gRPC /inference.GRPCInferenceService/ModelMetadata, model "stt",
+         target stt-service.brb.uz:443, TLS, HTTP/2
+Result:  connection not established within the 5 s connect timeout
+         (TLS handshake reset as above) -> error brb_stt_connect_timeout
+
+How to reproduce (any PC on the VPN)
+------------------------------------
+curl -v https://stt-service.brb.uz/
+openssl s_client -connect stt-service.brb.uz:443 -servername stt-service.brb.uz -alpn h2
+(compare with the same commands for tts-stt-proxy-test.brb.uz)
