@@ -137,18 +137,9 @@ function legacyVoice(): boolean {
   return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('legacy') === '1';
 }
 
-/**
- * `?py=1` on the Playground's address serves the voice call from the Python
- * backend (`/api/core/*`, FastAPI) instead of this app's own routes — the same
- * call, to compare both on the same agent while the server code moves.
- */
-function pythonBackend(): boolean {
-  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('py') === '1';
-}
-
-/** A voice-call endpoint (`/playground/call`, `/speech/live`…) on the backend this page talks to. */
+/** A voice-call endpoint (`/playground/call`, `/playground/turn`…), served by the Python backend. */
 function callApi(path: string): string {
-  return pythonBackend() ? `/api/core${path}` : `/api${path}`;
+  return `/api${path}`;
 }
 
 /** The hang-up body: JSON in a Blob, so `keepalive` and beacons say `application/json` (the edge refuses text/plain). */
@@ -363,7 +354,7 @@ export function Playground({
   // caller would otherwise still be transcribed, and those words would be sent
   // with the next phrase.
   const live = useLiveTranscript({
-    url: speech.streamUrl && pythonBackend() ? callApi('/speech/live') : speech.streamUrl,
+    url: speech.streamUrl,
     active: sttEngine === 'local' && speech.stt.local && isSessionActive && !muted,
   });
   // The agent's own voice is not the caller's words; drop it between turns.

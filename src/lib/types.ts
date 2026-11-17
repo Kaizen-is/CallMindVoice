@@ -355,3 +355,94 @@ export interface SpeechTest {
   voice: string | null;
   created_at: string;
 }
+
+/* ── page data the Python backend computes (backend/app) ─────── */
+
+/** A language model an agent can pick, and whether this server can run it (app/agent_studio.py). */
+export interface LlmOption {
+  id: string;
+  name: string;
+  vendor: string;
+  ready: boolean;
+  setup: string;
+}
+
+export type LlmProvider = 'openai' | 'anthropic' | 'gemini' | 'ollama';
+
+interface StatBase {
+  id: string;
+  name: string;
+  vendor: string;
+  via?: string;
+  ready: boolean;
+  /** What has to be set for it to work. */
+  setup: string;
+  /** Runs on our own server, so it has no per-use price. */
+  own: boolean;
+}
+
+/** The model lab's rows (app/model_lab.py), from the deploy benchmark. */
+export interface SttStat extends StatBase {
+  pricePerMin: number | null;
+  latencyMs: number | null;
+  wer: number | null;
+  cer: number | null;
+}
+
+export interface TtsStat extends StatBase {
+  pricePerMin: number | null;
+  firstMs: number | null;
+  latencyMs: number | null;
+  /** 1 − character error rate of what Zipformer heard back. */
+  clarity: number | null;
+}
+
+export interface LlmStat extends StatBase {
+  provider: LlmProvider;
+  priceIn: number | null;
+  priceOut: number | null;
+  firstMs: number | null;
+  latencyMs: number | null;
+}
+
+export interface ModelStats {
+  stt: SttStat[];
+  tts: TtsStat[];
+  llm: LlmStat[];
+}
+
+/** The overview and analytics headline numbers (app/analytics.py). */
+export interface Overview {
+  totalCalls: number;
+  aiResolved: number;
+  escalated: number;
+  abandoned: number;
+  deflectionRate: number;
+  minutes: number;
+  costUsd: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  csat: number | null;
+  csatResponses: number;
+  avgHandleSec: number;
+  operatorHoursSaved: number;
+  savingsUsd: number;
+  activeNow: number;
+  waitingEscalations: number;
+}
+
+/** One day of the analytics charts (app/analytics.py). */
+export interface DailyPoint {
+  day: string;
+  calls: number;
+  aiResolved: number;
+  escalated: number;
+  abandoned: number;
+  minutes: number;
+  cost: number;
+  avgLatencyMs: number;
+  csat: number | null;
+}
+
+/** How calls reach CallMind on this deployment (app/telephony.py). */
+export type TelephonyMode = 'asterisk' | 'simulator';

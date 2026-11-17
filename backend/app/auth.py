@@ -1,6 +1,7 @@
 """
-Authentication, compatible with the Next.js app (`src/lib/auth.ts`,
-`src/lib/api-auth.ts`), so one login works for both apps during the move.
+Authentication for CallMind (the site's pages ask `GET /session`; sign-in, sign-up
+and sign-out are actions here). Same formats as the TypeScript app had, so existing
+sessions, passwords and API keys keep working.
 
 - Session cookie `ovoz_session` = `<sid>.<base64url(HMAC-SHA256(secret, sid))>`
   (no padding; split at the last dot). The secret is OVOZ_SESSION_SECRET (or
@@ -13,6 +14,7 @@ Authentication, compatible with the Next.js app (`src/lib/auth.ts`,
 import base64
 import hashlib
 import hmac
+import os
 import re
 import secrets
 from dataclasses import dataclass
@@ -42,18 +44,32 @@ _SAFE_USER_COLUMNS = (
 
 
 def session_secret() -> str | None:
-    """The cookie-signing secret, or None when neither the env var nor the file exists.
+    """The cookie-signing secret: OVOZ_SESSION_SECRET, else `data/.secret`.
 
-    Unlike the TypeScript code this never creates `data/.secret`: a secret made
-    here would not match the Next.js app's, and every login would silently fail.
+    On a fresh install the file does not exist yet: it is created with a random
+    secret (owner-only), as the TypeScript app did on first use. None only when
+    the file can be neither read nor created, or is empty.
     """
     settings = get_settings()
     if settings.ovoz_session_secret:
         return settings.ovoz_session_secret
+    path = settings.callmind_data_dir / ".secret"
     try:
-        return (settings.callmind_data_dir / ".secret").read_text(encoding="utf-8").strip() or None
+        return path.read_text(encoding="utf-8").strip() or None
+    except FileNotFoundError:
+        pass
     except OSError:
         return None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:  # another worker made it first
+        return path.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(secrets.token_hex(32))
+    return path.read_text(encoding="utf-8").strip() or None
 
 
 def _b64url(raw: bytes) -> str:

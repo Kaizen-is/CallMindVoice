@@ -142,3 +142,17 @@ def test_streams_need_login_and_stream(client: TestClient, sql, path, kind):
         assert res.headers["content-type"].startswith(kind)
         lines = [line for line in res.iter_lines() if line]
     assert len(lines) == 5
+
+
+def test_session_secret_created_on_fresh_install(tmp_path, monkeypatch):
+    """No env var and no data/.secret: one is created (owner-only), then reused."""
+    from app import auth
+    from app.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "ovoz_session_secret", None)
+    monkeypatch.setattr(settings, "callmind_data_dir", tmp_path / "data")
+    first = auth.session_secret()
+    assert first and len(first) == 64
+    assert (tmp_path / "data" / ".secret").read_text(encoding="utf-8") == first
+    assert auth.session_secret() == first

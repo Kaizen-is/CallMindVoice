@@ -3,9 +3,17 @@
  * backend/app/dashboards.py): the data these pages used to compute from src/lib.
  * Types only — the pages fetch it with `coreGet`.
  */
-import type { DailyPoint, Overview } from '@/lib/analytics';
-import type { TelephonyMode } from '@/lib/telephony/status';
-import type { ApiKey, Call, PhoneNumber, SafeUser, WalletLedger, Webhook } from '@/lib/types';
+import type {
+  ApiKey,
+  Call,
+  DailyPoint,
+  Overview,
+  PhoneNumber,
+  SafeUser,
+  TelephonyMode,
+  WalletLedger,
+  Webhook,
+} from '@/lib/types';
 
 export interface TelephonyInfo {
   configured: boolean;

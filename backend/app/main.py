@@ -12,7 +12,7 @@ import pkgutil
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app import routers
+from app import benchmark, routers
 from app.auth import ApiKeyError
 from app.config import get_settings
 from app.routers import live, playground, speech, system, telephony
@@ -55,3 +55,5 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+# The deploy benchmark: once per site build, a little after boot, in the background (app/benchmark.py).
+app.include_router(benchmark.startup_router)
