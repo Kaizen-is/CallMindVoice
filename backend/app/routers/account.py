@@ -5,6 +5,7 @@ currentSession), plus the console layout's data.
 
   GET  /session                     the visitor's {user, tenant} (as currentSession() returned), or null
   GET  /views/console-layout        closes idle Playground calls; the sidebar counts
+  POST /actions/signUpAction        {company, name, email, password, industry} → {token, expires, redirect} | {errorKey}
   POST /actions/signInAction        {email, password} → {token, expires, redirect} | {errorKey}
   POST /actions/signOutAction       audit + end the session → {ok}
   POST /actions/setLocaleAction     {locale} → the user's and company's language
@@ -18,6 +19,7 @@ expiring with the session. Error messages are translated there too: Python retur
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import regex as re
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
@@ -25,8 +27,9 @@ from app import db
 from app.audit import audit
 from app.auth import COOKIE, LoggedIn, current_session, decode_session, encode_session, session_secret, verify_password
 from app.ids import new_id, now_iso, to_iso
-from app.jscompat import js_trim
+from app.jscompat import JS_S, js_trim, utf16_len
 from app.playground import close_idle_playground_calls
+from app.provision import EmailTaken, provision_tenant
 from app.views_common import action_args, js_response
 
 router = APIRouter()
@@ -121,6 +124,42 @@ def console_layout(session: LoggedIn) -> Response:
 def _string(value: Any) -> str:
     """`String(formData.get(name) ?? '')`."""
     return "" if value is None else value if isinstance(value, str) else str(value)
+
+
+# `/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/` with JavaScript's \s; \Z because Python's $ also matches before a final newline.
+_EMAIL = re.compile(rf"^[^{JS_S}@]+@[^{JS_S}@]+\.[^{JS_S}@]{{2,}}\Z")
+
+
+@router.post("/actions/signUpAction")
+async def sign_up(request: Request) -> Response:
+    """A new company and its owner (`provisionTenant`), signed in and sent to onboarding."""
+    args = await action_args(request)
+    company = js_trim(_string(args.get("company")))
+    full_name = js_trim(_string(args.get("name")))
+    email = js_trim(_string(args.get("email")))
+    password = _string(args.get("password"))
+    industry = _string(args.get("industry")) if args.get("industry") is not None else "other"
+
+    if utf16_len(company) < 2:
+        return js_response({"errorKey": "auth.err.company"})
+    if utf16_len(full_name) < 2:
+        return js_response({"errorKey": "auth.err.name"})
+    if not _EMAIL.match(email):
+        return js_response({"errorKey": "auth.err.email"})
+    if utf16_len(password) < 8:
+        return js_response({"errorKey": "auth.err.password"})
+
+    try:
+        created = provision_tenant(
+            company=company, industry=industry, full_name=full_name, email=email, password=password
+        )
+    except EmailTaken:
+        return js_response({"errorKey": "auth.err.emailExists"})
+    except Exception:  # noqa: BLE001 - the TypeScript mapped every other failure to one message
+        return js_response({"errorKey": "auth.err.createFailed"})
+
+    cookie = create_session(request, created["userId"], created["tenantId"])
+    return js_response({**cookie, "redirect": "/onboarding"})
 
 
 @router.post("/actions/signInAction")

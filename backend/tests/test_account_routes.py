@@ -232,3 +232,60 @@ def test_set_public_locale(client, sql) -> None:  # noqa: ANN001
     _login(sql, client)
     client.post("/actions/setPublicLocaleAction", json={"locale": "en"})
     assert (sql("SELECT locale FROM users")[0][0], sql("SELECT locale FROM tenants")[0][0]) == ("en", "en")
+
+
+# ── sign up ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("form", "key"),
+    [
+        ({"company": " A ", "name": "Aziz", "email": "a@b.cd", "password": "x" * 8}, "auth.err.company"),
+        ({"company": "Bank", "name": "A", "email": "a@b.cd", "password": "x" * 8}, "auth.err.name"),
+        ({"company": "Bank", "name": "Aziz", "email": "a@b.c", "password": "x" * 8}, "auth.err.email"),
+        ({"company": "Bank", "name": "Aziz", "email": "a@b.cd", "password": "x" * 7}, "auth.err.password"),
+    ],
+)
+def test_sign_up_validation(client, sql, form, key) -> None:  # noqa: ANN001
+    assert client.post("/actions/signUpAction", json=form).json() == {"errorKey": key}
+    assert sql("SELECT COUNT(*) FROM tenants")[0][0] == 0
+
+
+def test_sign_up_provisions_and_signs_in(client, sql) -> None:  # noqa: ANN001
+    res = client.post(
+        "/actions/signUpAction",
+        json={"company": " Biznes Bank ", "name": " Aziz ", "email": " New@Example.UZ ", "password": PASSWORD},
+    )
+    body = res.json()
+    assert body["redirect"] == "/onboarding"
+    sid = decode_session(body["token"], SECRET)
+    ((tenant_id, name, slug, industry, plan, onboarded, locale),) = sql(
+        "SELECT id, name, slug, industry, plan, onboarded, locale FROM tenants"
+    )
+    assert (name, slug, industry, plan, onboarded, locale) == ("Biznes Bank", "biznes-bank", "other", "trial", 0, "uz")
+    ((email, uname, role, presence),) = sql(
+        "SELECT email, name, role, presence FROM users WHERE tenant_id = ?", tenant_id
+    )
+    assert (email, uname, role, presence) == ("new@example.uz", "Aziz", "owner", "online")
+    ((agent_name, status, greeting, voice),) = sql("SELECT name, status, greeting, voice_id FROM agents")
+    assert (agent_name, status, voice) == ("Biznes Bank Assistant", "draft", "laylo")
+    assert greeting.startswith("Assalomu alaykum! Biznes Bank ga")
+    ((e164, provider),) = sql("SELECT e164, provider FROM phone_numbers")
+    assert e164.startswith("+9987871") and len(e164) == 13 and provider == "simulator"
+    assert sql("SELECT user_id FROM sessions WHERE id = ?", sid)[0][0] == sql("SELECT id FROM users")[0][0]
+    assert sql("SELECT action FROM audit_log")[0] == ("tenant.created",)
+    # The same address again: refused, nothing new created.
+    again = client.post(
+        "/actions/signUpAction",
+        json={"company": "Other", "name": "Bob", "email": "new@example.uz", "password": PASSWORD},
+    )
+    assert again.json() == {"errorKey": "auth.err.emailExists"}
+    assert sql("SELECT COUNT(*) FROM tenants")[0][0] == 1
+
+
+def test_sign_up_slug_is_unique(client, sql) -> None:  # noqa: ANN001
+    for i, email in enumerate(("a1@b.cd", "a2@b.cd", "a3@b.cd")):
+        client.post(
+            "/actions/signUpAction", json={"company": "Bank", "name": f"N{i}x", "email": email, "password": PASSWORD}
+        )
+    assert sorted(r[0] for r in sql("SELECT slug FROM tenants")) == ["bank", "bank-2", "bank-3"]

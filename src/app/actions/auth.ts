@@ -3,9 +3,7 @@
 import { redirect } from 'next/navigation';
 import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { createSession } from '@/lib/auth';
 import { corePost } from '@/lib/core';
-import { provisionTenant } from '@/lib/provision';
 import { LOCALES, translator } from '@/lib/i18n';
 import type { UiLocale } from '@/lib/types';
 
@@ -30,7 +28,6 @@ export interface FormState {
   ok?: boolean;
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /** Translator bound to the visitor's `ovoz_locale` cookie (Uzbek default), so
  *  auth error messages come back in the same language as the login form. */
@@ -42,30 +39,21 @@ async function authTranslator() {
 
 export async function signUpAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const t = await authTranslator();
-  const company = String(formData.get('company') ?? '').trim();
-  const fullName = String(formData.get('name') ?? '').trim();
-  const email = String(formData.get('email') ?? '').trim();
-  const password = String(formData.get('password') ?? '');
-  const industry = String(formData.get('industry') ?? 'other');
-
-  if (company.length < 2) return { error: t('auth.err.company') };
-  if (fullName.length < 2) return { error: t('auth.err.name') };
-  if (!EMAIL_RE.test(email)) return { error: t('auth.err.email') };
-  if (password.length < 8) return { error: t('auth.err.password') };
-
-  let created: { tenantId: string; userId: string };
-  try {
-    created = provisionTenant({ company, industry, fullName, email, password });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '';
-    if (message.toLowerCase().includes('already exists')) {
-      return { error: t('auth.err.emailExists') };
-    }
-    return { error: t('auth.err.createFailed') };
-  }
-
-  await createSession(created.userId, created.tenantId);
-  redirect('/onboarding');
+  // Python validates the form, creates the company, its owner, a first agent and a number
+  // (provisionTenant) and the session; error messages come back as keys and are translated here.
+  const result = await corePost<{ errorKey?: string; token?: string; expires?: string; redirect?: string }>(
+    '/actions/signUpAction',
+    {
+      company: String(formData.get('company') ?? ''),
+      name: String(formData.get('name') ?? ''),
+      email: String(formData.get('email') ?? ''),
+      password: String(formData.get('password') ?? ''),
+      industry: String(formData.get('industry') ?? 'other'),
+    },
+  );
+  if (result.errorKey || !result.token || !result.expires) return { error: t(result.errorKey ?? 'auth.err.createFailed') };
+  await setSessionCookie(result.token, result.expires);
+  redirect(result.redirect ?? '/onboarding');
 }
 
 export async function signInAction(_prev: FormState, formData: FormData): Promise<FormState> {
