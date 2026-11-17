@@ -41,7 +41,8 @@ Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:81
 | `app/env.py` | Provider keys and URLs, read like `process.env` (falls back to the repo `.env`) |
 | `app/http.py` | One shared HTTP client for outside services (connections stay open between turns) |
 | `app/registry.py`, `app/usage_log.py` | Every STT/TTS/LLM engine with its price; one `model_usage` row per use |
-| `app/rag/` | Knowledge-base search: text folding, embeddings (local, or OpenAI), chunking, ranking |
+| `app/rag/` | Knowledge base: text folding, embeddings (local, or OpenAI), chunking, ranking; `ingest.py` (uploads, pages, pasted text, FAQ → indexed chunks); `pdf_text.py` (PDF text laid out exactly as pdf.js/unpdf did, on pdfminer.six) |
+| `app/knowledge.py`, `app/starter_packs.py` | The knowledge base's console actions, page data and public API; the starter packs |
 | `app/llm/` | Answers: prompts, Gemini / Claude (SDK) / OpenAI / Ollama with streaming, the Claude Haiku fallback, the local engine, the loan-call identity check and calendar |
 | `app/speech/` | STT (Kotib, Whisper, GAPI, Zipformer, Speko gemini-3.5 / Scribe, Gemini), TTS (own server, ElevenLabs via Speko) with the shared disk cache, number words, spoken-form text |
 | `app/engine/` | The turn (`run_turn`), call start / end / billing, the live event bus |
@@ -64,6 +65,9 @@ Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:81
 | `/api/core/playground/end` | `POST /playground/end` | hang up, bill once → 204 |
 | `/api/core/speech/live` | `POST /speech/live` | live Zipformer words (multipart `sid`, `op`, `audio`) |
 | `/api/core/stream` | `GET /stream` | SSE feed of this process's bus events |
+| (server side, `src/lib/core.ts`) | `POST /actions/{uploadDocuments,addUrl,addText,addFaq,addStarterPack,deleteDocument,reindexDocument,testRetrieval,listDocuments}Action` | the knowledge base's server actions (`routers/knowledge.py`); uploads are multipart `files` |
+| (server side) | `GET /views/knowledge` | the knowledge page's data: documents, stats, starter pack |
+| `/api/v1/documents` (to forward) | `POST /v1/documents` | public API: push a document (API key with `write`) |
 
 ## Deploy (on the server)
 

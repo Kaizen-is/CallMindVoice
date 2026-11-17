@@ -36,6 +36,10 @@
     "../../../src/lib/speech/brb-stt.ts",
     "../../../src/lib/engine/conversation.ts",
     "../../../src/lib/engine/calls.ts",
-    "../../../src/lib/db.ts"
+    "../../../src/lib/db.ts",
+    "../../../src/lib/rag/ingest.ts",
+    "../../../src/lib/analytics.ts",
+    "../../../src/app/actions/knowledge.ts",
+    "../../../src/app/api/v1/documents/route.ts"
   ]
 }

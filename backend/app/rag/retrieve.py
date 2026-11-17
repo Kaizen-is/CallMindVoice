@@ -11,6 +11,7 @@ tenant's chunks from the shared database and caches them like the TypeScript.
 """
 
 import json
+import math
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -19,7 +20,7 @@ import regex
 from sqlalchemy import Connection
 
 from app import db
-from app.jscompat import JS_S, js_log, utf16_len, utf16_slice
+from app.jscompat import JS_S, js_log, js_max, js_min, utf16_len, utf16_slice
 from app.rag.embed import LOCAL_ENGINE_ID, cosine, hosted_embed, hosted_engine_id, local_embed, unpack_vector
 from app.rag.text import expand_terms, stem, stems, tokenize
 
@@ -67,7 +68,9 @@ def build_corpus(rows: list[dict[str, Any]], signature: str = "") -> Corpus:
         terms.append(term_map)
         length = 0.0
         for v in term_map.values():
-            length += v
+            # A count can be a string (see `_count` in ingest.py: `({})["constructor"] + 1`). JavaScript
+            # then concatenates, the length is a string, and everything divided by it is NaN.
+            length = math.nan if isinstance(v, str) else length + v
         lengths.append(length or 1)
         for t in term_map:
             df[t] = df.get(t, 0) + 1
@@ -96,6 +99,9 @@ def _bm25(corpus: Corpus, query_terms: list[str]) -> list[float]:
         for i in range(n):
             tf = corpus.terms[i].get(term)
             if not tf:
+                continue
+            if isinstance(tf, str):  # "function Object() { [native code] }1" * 2.4 is NaN
+                scores[i] += math.nan
                 continue
             norm = 1 - B + (B * corpus.lengths[i]) / corpus.avg_len
             scores[i] += idf * q_weight * ((tf * (K1 + 1)) / (tf + K1 * norm))
@@ -170,8 +176,8 @@ def rank(
 
     lex_rank = _rank_of(lex)
     dense_rank = _rank_of(dense)
-    max_lex = max([1e-6, *lex])
-    max_dense = max([1e-6, *dense])
+    max_lex = js_max(1e-6, *lex)
+    max_dense = js_max(1e-6, *dense)
 
     fused = []
     for i in range(len(corpus.rows)):
@@ -228,15 +234,15 @@ def _calibrate_confidence(
     best = hits[0]
     cov = fused[0]["cov"] if fused else 0
     if len(fused) > 1 and fused[0]["score"] > 0:
-        margin = min(1, (fused[0]["score"] - fused[1]["score"]) / fused[0]["score"] / 0.35)
+        margin = js_min(1, (fused[0]["score"] - fused[1]["score"]) / fused[0]["score"] / 0.35)
     else:
         margin = 0.5
     unique = set(query_terms)
     unseen_penalty = sum(1 for t in unique if t not in corpus.df) / len(unique)
-    lex_strength = min(1, best["lexicalScore"] / 0.62)
-    dense_strength = min(1, best["denseScore"] / 0.55) if dense_used else lex_strength
+    lex_strength = js_min(1, best["lexicalScore"] / 0.62)
+    dense_strength = js_min(1, best["denseScore"] / 0.55) if dense_used else lex_strength
     raw = 0.42 * cov + 0.2 * margin + 0.22 * lex_strength + 0.16 * dense_strength - 0.34 * unseen_penalty
-    return max(0, min(0.97, raw / 0.9))
+    return js_max(0, js_min(0.97, raw / 0.9))
 
 
 # ── loading from the shared database ───────────────────────────────
