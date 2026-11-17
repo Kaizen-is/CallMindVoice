@@ -60,6 +60,9 @@ const pythonRoutes = [
   '/api/models/stt',
   // Phase 2 — the phone line: the AudioSocket bridge's turn, filler and end calls.
   '/api/telephony/:path*',
+  // Phase 3 — the public bank demo and logistics demo (no login, per-address limits).
+  '/api/demo/:path*',
+  '/api/logistics/:path*',
 ];
 
 const nextConfig: NextConfig = {
