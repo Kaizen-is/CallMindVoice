@@ -1,11 +1,8 @@
 import type { Metadata } from 'next';
 import { requireSession } from '@/lib/auth';
 import { translator } from '@/lib/i18n';
-import { knowledgeStats } from '@/lib/analytics';
-import { engineIsHosted, engineLabel } from '@/lib/llm/provider';
-import { tenantDefaultLlm } from '@/lib/llm/choice';
-import { embeddingEngine } from '@/lib/rag/embed';
-import { telephonyStatus } from '@/lib/telephony/status';
+import { coreGet } from '@/lib/core';
+import type { SettingsData } from '@/lib/workspace-views';
 import { SettingsPanel } from './panel';
 
 export const metadata: Metadata = { title: 'Settings' };
@@ -13,9 +10,9 @@ export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage() {
   const { tenant, user } = await requireSession();
-  const embedding = embeddingEngine();
   const t = translator(user.locale);
-  const telephony = telephonyStatus();
+  // The engines this server answers, embeds and phones with, and the knowledge-base totals.
+  const { llm, embedding, telephony, stats } = await coreGet<SettingsData>('/views/settings');
 
   return (
     <SettingsPanel
@@ -32,8 +29,8 @@ export default async function SettingsPage() {
       user={{ name: user.name, email: user.email, role: user.role, locale: user.locale }}
       canEdit={user.role === 'owner' || user.role === 'admin'}
       engines={{
-        generation: engineIsHosted(tenantDefaultLlm(tenant.id)) ? engineLabel(tenantDefaultLlm(tenant.id)) : t('settings.engine.localGeneration', 'Local extractive synthesiser'),
-        generationHosted: engineIsHosted(),
+        generation: llm.hosted ? llm.label : t('settings.engine.localGeneration', 'Local extractive synthesiser'),
+        generationHosted: llm.serverHosted,
         embedding: embedding.id,
         embeddingHosted: embedding.hosted,
         telephony: telephony.mode === 'asterisk'
@@ -44,7 +41,7 @@ export default async function SettingsPage() {
           ? 'BRIDGE_SHARED_SECRET'
           : 'BRIDGE_SHARED_SECRET',
       }}
-      stats={knowledgeStats(tenant.id)}
+      stats={stats}
     />
   );
 }

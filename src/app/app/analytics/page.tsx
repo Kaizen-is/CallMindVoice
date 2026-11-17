@@ -1,25 +1,10 @@
 import type { Metadata } from 'next';
 import { requireSession } from '@/lib/auth';
 import { translator } from '@/lib/i18n';
-import {
-  daily,
-  escalationReasons,
-  hourlyHeat,
-  intents,
-  knowledgeGaps,
-  languageSplit,
-  operatorLeaderboard,
-  overview,
-} from '@/lib/analytics';
+import { coreGet } from '@/lib/core';
+import type { AnalyticsData } from '@/lib/workspace-views';
 import { ESCALATION_REASON_LABEL } from '@/lib/catalog';
-import {
-  COST_PER_MINUTE,
-  OPERATOR_ASSUMPTIONS,
-  OPERATOR_COST_PER_MINUTE,
-  RATE_CARD,
-} from '@/lib/engine/calls';
-import { fmtInt, fmtLatency, fmtMoney, fmtPct, percentile } from '@/lib/utils';
-import { all } from '@/lib/db';
+import { fmtInt, fmtLatency, fmtMoney, fmtPct } from '@/lib/utils';
 import { StatCard } from '@/components/console/stat-card';
 import { GapList } from '@/components/console/gap-list';
 import {
@@ -46,7 +31,7 @@ export const metadata: Metadata = { title: 'Analytics' };
 export const dynamic = 'force-dynamic';
 
 export default async function AnalyticsPage() {
-  const { tenant, user } = await requireSession();
+  const { user } = await requireSession();
   const t = translator(user.locale);
   const LANG_NAME: Record<string, string> = {
     uz: t('analytics.lang.uz', 'Uzbek'),
@@ -54,33 +39,31 @@ export default async function AnalyticsPage() {
     en: t('analytics.lang.en', 'English'),
   };
 
-  const stats = overview(tenant.id, 30);
-  const trend = daily(tenant.id, 30);
-  const heat = hourlyHeat(tenant.id, 30);
-  const topIntents = intents(tenant.id, 30, 8);
-  const langs = languageSplit(tenant.id, 30);
-  const reasons = escalationReasons(tenant.id, 30);
-  const gaps = knowledgeGaps(tenant.id, 8);
-  const operators = operatorLeaderboard(tenant.id, 30);
-
-  const latencies = all<{ v: number }>(
-    `SELECT avg_latency_ms AS v FROM calls WHERE tenant_id=? AND avg_latency_ms IS NOT NULL
-     ORDER BY avg_latency_ms ASC`,
-    tenant.id,
-  ).map((r) => r.v);
+  // The last 30 days, response-time percentiles over every call, and the money: the same
+  // deflected minutes priced as wages versus as AI handling (backend/app/dashboards.py).
+  const {
+    stats,
+    trend,
+    heat,
+    topIntents,
+    langs,
+    reasons,
+    gaps,
+    operators,
+    latency,
+    aiMinutes,
+    humanEquivalent,
+    actualSpend,
+    operatorAssumptions: OPERATOR_ASSUMPTIONS,
+    operatorCostPerMinute: OPERATOR_COST_PER_MINUTE,
+  } = await coreGet<AnalyticsData>('/views/analytics');
 
   const buckets = [
-    { label: t('analytics.p50', 'p50 — the typical caller'), ms: percentile(latencies, 50) },
-    { label: 'p90', ms: percentile(latencies, 90) },
-    { label: 'p95', ms: percentile(latencies, 95) },
-    { label: t('analytics.p99', 'p99 — the worst experience'), ms: percentile(latencies, 99) },
+    { label: t('analytics.p50', 'p50 — the typical caller'), ms: latency.p50 },
+    { label: 'p90', ms: latency.p90 },
+    { label: 'p95', ms: latency.p95 },
+    { label: t('analytics.p99', 'p99 — the worst experience'), ms: latency.p99 },
   ];
-
-  // Like-for-like: the same deflected minutes priced as wages versus priced as
-  // AI handling. Telephony sits on both sides, so it cancels and is excluded.
-  const aiMinutes = stats.totalCalls ? stats.minutes * stats.deflectionRate : 0;
-  const humanEquivalent = aiMinutes * OPERATOR_COST_PER_MINUTE;
-  const actualSpend = aiMinutes * (COST_PER_MINUTE - RATE_CARD.telephonyPerMin);
 
   if (!stats.totalCalls) {
     return (
@@ -134,8 +117,8 @@ export default async function AnalyticsPage() {
         />
         <StatCard
           label={t('kpi.latency', 'Median response')}
-          value={fmtLatency(percentile(latencies, 50))}
-          sub={`p95 ${fmtLatency(percentile(latencies, 95))}`}
+          value={fmtLatency(latency.p50)}
+          sub={`p95 ${fmtLatency(latency.p95)}`}
           icon={<IconZap size={16} />}
         />
         <StatCard

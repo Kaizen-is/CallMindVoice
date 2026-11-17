@@ -1,15 +1,11 @@
 import { requireSession } from '@/lib/auth';
 import { translator } from '@/lib/i18n';
-import { all } from '@/lib/db';
-import { AI_MINUTE_UZS, UZS_RATES } from '@/lib/catalog';
-import type { WalletLedger } from '@/lib/types';
+import { coreGet } from '@/lib/core';
+import type { BillingData } from '@/lib/workspace-views';
 import { fmtDateTime, fmtUzs } from '@/lib/utils';
 import { Card, EmptyState, PageHeader } from '@/components/ui/primitives';
 import { TopUp } from './top-up';
 import { IconAlert, IconArrowUpRight, IconClock, IconCreditCard, IconMinus, IconWave } from '@/components/icons';
-
-/** Below this the balance card warns the owner to top up (so'm). */
-const LOW_BALANCE_UZS = 100_000;
 
 /**
  * Shared balance / rates / activity content. Rendered by both the full
@@ -17,18 +13,20 @@ const LOW_BALANCE_UZS = 100_000;
  * never drift out of sync (the modal used to show a stale USD plan view).
  */
 export async function BillingView() {
-  const { tenant, user } = await requireSession();
+  const { user } = await requireSession();
   const t = translator(user.locale);
 
-  const balance = tenant.balance_uzs;
-  const negative = balance < 0;
-  const low = !negative && balance < LOW_BALANCE_UZS;
+  // The balance (and whether it is below zero or under the low-balance mark), the last 15
+  // wallet movements and the per-minute rates (backend/app/dashboards.py).
+  const {
+    balance,
+    negative,
+    low,
+    ledger,
+    uzsRates: UZS_RATES,
+    aiMinuteUzs: AI_MINUTE_UZS,
+  } = await coreGet<BillingData>('/views/billing');
   const isOwner = user.role === 'owner';
-
-  const ledger = all<WalletLedger>(
-    'SELECT * FROM wallet_ledger WHERE tenant_id=? ORDER BY created_at DESC LIMIT 15',
-    tenant.id,
-  );
 
   const rates: Array<{ label: string; amount: number }> = [
     { label: t('billing.rate.realTalk', 'Live conversation'), amount: UZS_RATES.realTalkPerMin },
