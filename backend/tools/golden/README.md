@@ -18,6 +18,7 @@ same inputs in Python and compare.
 | `make-golden-workspace.cjs` | `golden_workspace.json` | the console pages' data (overview, analytics, numbers, team, settings, developers, billing) and 62 workspace server-action calls on a seeded SQLite file, frozen clock: answers and rows added/removed |
 | `make-golden-url.cjs` | `golden_url.json` | `new URL(input).protocol` (or a throw) for 2,300 inputs — the webhook form's URL check |
 | `make-golden-logistics.cjs` | `golden_logistics.json` | the logistics demo's lookup: numbers read from speech, shipments found, day labels and the whole prompt part, at pinned moments |
+| `make-golden-ops.cjs` | `golden_ops.json` | `seededRandom` streams; 36 simulated calls (simulator.ts) and the demo history (demo-data.ts) on a real SQLite file, clock pinned, zone Asia/Tashkent: every row written and every bus event |
 
 How they work: `tsc` compiles the TypeScript to CommonJS in `./out` (gitignored);
 each script swaps in recorders for `fetch`, the Anthropic SDK, the usage log or the
@@ -38,7 +39,10 @@ node backend/tools/golden/make-golden-url.cjs backend/tests/fixtures/golden_url.
 npx tsc -p backend/tools/golden/tsconfig-workspace.json
 node --experimental-sqlite backend/tools/golden/make-golden-workspace.cjs backend/tests/fixtures/golden_workspace.json "$TMPDIR/golden-workspace"
 node backend/tools/golden/make-golden-logistics.cjs backend/tests/fixtures/golden_logistics.json
+node --experimental-sqlite backend/tools/golden/make-golden-ops.cjs backend/tests/fixtures/golden_rag.json backend/tests/fixtures/golden_ops.json "$TMPDIR/golden-ops"
 ```
+
+(`--experimental-sqlite` is needed on Node 22.5–22.12; `make-golden-ops.cjs` regenerates byte for byte.)
 
 (On Windows use a folder such as `%TEMP%\golden-speech` for the last argument.)
 A `TS2688 … 'node'` warning from `tsc` is harmless when `@types/node` is not

@@ -1,60 +1,37 @@
 import type { Metadata } from 'next';
 import { requireSession } from '@/lib/auth';
-import { all, get } from '@/lib/db';
+import { coreGet } from '@/lib/core';
 import type { Call } from '@/lib/types';
 import { CallList } from './list';
 
 export const metadata: Metadata = { title: 'Call history' };
 export const dynamic = 'force-dynamic';
 
-/** Calls per page — a screenful or two, not the whole history at once. */
-const PAGE_SIZE = 50;
-
 export default async function CallsPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const { tenant, user } = await requireSession();
+  const { user } = await requireSession();
   const params = await searchParams;
 
-  // Default to real calls only — playground/test sessions are channel='web' and
-  // should not clutter the history that operators and analysts review.
-  const filters: string[] = ['tenant_id = ?', "channel != 'web'"];
-  const args: unknown[] = [tenant.id];
-
-  if (params.outcome && params.outcome !== 'all') {
-    if (params.outcome === 'escalated') filters.push('escalated = 1');
-    else filters.push('outcome = ?'), args.push(params.outcome);
+  // The filtered, paged history comes from the Python backend (backend/app/operations.py), which
+  // reads the search params as this page did (outcome, lang, q, page; a repeated key is an array).
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params as Record<string, string | string[] | undefined>)) {
+    for (const v of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, v);
   }
-  if (params.lang && params.lang !== 'all') {
-    filters.push('language = ?');
-    args.push(params.lang);
-  }
-  if (params.q) {
-    filters.push('(from_e164 LIKE ? OR caller_name LIKE ? OR summary LIKE ? OR intent LIKE ?)');
-    const like = `%${params.q}%`;
-    args.push(like, like, like, like);
-  }
-
-  const where = filters.join(' AND ');
-  const total = get<{ n: number }>(`SELECT COUNT(*) AS n FROM calls WHERE ${where}`, ...args)?.n ?? 0;
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const page = Math.min(pages, Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1));
-
-  const calls = all<Call>(
-    `SELECT * FROM calls WHERE ${where} ORDER BY started_at DESC LIMIT ? OFFSET ?`,
-    ...args,
-    PAGE_SIZE,
-    (page - 1) * PAGE_SIZE,
-  );
+  const { calls, paging } = await coreGet<{
+    calls: Call[];
+    paging: { page: number; pages: number; total: number; pageSize: number };
+  }>(`/views/calls?${query.toString()}`);
 
   return (
     <CallList
       calls={calls}
       locale={user.locale}
       filters={{ outcome: params.outcome ?? 'all', lang: params.lang ?? 'all', q: params.q ?? '' }}
-      paging={{ page, pages, total, pageSize: PAGE_SIZE }}
+      paging={paging}
     />
   );
 }

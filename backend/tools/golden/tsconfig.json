@@ -37,6 +37,8 @@
     "../../../src/lib/speech/brb-stt.ts",
     "../../../src/lib/engine/conversation.ts",
     "../../../src/lib/engine/calls.ts",
+    "../../../src/lib/engine/simulator.ts",
+    "../../../src/lib/engine/demo-data.ts",
     "../../../src/lib/db.ts"
   ]
 }
