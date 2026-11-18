@@ -62,8 +62,9 @@ a separate copy of the repo. When `backend/pyproject.toml` dependencies change:
 
 ## 3. Rules we work by
 
-- **Branch**: work and commit on `develop`; no new branches. **Push only when the
-  user asks.**
+- **Branch**: `main` is the one shared branch (GitHub `Kaizen-is/CallMindVoice`); work
+  on it, or on a short branch per task that is merged into `main` and deleted. **Push
+  only when the user asks.**
 - **Secrets**: `.env` is never committed (names are in `.env.example`); `.vscode/`
   stays untracked. Never print key values.
 - **Production**: never `npm run build` in `~/callmind` while `callmind.service`
@@ -72,6 +73,13 @@ a separate copy of the repo. When `backend/pyproject.toml` dependencies change:
   Every browser → server call sends JSON or multipart. Server actions are
   relabelled by `src/instrumentation-client.ts`; `sendBeacon`/`keepalive` hang-ups
   must send an `application/json` Blob.
+  It also refuses (403) any multipart field whose **name contains a colon**. React adds
+  hidden `$ACTION_n:m` fields to forms with a bound or `useActionState` action; the same
+  file drops them from server-action requests, the login and signup buttons stay
+  disabled until the page has loaded (`useHydrated`), and the language switcher sends
+  its language as a plain field. Seen as "This page couldn't load" after pressing
+  login on a phone. The office network (192.168.77.x) skips this filter, so check
+  from outside — or from the server through `https://callmind.brb-tech.uz`.
 - **Ported code must match the TypeScript exactly** (golden fixtures + parity
   tests; section 5). CI (`.gitlab-ci.yml`) runs `tsc`, `npm audit`, ruff + pytest
   for `backend/`, the build, and an isolated smoke test.
@@ -138,6 +146,29 @@ Developers page; `setMemberStatusAction` signs out sessions without checking the
 tenant; the client address falls back to `127.0.0.1` without `x-forwarded-for`;
 Python PDF text extraction is 3–4× slower than unpdf (runs off the event loop);
 a knowledge term `constructor` makes BM25 NaN for that tenant (JavaScript quirk, kept).
+
+### The phone bridge routes
+
+`/api/telephony/bridge/{turn,filler,end}` are served by `backend/app/routers/telephony.py`
+at the same paths the bridge always called (the site forwards them), behind the same
+`x-bridge-secret` gate (`BRIDGE_SHARED_SECRET`: unset ⇒ 503, wrong ⇒ 401). The bridge
+needs no change: `bridge.mjs` and `bridge.py` both keep calling the site.
+
+- Proven twice: `test_telephony_routes.py`, and `test_bridge_parity.py` — 80 requests
+  (`backend/tools/golden/scenarios-bridge.json`) replayed against the recorded TypeScript
+  (`fixtures/golden_bridge.json`, `make-golden-bridge.cjs`), comparing every response,
+  the calls and turns touched, daily usage, the wallet and escalations. (Two ports of
+  these routes were made in parallel on 17 Nov; the merge kept one router and runs
+  both test sets against it.)
+- JavaScript details reproduced: `Number()` parsing of `spokenRatio` / `i`, the first
+  value of a repeated form field or query parameter, JavaScript's `\s` when trimming a
+  reply after barge-in, `lines[i % n]` going `undefined` for negative or fractional `i`,
+  the ms truncation of the end time, `JSON.parse` refusing `NaN`, a 500 for a `null`
+  body or a non-string `callId`.
+- `BRIDGE_SHARED_SECRET` is **not set on production** yet, so the phone routes answer
+  503 there until it is put in the server `.env` (the API reads the same file).
+- Phone calls voice with the own TTS server (`TTS_BASE_URL`). Locally, without it,
+  `/filler` answers `503 filler_failed`, exactly like the TypeScript.
 
 ## 5. How ported code is proven identical
 
@@ -256,19 +287,23 @@ database; `CALLMIND_DOTENV=0`). With the API running locally, the site's
 | `d3fb787` | BRB TTS engine (site + backend) | **no** — waits for the network route |
 | `1238fa6` | This handoff doc, `CLAUDE.md`, the golden generators | docs only |
 | `8b424c2` (13 Nov) | Claude Haiku (`claude-haiku-5-5`) is the default LLM (agent model → account default → server default); spoken payment dates worked out in code (`namedDay` / `named_day` in `loan-call`, the model only gets the result); 24 kHz audio in Playground voice calls; a toast when BRB fails and the browser voice takes over; BRB Whisper STT. New Python deps: `grpcio`, `tzdata` (Windows) | **no** — needs `pip install` + build + restarts |
+| `b5f814d` (16 Nov) | Login, signup and the public language switch get past the edge's colon-field rule (section 3); the language menu on the auth pages takes taps again | yes (site build of 17 Nov) |
 
 ## 9. Open items
 
 1. **Deploy the Python-only version** (section 4, "Deploying this") and check the
-   live site: sign in, a Playground call, a knowledge upload, one phone call; then
-   switch the phone bridge to `bridge.py`.
+   live site: sign in, a Playground call, a knowledge upload. For phone calls, put
+   `BRIDGE_SHARED_SECRET` in the server `.env`, place one call, then switch the phone
+   bridge to `bridge.py`.
 2. Ask the network admins for the routes to the BRB proxy and to
    `stt-service.brb.uz:443` (section 6), then deploy and run one TTS render and one
    BRB Whisper transcription on the live site.
 3. Try BRB Whisper against the real host. Ask BRB what the TTS limit is (per minute /
    day / characters) and whether there will be a production URL (today's is `-test`).
-4. `npm run seed` says "start the app once" but the app only creates the database
-   on its first query; make the seed script create it itself.
+4. Small parity gap, harmless today: the Playground, speech, live, demo and voices routes
+   read the **last** value of a repeated form field or query parameter where the
+   TypeScript read the first (the phone routes were fixed on 18 Nov). The pages never
+   repeat a field.
 5. Not confirmed yet: `https://callmind.brb-tech.uz/api/core/me` shows the
    logged-in user (Step 0 check), and the GitLab pipeline of the 12 Nov push.
 6. Leftovers on the server only (untracked, can be deleted): `deploy/brb-vpn/`

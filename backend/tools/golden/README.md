@@ -21,6 +21,7 @@ the `MIGRATIONS` list of that checkout's `src/lib/db.ts`.
 | `make-golden-llm.cjs` | `golden_llm.json` | `generateAnswer` / `summarizeCall` / `resolveLlm` with scripted Gemini, OpenAI, Ollama and Claude replies: request bodies (prompts), Claude params, streamed pieces, answers, usage rows |
 | `make-golden-speech.cjs` | `golden_speech.json` | TTS cache keys and mtime stamps, TTS renders (own server, Speko, BRB), STT engines and choice, Playground segmenting |
 | `make-golden-turn.cjs` | `golden_turn.json` | `runTurn` on a real SQLite file: results, rows written, bus events |
+| `make-golden-bridge.cjs` | `golden_bridge.json` | the phone-bridge routes (`/api/telephony/bridge/*`) on the requests in `scenarios-bridge.json`: responses, calls and turns touched, usage, wallet |
 | `make-golden-auth.cjs` | (values in `test_auth_parity.py`) | session cookie, password hash and API key made the TypeScript way |
 | `make-golden-workspace.cjs` | `golden_workspace.json` | the console pages' data (overview, analytics, numbers, team, settings, developers, billing) and 62 workspace server-action calls on a seeded SQLite file, frozen clock: answers and rows added/removed |
 | `make-golden-url.cjs` | `golden_url.json` | `new URL(input).protocol` (or a throw) for 2,300 inputs — the webhook form's URL check |
@@ -50,6 +51,7 @@ node backend/tools/golden/make-golden-logistics.cjs backend/tests/fixtures/golde
 node --experimental-sqlite backend/tools/golden/make-golden-ops.cjs backend/tests/fixtures/golden_rag.json backend/tests/fixtures/golden_ops.json "$TMPDIR/golden-ops"
 node --experimental-sqlite backend/tools/golden/make-golden-knowledge.cjs backend/tests/fixtures/golden_knowledge.json "$TMPDIR/golden-kb"
 node backend/tools/pdfjs-tables.cjs backend/app/rag/pdfjs_tables.json   # pdf.js's tables for app/rag/pdf_text.py (after an unpdf upgrade)
+node backend/tools/golden/make-golden-bridge.cjs backend/tools/golden/scenarios-bridge.json backend/tests/fixtures/golden_bridge.json "$TMPDIR/golden-bridge"
 ```
 
 (`--experimental-sqlite` is needed on Node 22.5–22.12; `make-golden-ops.cjs` regenerates byte for byte.)

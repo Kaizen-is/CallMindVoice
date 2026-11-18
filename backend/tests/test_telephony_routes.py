@@ -377,9 +377,17 @@ def test_filler_unknown_number_and_tts_error(line, speech, monkeypatch) -> None:
 def test_end_checks(line, speech) -> None:  # noqa: ANN001
     res = line.post("/telephony/bridge/end", content=b"{oops", headers={"content-type": "application/json"})
     assert (res.status_code, res.json()) == (400, {"error": "invalid_json"})
-    for body in ({}, {"callId": "  "}, {"callId": 5}):
+    for body in ({}, {"callId": "  "}, {"callId": None}, "text", [1]):
         res = line.post("/telephony/bridge/end", json=body)
         assert (res.status_code, res.json()) == (400, {"error": "missing_callId"})
+    # `(body.callId ?? '').trim()` on a number, and `null.callId`, throw in the TypeScript (Next.js: 500).
+    for raw in (b'{"callId": 5}', b"null"):
+        with pytest.raises(TypeError):
+            line.post("/telephony/bridge/end", content=raw, headers={"content-type": "application/json"})
+    res = line.post(
+        "/telephony/bridge/end", content=b'{"callId": "x", "n": NaN}', headers={"content-type": "application/json"}
+    )
+    assert (res.status_code, res.json()) == (400, {"error": "invalid_json"})
     res = line.post("/telephony/bridge/end", json={"callId": "call_missing"})
     assert (res.status_code, res.json()) == (404, {"error": "call_not_found"})
 

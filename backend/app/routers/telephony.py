@@ -32,7 +32,7 @@ from app.engine.calls import end_call, start_call
 from app.engine.conversation import run_turn
 from app.env import env
 from app.ids import parse_iso, to_iso
-from app.jscompat import JS_S, js_json, js_number, js_trim
+from app.jscompat import JS_S, js_json, js_json_parse, js_number, js_trim, js_utf8
 from app.speech.fillers import filler_lines
 from app.speech.stt import SttError, transcribe
 from app.speech.tts import SynthOptions, TtsError, synthesize_pcm, synthesize_stream
@@ -70,6 +70,13 @@ def _field(value: object) -> str:
     return value if isinstance(value, str) else ""
 
 
+def _first(values: Any, key: str) -> Any:
+    """`form.get(key)` / `searchParams.get(key)`: the FIRST value of a repeated field (Starlette's `.get`
+    returns the last), or None."""
+    found = values.getlist(key)
+    return found[0] if found else None
+
+
 def _is_form(request: Request) -> bool:
     """`request.formData()` only parses these two bodies; anything else throws."""
     content_type = request.headers.get("content-type") or ""
@@ -91,12 +98,12 @@ async def turn(request: Request) -> Response:
     except Exception:  # noqa: BLE001
         return _error({"error": "expected_multipart_form"}, 400)
 
-    to = _field(form.get("to"))
-    from_ = _field(form.get("from"))
-    first = _field(form.get("first")) == "true"
-    call_id_in = _field(form.get("callId"))
-    spoken_ratio = js_number(_field(form.get("spokenRatio")))
-    audio_field = form.get("audio")
+    to = _field(_first(form, "to"))
+    from_ = _field(_first(form, "from"))
+    first = _field(_first(form, "first")) == "true"
+    call_id_in = _field(_first(form, "callId"))
+    spoken_ratio = js_number(_field(_first(form, "spokenRatio")))
+    audio_field = _first(form, "audio")
     audio = audio_field if isinstance(audio_field, UploadFile) else None
 
     target = resolve_target(to)
@@ -198,8 +205,9 @@ def _headers(*, call_id: str, escalate: str, text: str, engine: str) -> dict[str
         "Cache-Control": "no-store",
         "x-ovoz-callid": call_id,
         "x-ovoz-escalate": escalate,
-        # HTTP headers cannot safely carry raw multi-byte UTF-8.
-        "x-ovoz-text": base64.b64encode(text.encode()).decode(),
+        # HTTP headers cannot safely carry raw multi-byte UTF-8. `Buffer.from(text, 'utf8')`: a lone
+        # surrogate becomes U+FFFD instead of an encoding error.
+        "x-ovoz-text": base64.b64encode(js_utf8(text)).decode(),
         "x-ovoz-engine": engine,
     }
 
@@ -232,8 +240,8 @@ async def filler(request: Request) -> Response:
     if denied is not None:
         return denied
 
-    to = request.query_params.get("to", "")
-    index = js_number(request.query_params.get("i", "0"))
+    to = _first(request.query_params, "to") or ""
+    index = js_number(_first(request.query_params, "i") or "0")
 
     target = resolve_target(to)
     if isinstance(target, JSONResponse):
@@ -280,14 +288,21 @@ async def end(request: Request) -> Response:
         return _error({"error": "unauthorized"}, 401)
 
     try:
-        body = await request.json()
-    except Exception:  # noqa: BLE001
+        # `await request.json()`: UTF-8 (BOM dropped, bad bytes replaced), and NaN / Infinity refused.
+        body = js_json_parse(await request.body())
+    except ValueError:
         return _error({"error": "invalid_json"}, 400)
+    if body is None:
+        # `null.callId` throws in the TypeScript: Next.js answered 500.
+        raise TypeError("Cannot read properties of null (reading 'callId')")
     if not isinstance(body, dict):
-        body = {}
+        body = {}  # a string, number or array has no `callId`: undefined
 
+    # `(body.callId ?? '').trim()`: a number, boolean or object has no .trim() and throws (500).
     raw_id = body.get("callId")
-    call_id = js_trim(raw_id) if isinstance(raw_id, str) else ""
+    if raw_id is not None and not isinstance(raw_id, str):
+        raise TypeError("body.callId.trim is not a function")
+    call_id = js_trim(raw_id or "")
     if not call_id:
         return _error({"error": "missing_callId"}, 400)
 
@@ -308,7 +323,8 @@ async def end(request: Request) -> Response:
         ended_at = _plus_seconds(call["started_at"], duration)
 
     # No in-call transfer in v1, so even an escalated call closes as resolved_by_ai.
-    outcome = body.get("outcome") if body.get("outcome") in OUTCOMES else "resolved_by_ai"
+    wanted = body.get("outcome")
+    outcome = wanted if isinstance(wanted, str) and wanted in OUTCOMES else "resolved_by_ai"
 
     result = end_call(tenant_id=call["tenant_id"], call_id=call_id, outcome=outcome, ended_at=ended_at)
     return _json({"ok": True, "callId": call_id, "outcome": outcome, **(result or {})})
