@@ -36,6 +36,38 @@ from tests.conftest import _reset_provider_state
 
 GOLDEN = json.loads((Path(__file__).parent / "fixtures" / "golden_agents.json").read_text(encoding="utf-8"))
 
+# Engines added after the port (Gemini STT/TTS through Speko, 18 Nov 2026). The TypeScript these
+# fixtures were recorded from did not have them, so the replay runs with the engine list as it was
+# then; everything else must still match exactly. Their own tests: test_speko_gemini.py.
+NEW_SINCE_PORT = {"speko_live", "scribe_live", "gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"}
+
+
+@pytest.fixture(autouse=True)
+def _engines_as_recorded(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import agent_studio, custom_voices, registry
+    from app.speech import speko
+
+    engines = tuple(e for e in registry.ENGINES if e.id not in NEW_SINCE_PORT)
+    for module in (registry, agent_studio, custom_voices, benchmark, model_lab):
+        monkeypatch.setattr(module, "ENGINES", engines)
+    speko_models = tuple(m for m in speko.SPEKO_TTS_MODELS if m not in NEW_SINCE_PORT)
+    monkeypatch.setattr(speko, "SPEKO_TTS_MODELS", speko_models)
+    monkeypatch.setattr(agent_studio, "SPEKO_TTS_MODELS", speko_models)
+
+
+def _as_recorded(view: dict[str, Any]) -> dict[str, Any]:
+    """A page's data without the fields added after the port (the Gemini voices and STT choice)."""
+    view.pop("geminiVoices", None)
+    stt = view.get("speech", {}).get("stt") if isinstance(view.get("speech"), dict) else None
+    if isinstance(stt, dict):
+        stt.pop("gemini_live", None)
+        stt.pop("scribe_live", None)
+        # The live-words address now also serves the streaming Speko models (not only Zipformer).
+        if not stt.get("local"):
+            view["speech"]["streamUrl"] = None
+    return view
+
+
 TABLES = [
     "tenants", "agents", "custom_voices", "audit_log", "calls", "turns", "usage_daily", "wallet_ledger",
     "knowledge_gaps", "escalations", "model_usage", "benchmark_runs", "benchmark_results",
@@ -282,7 +314,7 @@ def test_pages_and_actions_match_the_typescript(
                     continue
                 res = client.get(_view_path(step))
                 assert res.status_code == 200, where
-                data = mask(res.json())
+                data = _as_recorded(mask(res.json()))
                 if "element" in step:  # the agent page's "No agent yet"
                     assert data == {"agent": None}, where
                 else:

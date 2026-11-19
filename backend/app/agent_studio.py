@@ -18,7 +18,7 @@ from app.jscompat import js_json, js_trim, utf16_slice
 from app.llm.choice import llm_options, safe_json, tenant_default_llm
 from app.llm.provider import engine_label
 from app.registry import ENGINES, llm_model_info
-from app.speech.speko import ELEVEN_VOICES, SPEKO_TTS_MODELS
+from app.speech.speko import ELEVEN_VOICES, GEMINI_VOICES, SPEKO_TTS_MODELS, speko_voices
 from app.speech.tts import tts_engines
 from app.voices import list_custom_voices
 
@@ -50,7 +50,7 @@ def agent_by_id(tenant_id: str, agent_id: str) -> dict[str, Any] | None:
 
 
 def agent_tts(draft: dict[str, Any]) -> tuple[str, str]:
-    """The voice model and ElevenLabs voice to store: both valid, or both ''."""
+    """The voice model and its voice (ElevenLabs' or Gemini's) to store: both valid, or both ''."""
     engine_id = draft["ttsEngine"]
     # The BRB model speaks with its one voice.
     if engine_id == "brb":
@@ -58,7 +58,8 @@ def agent_tts(draft: dict[str, Any]) -> tuple[str, str]:
     engine = engine_id if engine_id in SPEKO_TTS_MODELS else ""
     if not engine:
         return "", ""
-    voice = next((v["id"] for v in ELEVEN_VOICES if v["id"] == draft["ttsVoiceId"]), ELEVEN_VOICES[0]["id"])
+    voices = speko_voices(engine)
+    voice = next((v["id"] for v in voices if v["id"] == draft["ttsVoiceId"]), voices[0]["id"])
     return engine, voice
 
 
@@ -247,6 +248,7 @@ def agent_page(session: Session, agent_param: str | None) -> dict[str, Any]:
         # ElevenLabs models (through Speko) and the BRB model an agent can speak with; '' = own TTS.
         "ttsModels": tts_models,
         "elevenVoices": [{"id": v["id"], "name": v["name"], "note": v["note"]} for v in ELEVEN_VOICES],
+        "geminiVoices": [{"id": v["id"], "name": v["name"], "note": v["note"]} for v in GEMINI_VOICES],
         "agent": {
             "id": agent["id"],
             "name": agent["name"],

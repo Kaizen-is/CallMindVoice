@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { saveSpeechTestAction } from '@/app/actions/ops';
 import { translator } from '@/lib/i18n';
 import type { SpeechTest, UiLocale } from '@/lib/types';
@@ -28,6 +28,17 @@ import {
   IconX,
 } from '@/components/icons';
 import { TimeAgo } from '@/components/ui/time-ago';
+import { useLiveTranscript } from '@/hooks/use-live-transcript';
+import { useWordReveal } from '@/hooks/use-word-reveal';
+import {
+  LIVE_STT,
+  STT_MODELS,
+  liveFinishMs,
+  modelOptions,
+  sttChoiceOf,
+  sttReadiness,
+  useSttChoice,
+} from '@/lib/speech-models';
 
 /* ── audio helpers: decode any uploaded file → 16 kHz mono WAV, the exact
    contract the internal STT expects (mirrors src/lib/audio.ts). ── */
@@ -104,15 +115,21 @@ export function SttLab({
 }: {
   locale: UiLocale;
   history: SpeechTest[];
-  /** Every STT model in the list, with whether this server can run it. */
+  /** Every STT engine (registry ids), with whether this server can run it. */
   models: ModelOption[];
   initialModel: string;
 }) {
   const t = translator(locale);
   const toast = useToast();
-  const [model, setModel] = useState(initialModel);
-  const modelName = models.find((m) => m.id === model)?.name ?? model;
-  const speech = { stt: models.some((m) => m.ready) };
+  // The same models, names and remembered choice as the Playground (@/lib/speech-models).
+  const readiness = useMemo(() => sttReadiness(models), [models]);
+  const options = useMemo(() => modelOptions(STT_MODELS, readiness), [readiness]);
+  const [model, setModel] = useSttChoice(readiness, sttChoiceOf(initialModel));
+  const modelName = STT_MODELS.find((m) => m.id === model)?.name ?? model;
+  const speech = { stt: options.some((m) => m.ready) };
+  // A streaming model hears the recording live, as the Playground's call does: words appear while
+  // speaking, and the text is known the moment the recording stops.
+  const streaming = LIVE_STT.has(model) && readiness[model];
   const [heardBy, setHeardBy] = useState<string | null>(null);
 
   const [history, setHistory] = useState<SpeechTest[]>(initialHistory);
@@ -123,6 +140,9 @@ export function SttLab({
   const [result, setResult] = useState<string | null>(null);
 
   const recorderRef = useRef<Recording | null>(null);
+  const live = useLiveTranscript({ url: '/api/speech/live', engine: model, language: 'uz', active: streaming && listening });
+  const liveShown = useWordReveal(listening ? live.text : '');
+  const [finishing, setFinishing] = useState(false);
 
   useEffect(() => setMicReady(micSupported()), []);
   useEffect(
@@ -150,18 +170,46 @@ export function SttLab({
     const rec = recorderRef.current;
     recorderRef.current = null;
     if (!rec) return;
-    setListening(false);
+    let liveText = '';
+    let recorded: Awaited<ReturnType<Recording['stop']>> | null = null;
     try {
-      const { wav, durationSec, rms } = await rec.stop();
-      if (durationSec < 0.35 || rms < 0.0015) {
-        toast.toast({ tone: 'info', title: t('dev.stt.nothingTitle'), description: t('dev.stt.nothingBody') });
-        return;
+      const stopped = rec.stop();
+      if (streaming && live.connected) {
+        // The model has been transcribing all along: one short request for its last words.
+        setFinishing(true);
+        liveText = await live.finish(liveFinishMs(model));
       }
-      setSource({ kind: 'rec', wav });
+      recorded = await stopped;
     } catch (e) {
       toast.error(t('dev.stt.micProblem'), e instanceof Error ? e.message : t('dev.stt.micNoAccess'));
+    } finally {
+      setFinishing(false);
+      setListening(false);
     }
-  }, [toast, t]);
+    if (!recorded) return;
+    const { wav, durationSec, rms } = recorded;
+    if (!liveText && (durationSec < 0.35 || rms < 0.0015)) {
+      toast.toast({ tone: 'info', title: t('dev.stt.nothingTitle'), description: t('dev.stt.nothingBody') });
+      return;
+    }
+    const recording: Source = { kind: 'rec', wav };
+    setSource(recording);
+    if (liveText) {
+      setResult(liveText);
+      setHeardBy(`${modelName} · ${t('dev.stt.live', 'live')}`);
+      try {
+        const saved = await saveSpeechTestAction({ kind: 'stt', input: `recording · ${modelName}`, output: liveText });
+        if (saved.ok) setHistory((h) => [saved.test, ...h].slice(0, 20));
+      } catch {
+        /* transcription already delivered */
+      }
+    } else if (streaming) {
+      // The live words did not come through: transcribe the recording instead.
+      void generate(recording);
+    }
+    // generate is declared below and only reads state through its argument here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast, t, streaming, live, model, modelName]);
 
   const toggleRec = () => {
     if (listening) void stopRec();
@@ -173,18 +221,19 @@ export function SttLab({
     setResult(null);
   };
 
-  const generate = async () => {
-    if (!speech.stt || !source || busy) return;
+  const generate = async (input: Source | null = source) => {
+    if (!speech.stt || !input || busy) return;
     setBusy(true);
     setResult(null);
     try {
-      const wav = source.kind === 'file' ? await fileToWav16k(source.file) : source.wav;
-      const marker = source.kind === 'file' ? source.file.name : 'recording';
+      const wav = input.kind === 'file' ? await fileToWav16k(input.file) : input.wav;
+      const marker = input.kind === 'file' ? input.file.name : 'recording';
       const upload = new FormData();
       upload.append('file', wav, 'speech.wav');
       upload.append('engine', model);
       upload.append('language', 'uz');
-      const res = await fetch('/api/models/stt', { method: 'POST', body: upload });
+      const started = performance.now();
+      const res = await fetch('/api/speech/stt', { method: 'POST', body: upload });
       if (!res.ok) {
         // Surface the real status — a 413 here means a proxy body-size limit,
         // not the STT service itself.
@@ -192,9 +241,9 @@ export function SttLab({
         toast.error(t('dev.stt.failTitle'), `${t('dev.stt.failBody')} (HTTP ${res.status}${detail ? ` — ${detail}` : ''})`);
         return;
       }
-      const body = (await res.json()) as { text?: string; ms?: number };
+      const body = (await res.json()) as { text?: string };
       const text = (body.text ?? '').trim();
-      setHeardBy(`${modelName}${body.ms != null ? ` · ${(body.ms / 1000).toFixed(2)} s` : ''}`);
+      setHeardBy(`${modelName} · ${((performance.now() - started) / 1000).toFixed(2)} s`);
       if (!text) {
         toast.toast({ tone: 'info', title: t('dev.stt.nothingTitle'), description: t('dev.stt.nothingBody') });
         return;
@@ -239,10 +288,10 @@ export function SttLab({
                 <h3 className="text-[14px] font-semibold text-ink">{t('dev.stt.inputTitle')}</h3>
               </div>
               <ModelMenu
-                options={models}
+                options={options}
                 value={model}
                 onChange={(id) => {
-                  setModel(id);
+                  setModel(id as typeof model);
                   setResult(null);
                   setHeardBy(null);
                 }}
@@ -285,12 +334,17 @@ export function SttLab({
                     variant={listening ? 'danger' : 'secondary'}
                     icon={listening ? <IconStop size={15} /> : <IconMic size={15} />}
                     onClick={toggleRec}
-                    disabled={!micReady}
+                    disabled={!micReady || finishing}
                     className={cn(listening && 'animate-pulse')}
                   >
                     {listening ? t('dev.stt.stop') : t('dev.stt.record')}
                   </Button>
                   {listening && <p className="text-[12px] text-ink-3">{t('dev.stt.recording')}</p>}
+                  {!listening && streaming && (
+                    <p className="text-[12px] text-ink-3">
+                      {t('dev.stt.liveHint', 'Words appear as you speak.')}
+                    </p>
+                  )}
                 </div>
 
                 {source && !listening && (
@@ -339,7 +393,11 @@ export function SttLab({
                 </Button>
               )}
             </div>
-            {busy ? (
+            {listening && streaming ? (
+              <p className="mt-3 min-h-[52px] rounded-[10px] bg-surface-2 p-3.5 text-[14px] leading-relaxed whitespace-pre-wrap text-ink">
+                {liveShown || <span className="text-ink-3">{t('dev.stt.listening', 'Listening…')}</span>}
+              </p>
+            ) : busy ? (
               <div className="mt-3 flex items-center gap-2 text-[13px] text-ink-3">
                 <Spinner size={14} />
                 {t('dev.stt.generating')}

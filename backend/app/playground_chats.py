@@ -18,7 +18,7 @@ from app.jscompat import js_trim
 from app.llm.choice import agent_engine_label, safe_json, tenant_default_llm
 from app.llm.provider import engine_is_hosted, engine_label
 from app.playground import close_playground_call
-from app.speech.speko import ELEVEN_VOICES
+from app.speech.speko import ELEVEN_VOICES, GEMINI_VOICES, speko_configured
 from app.speech.stt import stt_engines
 from app.speech.tts import tts_engines
 from app.voices import list_custom_voices
@@ -185,11 +185,12 @@ def playground_page(session: Session) -> dict[str, Any]:
         "speech": {
             "stt": stt,
             "tts": tts_engines(),
-            # Live Zipformer words come from the in-app model (/api/speech/live).
-            "streamUrl": "/api/speech/live" if stt_engines()["local"] else None,
+            # Live words: the in-app Zipformer model, or a streaming Speko model (/api/speech/live).
+            "streamUrl": "/api/speech/live" if stt_engines()["local"] or speko_configured() else None,
         },
         "agents": agents,
         "elevenVoices": [{"id": v["id"], "name": v["name"]} for v in ELEVEN_VOICES],
+        "geminiVoices": [{"id": v["id"], "name": v["name"]} for v in GEMINI_VOICES],
         "allVoices": [
             *({"id": v["id"], "name": v["name"], "group": "builtin"} for v in VOICES),
             *({"id": v["id"], "name": v["name"], "group": v["mode"]} for v in list_custom_voices(tenant_id)),

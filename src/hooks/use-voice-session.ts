@@ -23,13 +23,27 @@ export const MAX_UTTERANCE_MS = 30_000;
 export const BARGE_IN_SPEECH_MS = 320;
 
 const CALIBRATION_MS = 300;
-const BARGE_IN_CALIBRATION_MS = 250;
+const BARGE_IN_CALIBRATION_MS = 400;
 const MIN_VOICE_RMS = 0.012;
 const MIN_BARGE_IN_RMS = 0.02;
 const NOISE_MULTIPLIER = 3;
 const BARGE_IN_NOISE_MULTIPLIER = 3.5;
 const RELEASE_RATIO = 0.7;
 const ERROR_RECOVERY_MS = 1_500;
+/**
+ * Echo guard. The agent's own voice leaks back into the mic past the browser's
+ * echo cancellation (more with loudspeakers, loud volume, or before the canceller
+ * has adapted). With the agent's output level (`getPlaybackLevel`), the hook
+ * learns how much of it reaches the mic and only treats the mic as the caller
+ * when it is clearly louder than that predicted echo.
+ */
+const ECHO_MARGIN = 1.6;
+/** The playback level remembered for echo that arrives late (output latency, room): half-life. */
+const ECHO_PEAK_HALF_LIFE_MS = 150;
+const ECHO_LEARN_MIN_PLAYBACK = 0.004;
+const MAX_ECHO_RATIO = 4;
+/** After the agent stops, its last syllable and the room's reverb must not open a new turn. */
+const TAIL_GUARD_MS = 450;
 
 export type VoiceState =
   | 'idle'
@@ -60,6 +74,11 @@ interface UseVoiceSessionOptions {
   onSpeculate?: (recording: RecordingResult, turnId: number) => void;
   onBargeIn?: () => void;
   onError?: (message: string, code: VoiceErrorCode) => void;
+  /**
+   * The RMS (0–1) of what the agent is playing right now (VoiceOut.rms()). With it, the agent's
+   * own voice leaking into the mic is told apart from the caller talking over it.
+   */
+  getPlaybackLevel?: () => number;
   /** Mic level 0–1 on every animation frame, for visuals that must not re-render React. */
   onLevel?: (level: number) => void;
 }
@@ -70,7 +89,14 @@ const voiceLog = (event: string, detail?: Record<string, unknown>) => {
   else console.debug(`[VOICE] ${event}`);
 };
 
-export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, onLevel }: UseVoiceSessionOptions) {
+export function useVoiceSession({
+  onUtterance,
+  onSpeculate,
+  onBargeIn,
+  onError,
+  onLevel,
+  getPlaybackLevel,
+}: UseVoiceSessionOptions) {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +139,18 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
   const onBargeInRef = useRef(onBargeIn);
   const onErrorRef = useRef(onError);
   const onLevelRef = useRef(onLevel);
+  const getPlaybackLevelRef = useRef(getPlaybackLevel);
+  /** Recent peak of the agent's output level (decays; echo arrives a little after the sound). */
+  const playbackPeakRef = useRef(0);
+  /** Learned mic level per unit of playback level: how much of the agent's voice comes back. */
+  const echoRatioRef = useRef(0);
+  /** Time the current barge-in candidate was actually loud (not just since it began). */
+  const voicedMsRef = useRef(0);
+  const lastFrameAtRef = useRef(0);
+  /** False while the browser's own speech engine talks: its sound bypasses echo cancellation. */
+  const bargeInAllowedRef = useRef(true);
+  const tailGuardUntilRef = useRef(0);
+  const lastAiThresholdRef = useRef(0);
 
   useEffect(() => {
     onUtteranceRef.current = onUtterance;
@@ -120,7 +158,8 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
     onBargeInRef.current = onBargeIn;
     onErrorRef.current = onError;
     onLevelRef.current = onLevel;
-  }, [onUtterance, onSpeculate, onBargeIn, onError, onLevel]);
+    getPlaybackLevelRef.current = getPlaybackLevel;
+  }, [onUtterance, onSpeculate, onBargeIn, onError, onLevel, getPlaybackLevel]);
 
   const transition = useCallback((next: VoiceState) => {
     stateRef.current = next;
@@ -130,6 +169,7 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
   const clearCandidate = useCallback(() => {
     candidateSinceRef.current = 0;
     candidateLastVoiceAtRef.current = 0;
+    voicedMsRef.current = 0;
     speechStartedAtRef.current = 0;
     lastVoiceAtRef.current = 0;
     partsRef.current = [];
@@ -142,7 +182,10 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
 
   const resumeListening = useCallback(() => {
     if (!activeRef.current) return;
-    if (stateRef.current === 'ai_speaking') voiceLog('tts_finished');
+    if (stateRef.current === 'ai_speaking') {
+      voiceLog('tts_finished');
+      tailGuardUntilRef.current = performance.now() + TAIL_GUARD_MS;
+    }
     clearCandidate();
     setError(null);
     transition('listening');
@@ -301,6 +344,20 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
     for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
     const rms = Math.sqrt(sum / data.length);
     const now = performance.now();
+    const frameMs = lastFrameAtRef.current ? Math.min(100, Math.max(0, now - lastFrameAtRef.current)) : 16;
+    lastFrameAtRef.current = now;
+
+    // What the agent is playing, held for a moment: its echo reaches the mic a little later.
+    const playback = getPlaybackLevelRef.current?.() ?? 0;
+    playbackPeakRef.current = Math.max(playback, playbackPeakRef.current * 0.5 ** (frameMs / ECHO_PEAK_HALF_LIFE_MS));
+    const predictedEcho = echoRatioRef.current * playbackPeakRef.current;
+    /** Learn how much of the agent's voice comes back: quickly at the start of its turn, slowly after. */
+    const learnEcho = (fast: boolean) => {
+      if (playbackPeakRef.current < ECHO_LEARN_MIN_PLAYBACK) return;
+      const seen = Math.min(MAX_ECHO_RATIO, rms / playbackPeakRef.current);
+      const rate = seen > echoRatioRef.current ? (fast ? 0.2 : 0.02) : fast ? 0.02 : 0.005;
+      echoRatioRef.current += (seen - echoRatioRef.current) * rate;
+    };
 
     onLevelRef.current?.(Math.min(1, rms / 0.08));
     if (now - lastLevelPaintRef.current >= 80) {
@@ -309,10 +366,18 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
     }
 
     if (stateRef.current === 'listening') {
+      const inTail = now < tailGuardUntilRef.current;
       if (now < calibratedAtRef.current) {
         noiseFloorRef.current = noiseFloorRef.current * 0.85 + Math.min(rms, 0.04) * 0.15;
       } else {
-        const threshold = Math.max(MIN_VOICE_RMS, noiseFloorRef.current * NOISE_MULTIPLIER);
+        // Right after the agent stops, the end of its voice (and the room) still rings: the
+        // interruption threshold holds for a moment, and any remaining echo is discounted.
+        const threshold = Math.max(
+          MIN_VOICE_RMS,
+          noiseFloorRef.current * NOISE_MULTIPLIER,
+          predictedEcho * ECHO_MARGIN,
+          inTail ? lastAiThresholdRef.current : 0,
+        );
         if (rms >= threshold) {
           if (!candidateSinceRef.current) {
             beginCandidate(now, 'listening');
@@ -331,36 +396,48 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
           }
         } else if (candidateSinceRef.current && now - candidateLastVoiceAtRef.current > 120) {
           clearCandidate();
-        } else {
+        } else if (!inTail) {
           noiseFloorRef.current = noiseFloorRef.current * 0.98 + Math.min(rms, 0.04) * 0.02;
         }
       }
     } else if (stateRef.current === 'ai_speaking') {
       if (now < bargeInCalibratedAtRef.current) {
+        // The floor stays the room's noise (capped near silence); the agent's own leakage is
+        // learned separately, relative to what it plays (echo guard) — counting it in both would
+        // make a real interruption hard to hear.
         const calibrationCap = Math.max(0.012, noiseFloorRef.current * 2);
         playbackNoiseFloorRef.current =
           playbackNoiseFloorRef.current * 0.85 + Math.min(rms, calibrationCap) * 0.15;
+        learnEcho(true);
       } else {
         // Echo cancellation handles most speaker leakage. This second, higher
         // adaptive threshold requires a sustained signal clearly above the
-        // measured playback residue before treating it as an interruption.
+        // measured playback residue — and above the echo predicted from what the
+        // agent is saying right now — before treating it as an interruption.
         const threshold = Math.max(
           MIN_BARGE_IN_RMS,
           playbackNoiseFloorRef.current * BARGE_IN_NOISE_MULTIPLIER,
           noiseFloorRef.current * NOISE_MULTIPLIER,
+          predictedEcho * ECHO_MARGIN,
         );
-        if (rms >= threshold) {
+        lastAiThresholdRef.current = threshold;
+        if (!bargeInAllowedRef.current) {
+          // The browser's own voice: no echo reference and no cancellation, so no interruptions.
+        } else if (rms >= threshold) {
           if (!candidateSinceRef.current) beginCandidate(now, 'ai_speaking');
           else candidateLastVoiceAtRef.current = now;
-          if (
-            candidateSinceRef.current &&
-            now - candidateSinceRef.current >= BARGE_IN_SPEECH_MS &&
-            recordingRef.current
-          ) {
+          // Only time the caller is actually heard counts (not gaps between loud frames).
+          voicedMsRef.current += frameMs;
+          if (candidateSinceRef.current && voicedMsRef.current >= BARGE_IN_SPEECH_MS && recordingRef.current) {
             speechStartedAtRef.current = candidateSinceRef.current;
             lastVoiceAtRef.current = now;
             transition('user_speaking');
-            voiceLog('barge_in', { turnId: turnIdRef.current });
+            voiceLog('barge_in', {
+              turnId: turnIdRef.current,
+              rms: Number(rms.toFixed(4)),
+              threshold: Number(threshold.toFixed(4)),
+              echo: Number(predictedEcho.toFixed(4)),
+            });
             onBargeInRef.current?.();
           }
         } else if (candidateSinceRef.current && now - candidateLastVoiceAtRef.current > 120) {
@@ -369,6 +446,7 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
           const trackingCap = Math.max(0.012, noiseFloorRef.current * 2);
           playbackNoiseFloorRef.current =
             playbackNoiseFloorRef.current * 0.98 + Math.min(rms, trackingCap) * 0.02;
+          learnEcho(false);
         }
       }
     } else if (stateRef.current === 'user_speaking') {
@@ -475,6 +553,10 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
       analyserRef.current = analyser;
       noiseFloorRef.current = 0.004;
       calibratedAtRef.current = performance.now() + CALIBRATION_MS;
+      echoRatioRef.current = 0;
+      playbackPeakRef.current = 0;
+      tailGuardUntilRef.current = 0;
+      bargeInAllowedRef.current = true;
       setIsSessionActive(true);
       setError(null);
       transition('listening');
@@ -518,14 +600,25 @@ export function useVoiceSession({ onUtterance, onSpeculate, onBargeIn, onError, 
     [clearCandidate, transition],
   );
 
-  const setAiSpeaking = useCallback(() => {
-    if (!activeRef.current) return;
-    clearCandidate();
-    playbackNoiseFloorRef.current = Math.max(0.004, noiseFloorRef.current);
-    bargeInCalibratedAtRef.current = performance.now() + BARGE_IN_CALIBRATION_MS;
-    transition('ai_speaking');
-    voiceLog('tts_started');
-  }, [clearCandidate, transition]);
+  /**
+   * The agent starts talking. `bargeIn: false` when it speaks through the browser's own speech
+   * engine: that sound bypasses echo cancellation and has no level to compare, so it would
+   * otherwise interrupt itself.
+   */
+  const setAiSpeaking = useCallback(
+    (options?: { bargeIn?: boolean }) => {
+      if (!activeRef.current) return;
+      clearCandidate();
+      bargeInAllowedRef.current = options?.bargeIn !== false;
+      playbackNoiseFloorRef.current = Math.max(0.004, noiseFloorRef.current);
+      // Re-learned at the start of every turn (volume, device and echo cancellation change).
+      echoRatioRef.current *= 0.7;
+      bargeInCalibratedAtRef.current = performance.now() + BARGE_IN_CALIBRATION_MS;
+      transition('ai_speaking');
+      voiceLog('tts_started');
+    },
+    [clearCandidate, transition],
+  );
 
   const sessionIsActive = useCallback(() => activeRef.current, []);
 

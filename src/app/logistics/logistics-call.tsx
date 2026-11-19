@@ -406,6 +406,8 @@ export function LogisticsCall({ fontClass, initialLang, available, identity, per
     onUtterance: (recording) => handleUtterance(recording),
     onSpeculate: (recording) => prefetchUtterance(recording),
     onBargeIn: () => silenceAgent(),
+    // The agent's own voice in the mic is not the visitor talking (echo guard).
+    getPlaybackLevel: () => outRef.current?.rms() ?? 0,
     onError: (_message, code: VoiceErrorCode) => {
       if (code === 'mic_denied') setNotice('micDenied');
       else if (code === 'mic_unavailable') setNotice('micMissing');
@@ -495,7 +497,8 @@ export function LogisticsCall({ fontClass, initialLang, available, identity, per
       speech.start = -1;
       setWaiting(false);
       if (browserVoice || dropped) {
-        voice.setAiSpeaking();
+        // The browser's speech bypasses echo cancellation: it must not interrupt itself.
+        voice.setAiSpeaking({ bargeIn: false });
         await speakWithBrowser(reply.text, reply.lang, () => seq !== seqRef.current);
       }
     } else {

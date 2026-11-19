@@ -109,10 +109,15 @@ export class VoiceOut {
 
   /** Output loudness, 0–1. */
   level(): number {
+    return Math.min(1, this.rms() / 0.11);
+  }
+
+  /** The raw RMS of what is playing now — the mic's VAD compares it with what it hears (echo guard). */
+  rms(): number {
     this.analyser.getFloatTimeDomainData(this.frame);
     let sum = 0;
     for (let i = 0; i < this.frame.length; i++) sum += this.frame[i] * this.frame[i];
-    return Math.min(1, Math.sqrt(sum / this.frame.length) / 0.11);
+    return Math.sqrt(sum / this.frame.length);
   }
 
   /** The two-note chime of a line connecting, or falling for a hang-up. */

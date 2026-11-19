@@ -56,9 +56,10 @@ export default async function AgentPage({
       llmOptions={studio.llmOptions}
       // What "Account default" means here, e.g. "OpenAI gpt-5.5".
       llmDefaultLabel={studio.llmDefaultLabel}
-      // ElevenLabs models (through Speko) an agent can speak with; '' = own TTS.
+      // Speko models (ElevenLabs, Gemini) and the BRB model an agent can speak with; '' = own TTS.
       ttsModels={studio.ttsModels}
       elevenVoices={studio.elevenVoices}
+      geminiVoices={studio.geminiVoices}
       agent={studio.agent}
     />
   );

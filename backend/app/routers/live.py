@@ -19,7 +19,8 @@ from app.auth import LoggedIn, Session, current_session
 from app.engine.bus import subscribe
 from app.ids import now_iso
 from app.jscompat import js_json
-from app.speech import zipformer
+from app.speech import speko_live, zipformer
+from app.speech.speko import speko_configured
 from app.speech.wav import pcm16_to_float
 
 log = logging.getLogger("callmind.live")
@@ -40,16 +41,20 @@ async def speech_live(request: Request, session: LoggedIn) -> JSONResponse:
     While the caller speaks the browser posts its microphone here in quarter-second pieces (16 kHz
     mono 16-bit PCM, multipart) and gets back the whole utterance heard so far.
 
-      sid    the browser's session id (one per open call)
-      op     feed | finish | reset | close
-      audio  the PCM piece (feed, optionally finish)
+      sid     the browser's session id (one per open call)
+      op      feed | finish | reset | close
+      audio   the PCM piece (feed, optionally finish)
+      engine  local (Zipformer, in the app; the default) | gemini_live | scribe_live (through Speko)
     """
-    if not zipformer.zipformer_available():
-        return _error("zipformer_not_available", 503)
     try:
         form = await request.form()
     except Exception:  # noqa: BLE001
         form = None
+    engine = form.get("engine") if form is not None else None
+    if speko_live.live_engine(engine):
+        return await _speko_live(form, session, engine)  # type: ignore[arg-type]
+    if not zipformer.zipformer_available():
+        return _error("zipformer_not_available", 503)
     sid = form.get("sid") if form is not None else None
     op = form.get("op") if form is not None else None
     if not isinstance(sid, str) or not _SID.match(sid):
@@ -80,6 +85,42 @@ async def speech_live(request: Request, session: LoggedIn) -> JSONResponse:
     except Exception as err:  # noqa: BLE001
         log.warning("[zipformer] live request failed: %s", err)
         return _error("zipformer_failed", 502)
+
+
+async def _speko_live(form, session: Session, engine: str) -> JSONResponse:  # noqa: ANN001
+    """The same operations, answered by a streaming Speko model (app/speech/speko_live.py)."""
+    if not speko_configured():
+        return _error("engine_not_available", 503)
+    sid = form.get("sid")
+    op = form.get("op")
+    if not isinstance(sid, str) or not _SID.match(sid):
+        return _error("bad_session", 400)
+    owner = session.user["id"]
+    pcm = b""
+    audio = form.get("audio")
+    if isinstance(audio, UploadFile) and audio.size:
+        if audio.size > MAX_PIECE_BYTES:
+            return _error("piece_too_large", 413)
+        pcm = await audio.read()
+        pcm = pcm[: len(pcm) - len(pcm) % 2]
+    language = form.get("language")
+    language = language if isinstance(language, str) and language else "uz"
+    try:
+        if op == "close":
+            await speko_live.close_stream(owner, sid)
+            return JSONResponse({"ok": True})
+        stream = await speko_live.stream_for(owner, sid, engine, session.tenant["id"], language)
+        if op == "feed":
+            return JSONResponse({"text": await stream.feed(pcm)})
+        if op == "finish":
+            return JSONResponse({"text": await stream.finish(pcm)})
+        if op == "reset":
+            await stream.reset()
+            return JSONResponse({"text": ""})
+        return _error("bad_op", 400)
+    except Exception as err:  # noqa: BLE001
+        log.warning("[speko-live] %s request failed: %s", engine, err)
+        return _error("speko_live_failed", 502)
 
 
 PING_EVERY_S = 25.0

@@ -30,6 +30,7 @@ export default async function PlaygroundPage() {
       speech={data.speech}
       agents={data.agents}
       elevenVoices={data.elevenVoices}
+      geminiVoices={data.geminiVoices}
       allVoices={data.allVoices}
       agent={data.agent}
     />

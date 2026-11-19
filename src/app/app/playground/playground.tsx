@@ -17,11 +17,23 @@ import { voiceInputAvailable } from '@/lib/catalog';
 import { micSupported, type RecordingResult } from '@/lib/audio';
 import { useVoiceSession, type UtteranceTiming, type VoiceState } from '@/hooks/use-voice-session';
 import { useLiveTranscript } from '@/hooks/use-live-transcript';
+import { useWordReveal } from '@/hooks/use-word-reveal';
+import { playTtsStream } from '@/lib/tts-stream';
 import { decodePcm, speakWithBrowser, VoiceOut } from '@/app/demo/voice-out';
 import { IconHandset, IconHangUp } from '@/app/demo/icons';
 import { readCallEvents, type TurnDetail } from '@/lib/playground-shared';
 import { ModelMenu } from '@/components/ui/model-menu';
-import { modelOptions, STT_MODELS, TTS_MODELS, useModelChoice, type SttChoice, type TtsChoice } from './model-picker';
+import {
+  GEMINI_TTS,
+  LIVE_STT,
+  liveFinishMs as finishWaitMs,
+  modelOptions,
+  STT_MODELS,
+  TTS_MODELS,
+  useModelChoice,
+  type SttChoice,
+  type TtsChoice,
+} from './model-picker';
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from '@/components/ui/primitives';
 import { Input, Select } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
@@ -95,30 +107,8 @@ function rememberedChat(agentId: string): string | null {
   }
 }
 
-/* ── streamed playback ──────────────────────────────────────────────────────
-   /api/speech/tts streams raw mono PCM with no container (8 kHz, or 24 kHz
-   for an ElevenLabs model — the X-Audio-Rate header says which), because a
-   container needs its length up front and the whole point is that the length is
-   not known yet — the server is still rendering later sentences. `<audio>`
-   cannot start on that, so chunks are scheduled through Web Audio instead,
-   which also joins sentences on the audio clock rather than by chaining
-   elements, so the seams are inaudible. ── */
-
-/** What the server sends when it says nothing else (our own TTS, phone format). */
-const TTS_RATE = 8000;
-/** What the Playground asks ElevenLabs for: 8 kHz cuts everything above 4 kHz and sounds muffled. */
-const WEB_TTS_RATE = 24000;
-
-/** One PCM chunk → an AudioBuffer ready to be scheduled. */
-function pcmToAudioBuffer(ctx: AudioContext, pcm: Uint8Array, rate: number = TTS_RATE): AudioBuffer | null {
-  const frames = Math.floor(pcm.length / 2);
-  if (!frames) return null;
-  const buffer = ctx.createBuffer(1, frames, rate);
-  const channel = buffer.getChannelData(0);
-  const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
-  for (let i = 0; i < frames; i++) channel[i] = view.getInt16(i * 2, true) / 32768;
-  return buffer;
-}
+/* Streamed playback (chunks scheduled on the Web Audio clock) lives in @/lib/tts-stream,
+   shared with the TTS page so a voice starts and sounds the same in both. */
 
 /**
  * One voice turn's clock on the page (`performance.now()`): when the caller
@@ -147,6 +137,12 @@ function hangUpBody(callId: string): Blob {
   return new Blob([JSON.stringify({ callId })], { type: 'application/json' });
 }
 
+/** The caller's words while they speak, appearing one word at a time. */
+function LiveWords({ text, t }: { text: string; t: Translate }) {
+  const shown = useWordReveal(text);
+  return <Bubble msg={{ id: 'live', role: 'caller', text: shown, interim: true }} t={t} />;
+}
+
 interface Msg {
   id: string;
   role: 'caller' | 'agent';
@@ -163,6 +159,7 @@ export function Playground({
   agents,
   allVoices,
   elevenVoices,
+  geminiVoices = [],
   locale,
   industry,
   engine,
@@ -184,6 +181,8 @@ export function Playground({
   agents: Array<{ id: string; name: string; status: 'draft' | 'live' | 'paused' }>;
   allVoices: Array<{ id: string; name: string; group: 'builtin' | 'clone' | 'design' }>;
   elevenVoices: Array<{ id: string; name: string }>;
+  /** Gemini's voices, for the Gemini TTS models (through Speko). */
+  geminiVoices?: Array<{ id: string; name: string }>;
   locale: UiLocale;
   industry: string;
   engine: string;
@@ -201,10 +200,11 @@ export function Playground({
   const sttOn = speech.stt[sttEngine];
   const ttsOn = speech.tts[ttsEngine];
   // Whose voices speak: our own TTS (Laylo, Isomiddin, clones), the chosen
-  // ElevenLabs model's voices (through Speko), or the BRB model's single voice.
+  // Speko model's voices (ElevenLabs' or Gemini's), or the BRB model's single voice.
+  // 'eleven' covers every Speko model; the list itself follows the model.
   const voiceProvider: 'own' | 'eleven' | 'brb' =
     ttsEngine === 'default' ? 'own' : ttsEngine === 'brb' ? 'brb' : 'eleven';
-  const modelVoices = elevenVoices;
+  const modelVoices = GEMINI_TTS.has(ttsEngine) ? geminiVoices : elevenVoices;
   const langName = (l: Locale) => t(`play.lang.${l}`, LANG_NAME[l]);
 
   // Which agent the conversation is aimed at. The server resolves this exact
@@ -301,6 +301,8 @@ export function Playground({
      with the phrase transcribed during the pause and the caller free to talk
      over the agent. */
   const outRef = useRef<VoiceOut | null>(null);
+  /** The caller talked over the agent: this turn's live words may hold the agent's echo. */
+  const bargedInRef = useRef(false);
   /** Bumped whenever the turn in flight stops mattering (barge-in, hang-up). */
   const callSeqRef = useRef(0);
   const callAbortRef = useRef<AbortController | null>(null);
@@ -344,8 +346,15 @@ export function Playground({
   } = useVoiceSession({
     onUtterance: (recording, _turn, timing) => callUtteranceRef.current(recording, timing),
     onSpeculate: (recording) => callPrefetchRef.current(recording),
-    onBargeIn: () => silenceAgent(),
+    onBargeIn: () => {
+      // Words the live stream caught during the agent's turn may be its own echo: this turn is
+      // transcribed from the recording instead.
+      bargedInRef.current = true;
+      silenceAgent();
+    },
     onError: (message) => toast.error(t('play.toast.micTitle', 'Microphone problem'), message),
+    // The agent's own voice in the mic is not the caller talking (echo guard).
+    getPlaybackLevel: () => outRef.current?.rms() ?? 0,
   });
 
   // With the local streaming model picked, words appear while the caller is
@@ -355,11 +364,14 @@ export function Playground({
   // with the next phrase.
   const live = useLiveTranscript({
     url: speech.streamUrl,
-    active: sttEngine === 'local' && speech.stt.local && isSessionActive && !muted,
+    engine: sttEngine,
+    language: speechLang,
+    active: LIVE_STT.has(sttEngine) && speech.stt[sttEngine] && isSessionActive && !muted,
   });
-  // The agent's own voice is not the caller's words; drop it between turns.
+  // The agent's own voice is not the caller's words; drop it between turns — when the agent
+  // starts, and again when it has finished (its echo may have been streamed meanwhile).
   useEffect(() => {
-    if (voiceState === 'ai_speaking') live.reset();
+    if (voiceState === 'ai_speaking' || voiceState === 'listening') live.reset();
   }, [voiceState, live.reset]);
 
   useEffect(() => {
@@ -472,73 +484,18 @@ export function Playground({
       streamAbortRef.current = controller;
       scheduledRef.current = [];
 
-      let res: Response;
-      try {
-        res = await fetch('/api/speech/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text,
-            voice: voiceOverride || agent?.voiceId,
-            language: lang,
-            engine: ttsEngine,
-            stream: true,
-            rate: WEB_TTS_RATE,
-          }),
+      const played = await playTtsStream(
+        ctx,
+        { text, voice: voiceOverride || agent?.voiceId, language: lang, engine: ttsEngine },
+        {
           signal: controller.signal,
-        });
-      } catch {
-        return false; // aborted or offline — fall back to the browser voice
-      }
-      if (!res.ok || !res.body) return false;
-      const rate = Number(res.headers.get('x-audio-rate')) || TTS_RATE;
-
-      const reader = res.body.getReader();
-      const received: Uint8Array[] = [];
-      // A chunk boundary can land mid-sample; carry the odd byte forward.
-      let leftover = new Uint8Array(0);
-      // Where the next buffer starts on the audio clock. The small cushion keeps
-      // the first buffer just ahead of "now" so its opening is not clipped.
-      let playhead = 0;
-      let announced = false;
-
-      try {
-        for (;;) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          if (stale()) break;
-          received.push(value);
-
-          let joined = value;
-          if (leftover.length) {
-            joined = new Uint8Array(leftover.length + value.length);
-            joined.set(leftover);
-            joined.set(value, leftover.length);
-          }
-          const usable = joined.length - (joined.length % 2);
-          leftover = joined.subarray(usable);
-          if (!usable) continue;
-
-          const buffer = pcmToAudioBuffer(ctx, joined.subarray(0, usable), rate);
-          if (!buffer) continue;
-
-          if (!announced) {
-            announced = true;
-            onFirstAudio();
-          }
-          const source = ctx.createBufferSource();
-          source.buffer = buffer;
-          source.connect(ctx.destination);
-          playhead = Math.max(playhead, ctx.currentTime + 0.06);
-          source.start(playhead);
-          playhead += buffer.duration;
-          scheduledRef.current.push(source);
-        }
-      } catch {
-        /* aborted mid-stream — whatever was already scheduled still plays out */
-      }
-
-      if (!received.length) return false;
+          stale,
+          onFirstAudio,
+          onSource: (source) => scheduledRef.current.push(source),
+        },
+      );
+      if (!played) return false; // aborted, offline or no audio: fall back to the browser voice
+      const { playhead } = played;
 
       // Wait out the scheduled audio, polling often enough that a barge-in stops
       // the voice mid-sentence rather than at the next chunk boundary.
@@ -875,7 +832,8 @@ export function Playground({
         // No voice could be rendered: the browser reads the line rather than go silent.
         // A dropped line already has its own message; it is not the voice model's fault.
         if (ttsOn && !dropped) warnBrowserVoice();
-        setAiSpeaking();
+        // The browser's speech bypasses echo cancellation: it must not interrupt itself.
+        setAiSpeaking({ bargeIn: false });
         await speakWithBrowser(replyText, replyLang, () => seq !== callSeqRef.current);
       } else {
         while (out.remaining > 0.02 && seq === callSeqRef.current) await new Promise((r) => setTimeout(r, 40));
@@ -886,7 +844,9 @@ export function Playground({
   };
 
   /** Zipformer is streaming the call: the words exist as they are spoken. */
-  const streamingStt = () => sttEngine === 'local' && live.connected;
+  const streamingStt = () => LIVE_STT.has(sttEngine) && live.connected;
+  /** How long to wait for a streaming model's last words once the phrase ends. */
+  const liveFinishMs = finishWaitMs(sttEngine);
 
   /** The caller paused: send the phrase ahead so it is already being transcribed. */
   callPrefetchRef.current = ({ wav, durationSec, rms }) => {
@@ -906,8 +866,10 @@ export function Playground({
     // Streaming Zipformer: flush its last words (milliseconds) and the phrase is
     // known before anything is uploaded. Empty — sidecar gone, nothing caught —
     // falls back to sending the audio.
-    const streamedText = streamingStt() ? await live.finish() : '';
-    if (streamedText) live.reset();
+    const bargedIn = bargedInRef.current;
+    bargedInRef.current = false;
+    const streamedText = streamingStt() && !bargedIn ? await live.finish(liveFinishMs) : '';
+    if (streamedText || bargedIn) live.reset();
     if (seq !== callSeqRef.current) return;
     setMessages((m) => [...m, { id: userMsgId, role: 'caller', text: streamedText || '…', interim: !streamedText }]);
     setThinking(true);
@@ -1342,9 +1304,7 @@ export function Playground({
               {messages.map((m) => (
                 <Bubble key={m.id} msg={m} t={t} />
               ))}
-              {live.text && voiceState !== 'ai_speaking' && (
-                <Bubble msg={{ id: 'live', role: 'caller', text: live.text, interim: true }} t={t} />
-              )}
+              {live.text && voiceState !== 'ai_speaking' && <LiveWords text={live.text} t={t} />}
 
               {thinking && (
                 <div className="flex items-center gap-2 text-[12.5px] text-ink-3">

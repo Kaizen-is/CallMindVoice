@@ -19,7 +19,7 @@ from app.ids import new_id, now_iso
 from app.jscompat import js_trim
 from app.registry import ENGINES
 from app.speech.brb import brb_configured
-from app.speech.speko import ELEVEN_VOICES, speko_configured
+from app.speech.speko import ELEVEN_VOICES, GEMINI_VOICES, is_gemini_tts, speko_configured
 from app.speech.tts import tts_engines
 from app.voices import list_custom_voices
 
@@ -210,6 +210,7 @@ def dev_tts_page(session: Session) -> dict[str, Any]:
         "voices": [{"id": v["id"], "name": v["name"]} for v in VOICES],
         "customVoices": [{"id": v["id"], "name": v["name"]} for v in list_custom_voices(tenant_id)],
         "elevenVoices": [{"id": v["id"], "name": v["name"]} for v in ELEVEN_VOICES],
+        "geminiVoices": [{"id": v["id"], "name": v["name"]} for v in GEMINI_VOICES],
         "history": list_speech_tests(tenant_id, "tts"),
         "speech": {"tts": own_tts_configured(), "eleven": speko_configured(), "brb": brb_configured()},
     }
@@ -228,17 +229,20 @@ def voices_page(session: Session, model: str | None) -> dict[str, Any]:
         if e.kind == "tts"
     ]
     # Own TTS speaks the built-in and the account's cloned/designed voices; the ElevenLabs voices
-    # (through Speko) speak on every ElevenLabs model; the BRB model has one voice.
+    # (through Speko) speak on every ElevenLabs model, Gemini's on the Gemini models; the BRB model has one voice.
     own = [
         *({"id": v["id"], "name": v["name"], "note": _gendered(v)} for v in VOICES),
         *({"id": v["id"], "name": v["name"], "note": v["mode"]} for v in list_custom_voices(session.tenant["id"])),
     ]
     eleven = [{"id": v["id"], "name": v["name"], "note": _gendered(v)} for v in ELEVEN_VOICES]
+    gemini = [{"id": v["id"], "name": v["name"], "note": _gendered(v)} for v in GEMINI_VOICES]
     brb = [{"id": "brb", "name": "BRB TTS", "note": "own model"}]
     voices = [
         {**v, "model": m["id"]}
         for m in models
-        for v in (own if m["id"] == "default" else brb if m["id"] == "brb" else eleven)
+        for v in (
+            own if m["id"] == "default" else brb if m["id"] == "brb" else gemini if is_gemini_tts(m["id"]) else eleven
+        )
     ]
     return {
         "models": models,

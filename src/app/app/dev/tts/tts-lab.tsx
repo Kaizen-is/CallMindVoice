@@ -1,22 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveSpeechTestAction } from '@/app/actions/ops';
 import { translator } from '@/lib/i18n';
 import type { SpeechTest, UiLocale } from '@/lib/types';
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  PageHeader,
-  Segmented,
-} from '@/components/ui/primitives';
+import { Badge, Button, Card, EmptyState, PageHeader, Segmented } from '@/components/ui/primitives';
 import { Field, Select, Textarea } from '@/components/ui/forms';
+import { ModelMenu } from '@/components/ui/model-menu';
 import { useToast } from '@/components/ui/overlays';
 import { IconAlert, IconCode, IconDownload, IconSparkle, IconVolume } from '@/components/icons';
 import { TimeAgo } from '@/components/ui/time-ago';
+import { modelOptions, TTS_MODELS, useTtsChoice, voiceProviderOf, type TtsChoice } from '@/lib/speech-models';
+import { pcmToWav, playTtsStream } from '@/lib/tts-stream';
 
 const CLONE = '__clone__';
 
@@ -36,6 +32,7 @@ export function TtsLab({
   voices,
   customVoices,
   elevenVoices,
+  geminiVoices = [],
   history: initialHistory,
   speech,
 }: {
@@ -44,6 +41,8 @@ export function TtsLab({
   voices: VoiceOpt[];
   customVoices: VoiceOpt[];
   elevenVoices: VoiceOpt[];
+  /** Gemini's voices (the Gemini TTS models, through Speko — the same key as ElevenLabs). */
+  geminiVoices?: VoiceOpt[];
   history: SpeechTest[];
   speech: { tts: boolean; eleven: boolean; brb: boolean };
 }) {
@@ -53,20 +52,42 @@ export function TtsLab({
 
   const [history, setHistory] = useState<SpeechTest[]>(initialHistory);
   const [text, setText] = useState('');
-  const [voice, setVoice] = useState<string>(agents[0]?.voiceId ?? voices[0]?.id ?? 'laylo');
-  // Whose voices speak: our own TTS server or ElevenLabs (via Speko), each
-  // with its own voice list — the same switch as the Playground.
-  const [provider, setProvider] = useState<'own' | 'eleven' | 'brb'>(
-    speech.tts || (!speech.eleven && !speech.brb) ? 'own' : speech.eleven ? 'eleven' : 'brb',
+  // The same models, voices and remembered choice as the Playground (@/lib/speech-models).
+  const readiness = useMemo(
+    () =>
+      Object.fromEntries(
+        TTS_MODELS.map((m) => [m.id, m.id === 'default' ? speech.tts : m.id === 'brb' ? speech.brb : speech.eleven]),
+      ) as Record<TtsChoice, boolean>,
+    [speech.tts, speech.brb, speech.eleven],
   );
+  const [engine, setEngine] = useTtsChoice(readiness);
+  const provider = voiceProviderOf(engine);
+  const providerReady = readiness[engine];
+  const [voice, setVoice] = useState<string>(agents[0]?.voiceId ?? voices[0]?.id ?? 'laylo');
   const [elevenVoice, setElevenVoice] = useState<string>(elevenVoices[0]?.id ?? '');
-  const providerReady = provider === 'own' ? speech.tts : provider === 'eleven' ? speech.eleven : speech.brb;
+  const [geminiVoice, setGeminiVoice] = useState<string>(geminiVoices[0]?.id ?? '');
+  const spokenBy = provider === 'eleven' ? elevenVoice : provider === 'gemini' ? geminiVoice : provider === 'brb' ? '' : voice;
   const [busy, setBusy] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const urlRef = useRef<string | null>(null);
+  const ctxRef = useRef<AudioContext | null>(null);
+  const sourcesRef = useRef<AudioBufferSourceNode[]>([]);
+  /** Stop the voice that is playing (a new synthesis, leaving the page). */
+  const stopPlayback = () => {
+    for (const s of sourcesRef.current) {
+      try {
+        s.stop();
+      } catch {
+        /* already ended */
+      }
+    }
+    sourcesRef.current = [];
+  };
   useEffect(
     () => () => {
+      stopPlayback();
+      void ctxRef.current?.close().catch(() => {});
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     },
     [],
@@ -79,9 +100,10 @@ export function TtsLab({
         ? (voices.find((v) => v.id === id)?.name ??
            customVoices.find((v) => v.id === id)?.name ??
            elevenVoices.find((v) => v.id === id)?.name ??
+           geminiVoices.find((v) => v.id === id)?.name ??
            id)
         : '—',
-    [voices, customVoices, elevenVoices],
+    [voices, customVoices, elevenVoices, geminiVoices],
   );
 
   const onVoiceChange = (v: string) => {
@@ -98,6 +120,10 @@ export function TtsLab({
     setAudioUrl(url);
   };
 
+  /**
+   * Speak the text as the Playground does: streamed, so the first sentence plays while the rest
+   * still renders. When it is all in, the player below gets the whole recording to replay or save.
+   */
   const generate = async () => {
     if (!providerReady || busy) return;
     const value = text.trim();
@@ -106,32 +132,24 @@ export function TtsLab({
       return;
     }
     setBusy(true);
+    stopPlayback();
+    setAudio(null);
     try {
-      const res = await fetch('/api/speech/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          provider === 'eleven'
-            ? { text: value, voice: elevenVoice, engine: 'eleven_v4_turbo', rate: 24000 }
-            : provider === 'brb'
-              ? { text: value, engine: 'brb', language: 'uz', rate: 24000 }
-              : { text: value, voice },
-        ),
-      });
-      if (!res.ok) {
-        const detail = (await res.text().catch(() => '')).slice(0, 120);
-        toast.error(t('dev.tts.failTitle'), `${t('dev.tts.failBody')} (HTTP ${res.status}${detail ? ` — ${detail}` : ''})`);
+      const ctx = (ctxRef.current ??= new AudioContext());
+      const played = await playTtsStream(
+        ctx,
+        { text: value, voice: spokenBy || undefined, language: 'uz', engine },
+        { onSource: (source) => sourcesRef.current.push(source) },
+      );
+      if (!played) {
+        toast.error(t('dev.tts.failTitle'), t('dev.tts.failBody'));
         return;
       }
-      setAudio(URL.createObjectURL(await res.blob()));
+      setAudio(URL.createObjectURL(pcmToWav(played.pcm, played.rate)));
       // History is nice-to-have — never let a failed save (e.g. a stale tab
       // after a redeploy) report the already-successful synthesis as an error.
       try {
-        const saved = await saveSpeechTestAction({
-          kind: 'tts',
-          input: value,
-          voice: provider === 'eleven' ? elevenVoice : provider === 'brb' ? 'brb' : voice,
-        });
+        const saved = await saveSpeechTestAction({ kind: 'tts', input: value, voice: spokenBy || 'brb' });
         if (saved.ok) setHistory((h) => [saved.test, ...h].slice(0, 20));
       } catch {
         /* audio already delivered */
@@ -175,29 +193,36 @@ export function TtsLab({
                 </Field>
 
                 <Field label={t('dev.tts.voiceLabel')}>
-                  <Segmented
-                    size="sm"
-                    className="mb-2"
-                    value={provider}
-                    onChange={setProvider}
-                    options={[
-                      { value: 'own', label: t('play.voiceOwn', 'Own') },
-                      { value: 'eleven', label: 'ElevenLabs' },
-                      { value: 'brb', label: 'BRB' },
-                    ]}
-                  />
+                  <div className="mb-2">
+                    <ModelMenu
+                      options={modelOptions(TTS_MODELS, readiness)}
+                      value={engine}
+                      onChange={(id) => setEngine(id as TtsChoice)}
+                      needsLabel={t('lab.missing', 'Needs {setup}')}
+                    />
+                  </div>
                   {!providerReady && (
                     <p className="mb-2 text-[12px] text-warning">
                       {provider === 'own'
                         ? t('dev.tts.notConfiguredBody')
                         : provider === 'brb'
                           ? t('dev.tts.brbNotConfigured', 'Set BRB_SPEECH_URL, BRB_SPEECH_LOGIN and BRB_SPEECH_PASSWORD in .env to use the BRB model.')
-                          : t('dev.tts.elevenNotConfigured', 'Set SPEKO_API_KEY in .env to use ElevenLabs.')}
+                          : provider === 'gemini'
+                            ? t('dev.tts.geminiNotConfigured', 'Set SPEKO_API_KEY in .env to use Gemini voices.')
+                            : t('dev.tts.elevenNotConfigured', 'Set SPEKO_API_KEY in .env to use ElevenLabs.')}
                     </p>
                   )}
                   {provider === 'brb' ? (
                     <Select value="" disabled onChange={() => {}}>
                       <option value="">BRB TTS</option>
+                    </Select>
+                  ) : provider === 'gemini' ? (
+                    <Select value={geminiVoice} onChange={(e) => setGeminiVoice(e.target.value)}>
+                      {geminiVoices.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
                     </Select>
                   ) : provider === 'eleven' ? (
                     <Select value={elevenVoice} onChange={(e) => setElevenVoice(e.target.value)}>

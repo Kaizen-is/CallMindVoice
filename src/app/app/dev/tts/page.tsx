@@ -21,6 +21,7 @@ export default async function DevTtsPage() {
       voices={data.voices}
       customVoices={data.customVoices}
       elevenVoices={data.elevenVoices}
+      geminiVoices={data.geminiVoices}
       history={data.history}
       speech={data.speech}
     />
