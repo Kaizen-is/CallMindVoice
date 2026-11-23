@@ -18,9 +18,11 @@ from app.engine.bus import publish
 from app.ids import new_id, now_iso
 from app.jscompat import js_fixed_number, js_json, js_round, js_trim, utf16_len, utf16_slice
 from app.llm.choice import agent_llm, safe_json
+from app.llm.goal_call import agent_goal
 from app.llm.prompts import GenerateInput
 from app.llm.provider import engine_name, generate_answer, sentiment_of, summarize_call
 from app.rag.retrieve import retrieve_async
+from app.rag.routing import has_grouped_knowledge, retrieve_routed
 from app.rag.text import detect_language
 from app.webhooks import dispatch_webhook
 
@@ -181,22 +183,33 @@ async def run_turn(
     policy = agent_escalation(agent)
     threshold = agent["confidence_threshold"] if agent.get("confidence_threshold") is not None else 0.55
 
-    # retrieval
+    # retrieval — grouped (app.rag.routing) for a tenant with imported website pages, else the plain search
+    with db.connect() as conn:
+        routed = has_grouped_knowledge(conn, tenant_id)
+
+    async def search(query: str) -> Any:
+        if routed:
+            return await retrieve_routed(
+                tenant_id, query, language=language, threshold=threshold, call_id=call_id, top_k=5
+            )
+        return await retrieve_async(tenant_id, query, top_k=5)
+
     t_retrieve = time.perf_counter()
-    retrieval = await retrieve_async(tenant_id, utterance, top_k=5)
+    retrieval = await search(utterance)
     # Short follow-ups ("dam olish kunlari-chi?") may not repeat the subject: if the lookup is weak,
     # retry once with the two most recent caller turns and keep the more confident one.
     if model_history and retrieval.confidence < threshold:
         recent = [js_trim(t["text"]) for t in model_history if t["role"] == "caller"][-2:]
         recent = [t for t in recent if t]
         if recent:
-            contextual = await retrieve_async(tenant_id, "\n".join([*recent, utterance]), top_k=5)
+            contextual = await search("\n".join([*recent, utterance]))
             if contextual.confidence > retrieval.confidence:
                 retrieval = contextual
     retrieval_ms = _ms(t_retrieve)
 
     # generation
     target = target if target is not None else agent_target(agent)
+    goal = agent_goal(agent)
     caller_lines = [*(t["text"] for t in model_history if t["role"] == "caller"), utterance]
     t_gen = time.perf_counter()
     generated = await generate_answer(
@@ -215,6 +228,7 @@ async def run_turn(
             time_zone=agent_hours(agent)["timezone"],
             llm=agent_llm(agent),
             stream=stream_llm,
+            goal=goal,
             **_lookup_for(context, caller_lines),
         ),
         on_delta,
@@ -225,17 +239,26 @@ async def run_turn(
     sentiment = sentiment_of(utterance)
     failed_before = sum(1 for h in history if h["role"] == "system" and h["text"] == "__unanswered__")
     is_loan_call = bool(target.get("fullName"))
+    # A goal-led call (Python only) is the agent's own outbound call, like the loan call: no live transfer,
+    # and a question the knowledge base cannot answer is promised to a specialist, not handed to the inbox.
+    is_goal_call = goal is not None and not is_loan_call
+    no_transfer = is_loan_call or is_goal_call
 
     escalate: str | None = None
     # A loan call has no live transfer: the agent says a colleague will call back and keeps going.
-    if policy["onExplicitRequest"] and generated["intent"] == "human" and not is_loan_call:
+    if policy["onExplicitRequest"] and generated["intent"] == "human" and not no_transfer:
         escalate = "explicit_request"
-    elif policy["onLowConfidence"] and not generated["answered"]:
+    elif policy["onLowConfidence"] and not generated["answered"] and not is_goal_call:
         escalate = "low_confidence"
     # On a loan call, "I have money problems" is the expected answer, not a reason to pull the person away.
-    elif policy["onNegativeSentiment"] and sentiment <= -0.5 and not is_loan_call:
+    elif policy["onNegativeSentiment"] and sentiment <= -0.5 and not no_transfer:
         escalate = "negative_sentiment"
-    elif policy["onRepeatedFailure"] and not generated["answered"] and failed_before + 1 >= policy["maxFailedTurns"]:
+    elif (
+        policy["onRepeatedFailure"]
+        and not generated["answered"]
+        and failed_before + 1 >= policy["maxFailedTurns"]
+        and not is_goal_call
+    ):
         escalate = "repeated_failure"
     elif (
         policy["afterHoursAction"] != "answer_anyway"
@@ -380,6 +403,8 @@ async def run_turn(
             },
         }
     )
+    if retrieval.extra.get("routing"):  # grouped search only: which shelf was searched, and why
+        result["retrievalDebug"]["routing"] = retrieval.extra["routing"]
     return result
 
 

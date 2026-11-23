@@ -46,8 +46,9 @@ Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:81
 | `app/speech/` | STT (Kotib, Whisper, GAPI, Zipformer, Speko gemini-3.5 / Scribe, Gemini), TTS (own server, ElevenLabs via Speko) with the shared disk cache, number words, spoken-form text |
 | `app/engine/` | The turn (`run_turn`), call start / end / billing, the live event bus |
 | `app/playground.py`, `app/playground_voice.py` | The Playground call: opening line, fillers, voicing a reply while it is written |
-| `app/routers/` | One router per area: `system.py`, `playground.py` (the Playground call), `live.py` (live Zipformer words, SSE feed), `bridge.py` (the Asterisk phone bridge) |
-| `alembic/` | Schema migrations from now on (baseline `0001_baseline` = today's schema) |
+| `app/routers/` | One router per area: `system.py`, `playground.py` (the Playground call), `live.py` (live Zipformer words, SSE feed), `bridge.py` (the Asterisk phone bridge), `knowledge.py` (website page import), `playground_chat.py` (typed turns, scenario card, collected answers) |
+| `app/rag/pages.py`, `app/rag/routing.py`, `app/llm/goal_call.py`, `app/brb_setup.py` | Website knowledge, grouped search, goal-led calls, BRB setup — Python-only features (`docs/brb-knowledge-agent.md`) |
+| `alembic/` | Schema migrations from now on (baseline `0001_baseline` = today's schema; `0002_website_knowledge` adds the website-knowledge tables) |
 | `tests/` | pytest; `fixtures/schema.sql` is the database structure without data; `fixtures/golden_*.json` are outputs of the original TypeScript the Python must reproduce exactly |
 | `deploy/callmind-api.service` | systemd unit |
 
@@ -62,6 +63,11 @@ Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:81
 | `/api/core/playground/call` | `POST /playground/call` | Playground call picked up: NDJSON `call`, opening line, its voice |
 | `/api/core/playground/turn` | `POST /playground/turn` | one spoken turn (multipart; `?prefetch=1` → 202) |
 | `/api/core/playground/end` | `POST /playground/end` | hang up, bill once → 204 |
+| `/api/core/playground/say` | `POST /playground/say` | a typed Playground turn (Python twin of `playgroundTurnAction`) — Python-only features, see `docs/brb-knowledge-agent.md` |
+| `/api/core/playground/scenario` | `GET /playground/scenario?agentId=` | the tester's role when a goal-led agent calls |
+| `/api/core/playground/collect` | `POST /playground/collect` | what a goal-led agent collected in a call (stored in `call_results`) |
+| `/api/core/knowledge/pages` | `PUT` / `GET /knowledge/pages`, `POST /knowledge/pages/delete` | website page import by URL (API key: `write` / `read`) — the BRB scraper |
+| `/api/core/knowledge/groups` | `PUT /knowledge/groups` | the groups pages are sorted into (routing) |
 | `/api/core/speech/live` | `POST /speech/live` | live Zipformer words (multipart `sid`, `op`, `audio`) |
 | `/api/core/stream` | `GET /stream` | SSE feed of this process's bus events |
 | `/api/core/api/telephony/bridge/turn` | `POST /api/telephony/bridge/turn` | phone bridge: one caller utterance → streamed 8 kHz PCM reply (`x-bridge-secret`; same path as the Next.js route, so the bridge can also call this port directly) |

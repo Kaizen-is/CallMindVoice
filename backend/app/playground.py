@@ -18,6 +18,7 @@ from app.engine.conversation import agent_hours, agent_target
 from app.ids import new_id, now_iso, to_iso
 from app.jscompat import js_trim
 from app.llm.choice import agent_llm
+from app.llm.goal_call import agent_goal
 from app.llm.prompts import GenerateInput
 from app.llm.provider import generate_answer
 from app.rag.text import detect_language
@@ -92,9 +93,14 @@ def open_playground_call(tenant_id: str, user_name: str, agent: dict[str, Any], 
         to="playground",
         caller_name=f"{user_name} (test)",
         channel="web",
-        direction="outbound" if agent_target(agent)["fullName"] else "inbound",
+        direction="outbound" if is_outbound(agent) else "inbound",
         language=lang,
     )
+
+
+def is_outbound(agent: dict[str, Any]) -> bool:
+    """The agent places the call: a loan reminder ("Who to call") or a goal-led call (Python only)."""
+    return bool(agent_target(agent)["fullName"]) or agent_goal(agent) is not None
 
 
 PLAYGROUND_IDLE = timedelta(minutes=10)
@@ -159,8 +165,9 @@ async def playground_opening(agent: dict[str, Any], lang: str) -> str | None:
     is the one calling, so its opening comes from the model, once per day.
     """
     target = agent_target(agent)
+    goal = None if target["fullName"] else agent_goal(agent)
     greeting = js_trim(agent.get("greeting") or "") or None
-    if not target["fullName"]:
+    if not target["fullName"] and goal is None:
         return greeting
     # The name is part of the key: a call voiced by Nadya must not reuse Isomiddin's introduction.
     today = datetime.now(UTC).strftime("%Y-%m-%d")
@@ -186,6 +193,7 @@ async def playground_opening(agent: dict[str, Any], lang: str) -> str | None:
                     greeting=agent.get("greeting"),
                     time_zone=agent_hours(agent)["timezone"],
                     llm=agent_llm(agent),
+                    goal=goal,
                 )
             )
             # The local engine knows nothing of the person: greet, and ask the model next time.
@@ -202,7 +210,7 @@ async def playground_opening(agent: dict[str, Any], lang: str) -> str | None:
 
 def seed_opening(agent: dict[str, Any], call_id: str, lang: str, text: str) -> None:
     """Write the opening down as the call's first exchange, as run_turn would."""
-    outbound = bool(agent_target(agent)["fullName"])
+    outbound = is_outbound(agent)
     stamp = now_iso()
     with db.transaction() as tx:
         ordinal = 0

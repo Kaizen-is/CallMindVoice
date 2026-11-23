@@ -22,6 +22,7 @@ import { IconHandset, IconHangUp } from '@/app/demo/icons';
 import { readCallEvents, type TurnDetail } from '@/lib/playground-shared';
 import { ModelMenu } from '@/components/ui/model-menu';
 import { modelOptions, STT_MODELS, TTS_MODELS, useModelChoice, type SttChoice, type TtsChoice } from './model-picker';
+import { ScenarioCard } from './scenario-card';
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from '@/components/ui/primitives';
 import { Input, Select } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
@@ -149,6 +150,22 @@ function pythonBackend(): boolean {
 /** A voice-call endpoint (`/playground/call`, `/speech/live`…) on the backend this page talks to. */
 function callApi(path: string): string {
   return pythonBackend() ? `/api/core${path}` : `/api${path}`;
+}
+
+/** A typed turn served by Python (`POST /api/core/playground/say`, the twin of `playgroundTurnAction`). */
+async function sayToPython(turn: {
+  callId: string | null;
+  utterance: string;
+  sttMs: number;
+  agentId?: string;
+}): Promise<PlaygroundReply> {
+  const res = await fetch('/api/core/playground/say', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(turn),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as PlaygroundReply;
 }
 
 /** The hang-up body: JSON in a Blob, so `keepalive` and beacons say `application/json` (the edge refuses text/plain). */
@@ -622,12 +639,9 @@ export function Playground({
       let res: PlaygroundReply;
       let obsolete = false;
       try {
-        res = await playgroundTurnAction({
-          callId,
-          utterance,
-          sttMs,
-          agentId: selectedAgentId || undefined,
-        });
+        const turn = { callId, utterance, sttMs, agentId: selectedAgentId || undefined };
+        // With `?py=1` typed turns go to Python too, so they get its features (grouped search, goal calls).
+        res = pythonBackend() ? await sayToPython(turn) : await playgroundTurnAction(turn);
       } catch (cause) {
         if (processingRef.current !== requestId) return;
         const message = cause instanceof Error ? cause.message : t('play.toast.answerFailTitle', 'Could not answer');
@@ -1296,6 +1310,8 @@ export function Playground({
         )}
       </div>
 
+      {/* A goal-led agent calls the tester: who to play and what it will ask (Python backend only). */}
+      <ScenarioCard agentId={selectedAgentId} callId={callId} t={t} />
 
       <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_320px]">
         {/* ── The call surface. This page exists to rehearse a real phone call,
