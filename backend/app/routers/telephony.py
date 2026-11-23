@@ -35,7 +35,8 @@ from app.ids import parse_iso, to_iso
 from app.jscompat import JS_S, js_json, js_json_parse, js_number, js_trim, js_utf8
 from app.speech.fillers import filler_lines
 from app.speech.stt import SttError, transcribe
-from app.speech.tts import SynthOptions, TtsError, synthesize_pcm, synthesize_stream
+from app.speech.tts import SynthOptions, TtsError, speaking_speed, synthesize_pcm, synthesize_stream
+from app.speech.vocabulary import recognition_words
 from app.telephony import BridgeTarget, authorize_bridge, resolve_target, secret_matches
 
 log = logging.getLogger("callmind.bridge")
@@ -137,7 +138,14 @@ async def turn(request: Request) -> Response:
             return _error({"error": "missing_audio"}, 400)
 
         t0 = time.perf_counter()
-        heard = await transcribe(await audio.read(), language=lang)
+        # Phone audio is the noisiest the agent hears: cleaned first (a no-op without DENOISE_URL),
+        # and the recognisers told which names and terms to expect.
+        heard = await transcribe(
+            await audio.read(),
+            language=lang,
+            clean=True,
+            vocabulary=recognition_words(number["tenant_id"], agent),
+        )
         stt_ms = (time.perf_counter() - t0) * 1000
 
         # Nothing recognised — re-prompt without advancing the transcript (fixed text, a cache hit).
@@ -177,6 +185,7 @@ def _voice(target: BridgeTarget, language: str, tag: str, *, cache: bool) -> Syn
         language=language,
         tag=tag,
         cache=cache,
+        speed=speaking_speed(target.agent),
     )
 
 
@@ -262,6 +271,7 @@ async def filler(request: Request) -> Response:
                 language=target.language,
                 tag="filler",
                 cache=True,
+                speed=speaking_speed(target.agent),
             ),
         )
     except Exception as err:  # noqa: BLE001

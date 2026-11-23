@@ -113,8 +113,9 @@ def heard(monkeypatch: pytest.MonkeyPatch) -> dict:
     """Scripted STT: the transcript for each utterance's bytes (default: a loan question)."""
     state: dict = {"calls": [], "texts": {}, "fail": set()}
 
-    async def transcribe(audio: bytes, *, language=None, clean=False, engine=None):  # noqa: ANN001
+    async def transcribe(audio: bytes, *, language=None, clean=False, engine=None, vocabulary=None):  # noqa: ANN001
         state["calls"].append((audio, language, clean))
+        state.setdefault("vocabulary", []).append(vocabulary)
         await asyncio.sleep(0)
         if audio in state["fail"]:
             raise RuntimeError("stt_down")

@@ -38,7 +38,7 @@ from app.jscompat import js_json
 from app.logistics_data import LOGISTICS_VOCABULARY, TRY_TRACKS, logistics_context, lookup_note
 from app.speech.gapi import gapi_transcribe
 from app.speech.stt import Transcript, transcribe
-from app.speech.tts import SynthOptions, cached_pcm, synthesize_pcm, tts_configured
+from app.speech.tts import SynthOptions, cached_pcm, speaking_speed, synthesize_pcm, tts_configured
 
 __all__ = ["TRY_TRACKS"]
 
@@ -242,7 +242,14 @@ _heard: dict[str, dict[str, Any]] = {}
 
 
 def voice_options(agent: dict[str, Any], lang: str, voice_id: str) -> SynthOptions:
-    return SynthOptions(tenant_id=agent["tenant_id"], voice_id=voice_id, language=lang, tag="demo", cache=True)
+    return SynthOptions(
+        tenant_id=agent["tenant_id"],
+        voice_id=voice_id,
+        language=lang,
+        tag="demo",
+        cache=True,
+        speed=speaking_speed(agent),
+    )
 
 
 def warm_logistics(agent: dict[str, Any]) -> None:

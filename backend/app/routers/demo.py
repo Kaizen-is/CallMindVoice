@@ -53,6 +53,7 @@ from app.demo import (
 from app.engine.conversation import run_turn
 from app.jscompat import js_round
 from app.rag.text import detect_language
+from app.speech.vocabulary import recognition_words
 from app.views_common import js_response
 
 router = APIRouter()
@@ -119,7 +120,7 @@ async def turn(request: Request) -> Response:
 
     wav = await audio.read()
     if prefetch:
-        prefetch_heard(call_id, wav, lang)
+        prefetch_heard(call_id, wav, lang, recognition_words(agent["tenant_id"], agent))
         return Response(status_code=202)
     if not claim_call(call_id):
         return error("busy_call", 409)
@@ -133,7 +134,7 @@ async def turn(request: Request) -> Response:
         voice: SpeakAsWritten | None = None
         try:
             started = time.perf_counter()
-            heard = await heard_in(call_id, wav, lang)
+            heard = await heard_in(call_id, wav, lang, recognition_words(agent["tenant_id"], agent))
             stt_ms = js_round((time.perf_counter() - started) * 1000)
             send({"t": "heard", "text": heard["text"]})
             if heard["text"]:
