@@ -38,6 +38,13 @@ nothing changes for existing agents.
   TypeScript search, which searches a whole tenant; putting 1,100 pages into the
   bank tenant would have changed their answers. A separate tenant isolates it
   with no code change on those paths.
+- **Facts only from brb.uz and brb-tech.uz** (decided 24 Nov). Both agents carry
+  `SOURCES_RULE` (`backend/app/brb_setup.py`): no outside data and no answers from
+  the model's own knowledge (it overrides the base prompt's general-knowledge
+  rule). Exchange rates and gold prices are loaded by brb.uz with JavaScript from
+  its `/api` (closed to automated clients by robots.txt), so the agent gives no
+  number and points to the "Valyutalar kursi" page, the BRB app or 1254. A live
+  lookup needs the bank web team's permission for that endpoint.
 - **Uzbek pages only** (decided 24 Nov). brb.uz's Russian and English pages are
   mostly translations, so only Uzbek is imported (593 pages, 3,809 chunks). A
   Russian caller is answered in Russian from the Uzbek pages, but **product names
