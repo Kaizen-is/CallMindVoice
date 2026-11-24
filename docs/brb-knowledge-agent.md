@@ -12,7 +12,7 @@ nothing changes for existing agents.
  brb.uz, brb-tech.uz
         │  rates every 15 min · edited pages daily · everything weekly
         ▼
- BRB knowledge scraper (separate Python service, D:\WORK\BRB datascrapper)
+ BRB knowledge scraper (separate Python process, brb-scraper/ in this repo)
         │  PUT /knowledge/pages  (API key of the BRB tenant)
         ▼
  FastAPI ── app/rag/pages.py ──▶ documents + chunks + knowledge_pages, knowledge_groups
@@ -146,7 +146,7 @@ LLM routing; needs a hosted model).
    Put `FILLERS=off` in the server `.env` and in the phone bridge's environment.
 2. Restart `callmind-api.service`; build + restart the site (the Playground change).
 3. `python -m app.brb_setup --password … --new-key`, give the key to the scraper.
-4. Schedule the scraper's three jobs (timers in the scraper project's `deploy/`): rates every 15 min,
+4. Schedule the scraper's three jobs (timers in `brb-scraper/deploy/`): rates every 15 min,
    edited pages daily at 07:00, everything on Sunday 03:00.
 
 ## 6. Not done yet

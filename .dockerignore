@@ -11,3 +11,6 @@ backend/.venv
 **/__pycache__
 .pytest_cache
 .ruff_cache
+
+# The website scraper runs as its own job, not in the web image.
+brb-scraper

@@ -1,0 +1,11 @@
+# Every 15 minutes, day and night. Rates change during the day; each run is two small JSON requests.
+[Unit]
+Description=BRB exchange rates every 15 minutes
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=false
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+# Once a week, Sunday 03:00 Tashkent time. Persistent: a run missed while the server was off happens at boot.
+[Unit]
+Description=Weekly BRB knowledge scraper run
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00 Asia/Tashkent
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

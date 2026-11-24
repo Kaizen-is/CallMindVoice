@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+# Everything the scraper produces: state database, page files, reports, logs.
+data/
+# CALLMIND_URL and the API key.
+.env
