@@ -10,7 +10,7 @@ nothing changes for existing agents.
 
 ```
  brb.uz, brb-tech.uz
-        │  weekly
+        │  rates every 15 min · edited pages daily · everything weekly
         ▼
  BRB knowledge scraper (separate Python service, D:\WORK\BRB datascrapper)
         │  PUT /knowledge/pages  (API key of the BRB tenant)
@@ -41,10 +41,13 @@ nothing changes for existing agents.
 - **Facts only from brb.uz and brb-tech.uz** (decided 24 Nov). Both agents carry
   `SOURCES_RULE` (`backend/app/brb_setup.py`): no outside data and no answers from
   the model's own knowledge (it overrides the base prompt's general-knowledge
-  rule). Exchange rates and gold prices are loaded by brb.uz with JavaScript from
-  its `/api` (closed to automated clients by robots.txt), so the agent gives no
-  number and points to the "Valyutalar kursi" page, the BRB app or 1254. A live
-  lookup needs the bank web team's permission for that endpoint.
+  rule). **Exchange rates** come from brb.uz's own `/api/currency/compare` (the
+  endpoint its "Valyutalar kursi" page reads; reading it approved by BRB-TECH),
+  refreshed every 15 minutes into two pages of the `currency` group; the agent
+  quotes them with their "Yangilangan" date and time, picks buy or sell from what
+  the caller wants, and uses individual rates unless the caller is a company.
+  Gold prices are not published on the site, so the agent says so and points to
+  the "Oltin quymalari" page or 1254.
 - **Uzbek pages only** (decided 24 Nov). brb.uz's Russian and English pages are
   mostly translations, so only Uzbek is imported (593 pages, 3,809 chunks). A
   Russian caller is answered in Russian from the Uzbek pages, but **product names
@@ -143,7 +146,8 @@ LLM routing; needs a hosted model).
    Put `FILLERS=off` in the server `.env` and in the phone bridge's environment.
 2. Restart `callmind-api.service`; build + restart the site (the Playground change).
 3. `python -m app.brb_setup --password … --new-key`, give the key to the scraper.
-4. Schedule the scraper weekly: `deploy/brb-scraper.timer` in the scraper project (Sunday 03:00).
+4. Schedule the scraper's three jobs (timers in the scraper project's `deploy/`): rates every 15 min,
+   edited pages daily at 07:00, everything on Sunday 03:00.
 
 ## 6. Not done yet
 
@@ -154,5 +158,7 @@ LLM routing; needs a hosted model).
 - The TypeScript Playground path (without `?py=1`) and the phone bridge do not
   have grouped search or goals; the phone bridge gets them when it is switched to
   Python (handoff, step 2).
-- Exchange rates and the ATM map are loaded by JavaScript on brb.uz, so the
-  scraper cannot read them; they should become live lookups.
+- The ATM map is loaded by JavaScript from brb.uz `/api/locations`; only the office list
+  page is in the knowledge base.
+- brb.uz robots.txt still closes `/api`; the web team should add
+  `Allow: /api/currency/compare` so the scraper's exception can go.
