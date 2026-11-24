@@ -15,7 +15,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { classifyIntent } from '@/lib/llm/provider';
 import { detectLanguage } from '@/lib/rag/text';
-import { fillerLines } from '@/lib/speech/fillers';
+import { fillerLines, fillersEnabled } from '@/lib/speech/fillers';
 import { isSttEngine, transcribe, type SttEngine, type Transcript } from '@/lib/speech/stt';
 import { ELEVEN_VOICES } from '@/lib/speech/speko';
 import {
@@ -403,7 +403,7 @@ const NO_FILLER = new Set(['greeting', 'goodbye', 'affirm', 'human']);
  */
 export function warmFillers(agent: Agent, lang: Locale, pick: VoicePick) {
   const key = `${agent.tenant_id}:${pick.engine}:${pick.voiceId}:${lang}`;
-  if (warmed.has(key) || !canSpeak(pick)) return;
+  if (!fillersEnabled() || warmed.has(key) || !canSpeak(pick)) return;
   warmed.add(key);
   void (async () => {
     for (const line of fillerLines(lang)) {
@@ -423,7 +423,7 @@ export function fillerFor(
   said: string,
   pick: VoicePick,
 ): { pcm: string; rate?: number } | null {
-  if (!canSpeak(pick) || NO_FILLER.has(classifyIntent(said))) return null;
+  if (!fillersEnabled() || !canSpeak(pick) || NO_FILLER.has(classifyIntent(said))) return null;
   const language = detectLanguage(said) as Locale;
   const lines = fillerLines(language);
   const turn = fillers.get(callId) ?? 0;

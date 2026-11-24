@@ -17,7 +17,7 @@ import { agentHours, agentTarget, type TurnResult } from '@/lib/engine/conversat
 import { agentLlm } from '@/lib/llm/choice';
 import { generateAnswer } from '@/lib/llm/provider';
 import { detectLanguage } from '@/lib/rag/text';
-import { fillerLines } from '@/lib/speech/fillers';
+import { fillerLines, fillersEnabled } from '@/lib/speech/fillers';
 import { cachedPcm, synthesizePcm, ttsConfigured } from '@/lib/speech/tts';
 import type { Agent, Locale } from '@/lib/types';
 import { listCustomVoices } from '@/lib/voices';
@@ -255,7 +255,7 @@ export function seedOpening(agent: Agent, callId: string, lang: Locale, text: st
 /** Render the "bir daqiqa" fillers in this voice once, so turns can play them from the cache. */
 export function warmFillers(agent: Agent, voiceId: string, lang: Locale) {
   const key = `${agent.tenant_id}:${voiceId}:${lang}`;
-  if (warmed.has(key) || !ttsConfigured()) return;
+  if (!fillersEnabled() || warmed.has(key) || !ttsConfigured()) return;
   warmed.add(key);
   void (async () => {
     for (const line of fillerLines(lang)) {

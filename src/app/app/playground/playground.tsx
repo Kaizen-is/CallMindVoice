@@ -139,11 +139,20 @@ function legacyVoice(): boolean {
 }
 
 /**
+ * The agent picked needs the Python backend (a goal-led call, a shared knowledge
+ * library, grouped website search): set from the page's `pythonAgents` on every
+ * render, so the helpers below follow the agent without `?py=1`.
+ */
+let agentNeedsPython = false;
+
+/**
  * `?py=1` on the Playground's address serves the voice call from the Python
  * backend (`/api/core/*`, FastAPI) instead of this app's own routes — the same
- * call, to compare both on the same agent while the server code moves.
+ * call, to compare both on the same agent while the server code moves. Agents
+ * that only work in Python use it without the flag.
  */
 function pythonBackend(): boolean {
+  if (agentNeedsPython) return true;
   return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('py') === '1';
 }
 
@@ -195,6 +204,7 @@ export function Playground({
   agentEngines,
   agentVoices = {},
   speech,
+  pythonAgents = [],
 }: {
   agent: {
     id: string;
@@ -218,6 +228,8 @@ export function Playground({
   /** Agents set to an ElevenLabs model in the agent editor: their model and voice, by agent id. */
   agentVoices?: Record<string, { engine: string; voice: string }>;
   speech: { stt: Record<SttChoice, boolean>; tts: Record<TtsChoice, boolean>; streamUrl: string | null };
+  /** Agents whose calls go to the Python backend without `?py=1` (see page.tsx). */
+  pythonAgents?: string[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -237,6 +249,7 @@ export function Playground({
   // agent for every turn; the client's voice/language chrome stays with the
   // initially-loaded agent DTO (a known, minor cosmetic limitation).
   const [selectedAgentId, setSelectedAgentId] = useState<string>(agent?.id ?? '');
+  agentNeedsPython = pythonAgents.includes(selectedAgentId);
   // '' = speak with the selected agent's own voice; anything else overrides it
   // (built-in speakers plus the tenant's cloned/designed voices).
   const [voiceOverride, setVoiceOverride] = useState<string>('');

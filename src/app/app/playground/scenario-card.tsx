@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * The tester's brief for a goal-led agent (Python backend, `?py=1`).
+ * The tester's brief for a goal-led agent (the Python backend knows goals).
  *
  * An agent with a goal is the one calling, and it needs answers from the
  * person — so the tester has to know who they are playing. This card asks the
@@ -34,18 +34,14 @@ interface Collected {
   labels: Record<string, string>;
 }
 
-function pythonBackend(): boolean {
-  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('py') === '1';
-}
-
 export function ScenarioCard({ agentId, callId, t }: { agentId: string; callId: string | null; t: Translate }) {
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [collected, setCollected] = useState<Collected | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    // Only the Python backend knows goals; checked here (after mount) so the server render stays the same.
-    if (!agentId || !pythonBackend()) return setScenario(null);
+    // Only the Python backend knows goals; it answers `null` for an agent without one (or the call fails).
+    if (!agentId) return setScenario(null);
     try {
       const res = await fetch(`/api/core/playground/scenario?agentId=${encodeURIComponent(agentId)}`);
       const body = res.ok ? ((await res.json()) as { scenario: Scenario | null }) : { scenario: null };

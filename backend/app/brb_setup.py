@@ -161,7 +161,7 @@ def ensure(email: str, password: str | None, new_key: bool) -> dict[str, str]:
     out: dict[str, str] = {}
     with db.transaction() as tx:
         if not table_ready(tx):
-            sys.exit("The database needs migration 0002 first: alembic upgrade head")
+            sys.exit("The database needs migrations 0002 and 0003 first: alembic upgrade head")
 
         if not db.fetch_one(tx, "SELECT id FROM tenants WHERE id = :id", id=TENANT_ID):
             db.execute(
@@ -202,18 +202,18 @@ def ensure(email: str, password: str | None, new_key: bool) -> dict[str, str]:
         else:
             out["login"] = f"exists {email}"
 
-        _agent(tx, INFO_AGENT_ID, "BRB ma'lumot xizmati", "", INFO_GREETING, INFO_INSTRUCTIONS, {}, stamp)
-        _agent(
-            tx,
-            CALL_AGENT_ID,
-            "Isomiddin — kredit arizasi",
-            "",
-            CALL_GREETING,
-            CALL_INSTRUCTIONS,
-            LOAN_APPLICATION_GOAL,
-            stamp,
-        )
-        out["agents"] = f"{INFO_AGENT_ID}, {CALL_AGENT_ID}"
+        # This company is the shared library the other companies' copies read from (app/rag/library.py).
+        tenant = db.fetch_one(tx, "SELECT settings_json FROM tenants WHERE id = :id", id=TENANT_ID)
+        settings = json.loads(tenant["settings_json"] or "{}")
+        if settings.get("sharedLibrary") is not True:
+            settings["sharedLibrary"] = True
+            db.execute(tx, "UPDATE tenants SET settings_json = :s, updated_at = :now WHERE id = :id",
+                       s=json.dumps(settings), now=stamp, id=TENANT_ID)  # fmt: skip
+        for template, agent_id in zip(DEFAULT_AGENTS, (INFO_AGENT_ID, CALL_AGENT_ID), strict=True):
+            upsert_agent(tx, TENANT_ID, agent_id, template, "live", "", stamp)
+        # Copies in other companies (app/default_agents.py) follow the templates too.
+        copies = refresh_copies(tx, stamp)
+        out["agents"] = f"{INFO_AGENT_ID}, {CALL_AGENT_ID}; copies in other companies updated: {copies}"
 
         if new_key:
             raw = "ovoz_sk_" + secrets.token_hex(20)
@@ -231,17 +231,45 @@ def ensure(email: str, password: str | None, new_key: bool) -> dict[str, str]:
     return out
 
 
-def _agent(
-    tx, agent_id: str, name: str, persona: str, greeting: str, instructions: str, goal: dict, stamp: str
-) -> None:  # noqa: ANN001, E501
+# The agents every company gets (app/default_agents.py); this company holds the originals.
+DEFAULT_AGENTS = [
+    {
+        "name": "BRB ma'lumot xizmati",
+        "persona": "",
+        "greeting": INFO_GREETING,
+        "instructions": INFO_INSTRUCTIONS,
+        "goal": {},
+    },
+    {
+        "name": "Isomiddin — kredit arizasi",
+        "persona": "",
+        "greeting": CALL_GREETING,
+        "instructions": CALL_INSTRUCTIONS,
+        "goal": LOAN_APPLICATION_GOAL,
+    },
+]
+
+
+def upsert_agent(
+    tx,  # noqa: ANN001
+    tenant_id: str,
+    agent_id: str,
+    template: dict,
+    status: str,
+    knowledge_tenant_id: str,
+    stamp: str,
+) -> None:
+    """Create the agent from a template, or bring an existing one's texts up to date (its status is kept)."""
     fields = {
         "id": agent_id,
-        "t": TENANT_ID,
-        "name": name,
-        "persona": persona,
-        "greeting": greeting,
-        "instructions": instructions,
-        "goal": json.dumps(goal, ensure_ascii=False),
+        "t": tenant_id,
+        "name": template["name"],
+        "persona": template["persona"],
+        "greeting": template["greeting"],
+        "instructions": template["instructions"],
+        "goal": json.dumps(template["goal"], ensure_ascii=False),
+        "kb": knowledge_tenant_id,
+        "status": status,
         "esc": json.dumps(DEFAULT_ESCALATION),
         "hours": json.dumps(DEFAULT_HOURS),
         "now": stamp,
@@ -250,7 +278,7 @@ def _agent(
         db.execute(
             tx,
             """UPDATE agents SET name = :name, persona = :persona, greeting = :greeting, instructions = :instructions,
-                 goal_json = :goal, updated_at = :now WHERE id = :id AND tenant_id = :t""",
+                 goal_json = :goal, knowledge_tenant_id = :kb, updated_at = :now WHERE id = :id AND tenant_id = :t""",
             **fields,
         )
         return
@@ -258,11 +286,26 @@ def _agent(
         tx,
         """INSERT INTO agents (id, tenant_id, name, status, persona, greeting, fallback_line, instructions,
              languages_json, primary_lang, voice_id, confidence_threshold, escalation_json, hours_json, goal_json,
-             created_at, updated_at)
-           VALUES (:id, :t, :name, 'live', :persona, :greeting, '', :instructions, '["uz","ru","en"]', 'uz',
-             'isomiddin', 0.45, :esc, :hours, :goal, :now, :now)""",
+             knowledge_tenant_id, created_at, updated_at)
+           VALUES (:id, :t, :name, :status, :persona, :greeting, '', :instructions, '["uz","ru","en"]', 'uz',
+             'isomiddin', 0.45, :esc, :hours, :goal, :kb, :now, :now)""",
         **fields,
     )
+
+
+def refresh_copies(tx, stamp: str) -> int:  # noqa: ANN001
+    """Update every other company's copy of the default agents (found by name + this library) to the templates."""
+    count = 0
+    for template in DEFAULT_AGENTS:
+        for row in db.fetch_all(
+            tx,
+            "SELECT id, tenant_id, status FROM agents WHERE knowledge_tenant_id = :lib AND name = :name",
+            lib=TENANT_ID,
+            name=template["name"],
+        ):
+            upsert_agent(tx, row["tenant_id"], row["id"], template, row["status"], TENANT_ID, stamp)
+            count += 1
+    return count
 
 
 def main() -> None:

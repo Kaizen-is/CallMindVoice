@@ -22,7 +22,7 @@ import { agentHours, agentTarget } from '@/lib/engine/conversation';
 import { agentLlm } from '@/lib/llm/choice';
 import { classifyIntent, generateAnswer } from '@/lib/llm/provider';
 import { detectLanguage } from '@/lib/rag/text';
-import { fillerLines } from '@/lib/speech/fillers';
+import { fillerLines, fillersEnabled } from '@/lib/speech/fillers';
 import { transcribe, type Transcript } from '@/lib/speech/stt';
 import { cachedPcm, synthesizePcm, synthesizeStream, ttsConfigured, type SynthOptions } from '@/lib/speech/tts';
 import { VOICES } from '@/lib/catalog';
@@ -373,7 +373,7 @@ export function warmDemo(agent: Agent) {
       }
     }
     // Then the fillers, which are only ever played from the cache.
-    for (const lang of pending) {
+    for (const lang of fillersEnabled() ? pending : []) {
       for (const line of fillerLines(lang)) {
         await synthesizePcm(line, voiceOptions(agent, lang)).catch(() => null);
       }
@@ -392,7 +392,7 @@ const NO_FILLER = new Set(['greeting', 'goodbye', 'affirm', 'human']);
  * real answer on the TTS server, which works one request at a time.
  */
 export function fillerFor(agent: Agent, callId: string, heard: string, voiceId = agent.voice_id): string | null {
-  if (!ttsConfigured() || NO_FILLER.has(classifyIntent(heard))) return null;
+  if (!fillersEnabled() || !ttsConfigured() || NO_FILLER.has(classifyIntent(heard))) return null;
   const language = detectLanguage(heard) as Locale;
   const lines = fillerLines(language);
   const turn = fillers.get(callId) ?? 0;

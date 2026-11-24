@@ -27,7 +27,7 @@ from app.jscompat import JS_S, js_json, js_trim, js_trim_end, js_trim_start, utf
 from app.llm.local import classify_intent
 from app.playground import call_voice
 from app.rag.text import detect_language
-from app.speech.fillers import filler_lines
+from app.speech.fillers import filler_lines, fillers_enabled
 from app.speech.speko import ELEVEN_VOICES
 from app.speech.stt import Transcript, is_stt_engine, transcribe
 from app.speech.tts import (
@@ -421,7 +421,7 @@ NO_FILLER = {"greeting", "goodbye", "affirm", "human"}
 def warm_fillers(agent: dict[str, Any], lang: str, pick: VoicePick) -> None:
     """Render the filler lines in the picked engine and voice once, in the background."""
     key = f"{agent['tenant_id']}:{pick.engine}:{pick.voice_id}:{lang}"
-    if key in _warmed or not _can_speak(pick):
+    if not fillers_enabled() or key in _warmed or not _can_speak(pick):
         return
     _warmed.add(key)
 
@@ -437,7 +437,7 @@ def warm_fillers(agent: dict[str, Any], lang: str, pick: VoicePick) -> None:
 
 def filler_for(agent: dict[str, Any], call_id: str, said: str, pick: VoicePick) -> dict[str, Any] | None:
     """A cached filler for this turn, as the `filler` event's fields, or None — never rendered now."""
-    if not _can_speak(pick) or classify_intent(said) in NO_FILLER:
+    if not fillers_enabled() or not _can_speak(pick) or classify_intent(said) in NO_FILLER:
         return None
     language = detect_language(said)
     lines = filler_lines(language)

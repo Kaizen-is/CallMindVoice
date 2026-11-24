@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.auth import ApiKeyError
 from app.config import get_settings
-from app.routers import bridge, knowledge, live, playground, playground_chat, system
+from app.routers import agents, bridge, knowledge, live, playground, playground_chat, system
 
 
 def create_app() -> FastAPI:
@@ -40,6 +40,7 @@ def create_app() -> FastAPI:
     # Website knowledge and goal-led calls (Python-only features, see docs/brb-knowledge-agent.md).
     app.include_router(knowledge.router)
     app.include_router(playground_chat.router)
+    app.include_router(agents.router)
     return app
 
 

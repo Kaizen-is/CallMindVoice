@@ -29,6 +29,14 @@ export function fillerLines(language: Locale): string[] {
 }
 
 /**
+ * FILLERS=off (or 0/false/no) turns the holding lines off everywhere: the
+ * agent then just answers. Same switch and spelling as telephony-bridge/bridge.mjs.
+ */
+export function fillersEnabled(): boolean {
+  return !/^(0|false|no|off)$/i.test(process.env.FILLERS ?? '');
+}
+
+/**
  * Render one filler line as 8 kHz PCM. `index` selects deterministically so a
  * bridge can prefetch a rotation of distinct lines rather than the same one
  * repeatedly — hearing "bir daqiqa" five times in a call is worse than silence.

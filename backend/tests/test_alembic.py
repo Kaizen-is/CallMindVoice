@@ -7,6 +7,7 @@ from alembic.config import Config
 
 BACKEND = Path(__file__).resolve().parents[1]
 NEW_TABLES = {"knowledge_pages", "knowledge_groups", "call_results"}
+NEW_AGENT_COLUMNS = ("goal_json", "knowledge_tenant_id")
 
 
 def _tables(sql) -> dict[str, str]:
@@ -16,7 +17,7 @@ def _tables(sql) -> dict[str, str]:
 
 
 def test_baseline_stamp_and_upgrade_only_add(data_dir, sql):
-    """The baseline changes nothing; later revisions add tables and one column, never alter old ones."""
+    """The baseline changes nothing; later revisions add tables and agent columns, never alter old ones."""
     before = _tables(sql)
     config = Config(str(BACKEND / "alembic.ini"))
     command.stamp(config, "0001_baseline")
@@ -25,11 +26,11 @@ def test_baseline_stamp_and_upgrade_only_add(data_dir, sql):
     assert set(after) - set(before) == NEW_TABLES
     for name, ddl in before.items():
         if name == "agents":
-            assert "goal_json" in after[name]
+            assert all(col in after[name] for col in NEW_AGENT_COLUMNS)
         else:
             assert after[name] == ddl, name
-    assert sql("SELECT version_num FROM alembic_version") == [("0002_website_knowledge",)]
+    assert sql("SELECT version_num FROM alembic_version") == [("0003_shared_knowledge",)]
 
     command.downgrade(config, "0001_baseline")
     assert set(_tables(sql)) == set(before)
-    assert "goal_json" not in _tables(sql)["agents"]
+    assert not any(col in _tables(sql)["agents"] for col in NEW_AGENT_COLUMNS)

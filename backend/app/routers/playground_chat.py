@@ -55,8 +55,8 @@ async def say(request: Request, session: LoggedIn) -> JSONResponse:
 
     call_id = body.get("callId") if isinstance(body.get("callId"), str) else None
     if call_id:
-        owned = owned_playground_call(tenant_id, call_id, agent["id"])
-        if not owned or owned["ended_at"]:
+        # A chat reopened from the chats rail continues even after it was closed, as in the TypeScript action.
+        if not owned_playground_call(tenant_id, call_id, agent["id"]):
             return _fail("That test session has expired.")
     else:
         call_id = start_call(

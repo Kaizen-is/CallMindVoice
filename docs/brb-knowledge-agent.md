@@ -81,7 +81,30 @@ nothing changes for existing agents.
   collect, the closing promise, and scenario cards for testers. Collected
   answers are extracted after the call (no latency during it).
 
-## 3. Run it locally
+## 3. Every company has the agents
+
+- **Default agents.** Every company gets "BRB ma'lumot xizmati" and "Isomiddin —
+  kredit arizasi" the first time its Playground opens: the page calls
+  `POST /api/core/agents/defaults` (`backend/app/default_agents.py`). The third
+  default, "Isomiddin — bank kredit eslatmasi", comes from `src/lib/bank-agent.ts`
+  as before. The copies are **drafts**, so a company's live agent and phone number
+  never change, and each company may edit or delete its copies (a settings note
+  stops them coming back).
+- **Shared library, not copies of the pages.** The copies read the website
+  knowledge from the "BRB — website agents" company (`agents.knowledge_tenant_id`,
+  migration 0003; `backend/app/rag/library.py`). The pages are stored once, and no
+  other agent of the company sees them. A company is used as a library only when
+  it is marked `"sharedLibrary": true` (set by `brb_setup.py`), so a wrong id can
+  never read another customer's documents. Re-running `brb_setup.py` also brings
+  every copy's texts up to date.
+- **No `?py=1` needed.** For agents with a goal, a shared library or website pages,
+  the Playground talks to the Python backend by itself (`pythonAgents` in
+  `src/app/app/playground/page.tsx`).
+- **No holding lines.** `FILLERS=off` in `.env` stops the "bir daqiqa" lines in
+  Playground voice calls and the public demo; the phone bridge already honours the
+  same variable. Unset, behaviour is as before.
+
+## 4. Run it locally
 
 ```bash
 cd backend
@@ -107,14 +130,15 @@ Start the site (`npm run dev`), log in as `brb@callmind.uz`, open
 Measure: `.venv\Scripts\python tools\eval_retrieval.py` (add `--llm` to compare
 LLM routing; needs a hosted model).
 
-## 4. Deploying (when it is time)
+## 5. Deploying (when it is time)
 
-1. `git pull`; `backend/.venv/bin/alembic upgrade head` (only adds tables/columns).
+1. `git pull`; `backend/.venv/bin/alembic upgrade head` (0002 and 0003 only add tables/columns).
+   Put `FILLERS=off` in the server `.env` and in the phone bridge's environment.
 2. Restart `callmind-api.service`; build + restart the site (the Playground change).
 3. `python -m app.brb_setup --password … --new-key`, give the key to the scraper.
 4. Schedule the scraper daily (Kubernetes CronJob or a systemd timer).
 
-## 5. Not done yet
+## 6. Not done yet
 
 - Goals are set by `brb_setup.py`; the Agent studio has no editor for them yet
   (step 4 of the move to Python ports the console pages).

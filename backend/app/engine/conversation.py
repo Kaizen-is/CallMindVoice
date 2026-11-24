@@ -21,6 +21,7 @@ from app.llm.choice import agent_llm, safe_json
 from app.llm.goal_call import agent_goal
 from app.llm.prompts import GenerateInput
 from app.llm.provider import engine_name, generate_answer, sentiment_of, summarize_call
+from app.rag.library import knowledge_tenant
 from app.rag.retrieve import retrieve_async
 from app.rag.routing import has_grouped_knowledge, retrieve_routed
 from app.rag.text import detect_language
@@ -183,16 +184,18 @@ async def run_turn(
     policy = agent_escalation(agent)
     threshold = agent["confidence_threshold"] if agent.get("confidence_threshold") is not None else 0.55
 
-    # retrieval — grouped (app.rag.routing) for a tenant with imported website pages, else the plain search
+    # retrieval — in the agent's knowledge base (its own company's, or a shared library: app.rag.library);
+    # grouped (app.rag.routing) where the pages came from a website import, else the plain search
     with db.connect() as conn:
-        routed = has_grouped_knowledge(conn, tenant_id)
+        kb_tenant = knowledge_tenant(conn, agent, tenant_id)
+        routed = has_grouped_knowledge(conn, kb_tenant)
 
     async def search(query: str) -> Any:
         if routed:
             return await retrieve_routed(
-                tenant_id, query, language=language, threshold=threshold, call_id=call_id, top_k=5
+                kb_tenant, query, language=language, threshold=threshold, call_id=call_id, top_k=5
             )
-        return await retrieve_async(tenant_id, query, top_k=5)
+        return await retrieve_async(kb_tenant, query, top_k=5)
 
     t_retrieve = time.perf_counter()
     retrieval = await search(utterance)
