@@ -38,6 +38,13 @@ nothing changes for existing agents.
   TypeScript search, which searches a whole tenant; putting 1,100 pages into the
   bank tenant would have changed their answers. A separate tenant isolates it
   with no code change on those paths.
+- **Uzbek pages only** (decided 24 Nov). brb.uz's Russian and English pages are
+  mostly translations, so only Uzbek is imported (593 pages, 3,809 chunks). A
+  Russian caller is answered in Russian from the Uzbek pages, but **product names
+  are translated** ("Мечта" = "Orzu", "наблюдательный совет" = "kuzatuv kengashi"),
+  and the search often misses them: the Russian test questions find the right
+  page 6 of 12 times, against 10 of 12 with the Russian pages imported. If Russian
+  callers matter, add `ru` to `keep_langs` in the scraper and run it once.
 - **Python only, opt-in.** New features go where the backend is moving. Every new
   branch in shared code runs only when a tenant has imported pages or an agent
   has a goal; the parity suites (golden TypeScript fixtures) still pass
@@ -54,6 +61,11 @@ nothing changes for existing agents.
   | plain search (all chunks) | 55% | 90% | 0.70 | ~1 s |
   | **grouped, 3 best groups (shipped)** | **67%** | 88% | **0.76** | ~0.15 s |
   | an LLM picks the group | 67% | 83% | 0.74 | +0.8 s LLM call per turn |
+  | *after keeping Uzbek pages only:* plain | 55% | 81% | 0.65 | |
+  | *after keeping Uzbek pages only:* grouped | 57% | 76% | 0.65 | |
+
+  The first three rows were measured with uz + ru + en pages. The drop in the last
+  two comes from the Russian questions (see "Uzbek pages only" above).
 
   Searching everything is slow in Python (7,700 chunks × 1,536 dimensions); the
   grouped search does the vector maths with numpy in a worker thread. The set is

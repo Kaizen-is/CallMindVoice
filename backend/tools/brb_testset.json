@@ -1,5 +1,5 @@
 {
-  "about": "Questions a BRB caller might ask, each with the page(s) that answer it (URL fragments; any match counts). Grow it from real Playground calls and knowledge gaps: add the question, find the right page, add a line. Used by tools/eval_retrieval.py.",
+  "about": "Questions a BRB caller might ask, each with the page(s) that answer it (URL fragments; any match counts). Only Uzbek pages are imported, so the Russian questions also test answering across languages. Grow it from real Playground calls and knowledge gaps. Used by tools/eval_retrieval.py.",
   "tenant": "ten_brb_website",
   "questions": [
     {"q": "Smart Drive avtokreditining foiz stavkasi qancha?", "lang": "uz", "expect": ["kreditlar/jac-smart-drive"]},
@@ -32,17 +32,17 @@
     {"q": "Mening Buyurtmam ilovasi nima?", "lang": "uz", "expect": ["brb-tech.uz/projects#11"]},
     {"q": "BRB-TECH jamoasida kimlar ishlaydi?", "lang": "uz", "expect": ["brb-tech.uz/#team"]},
     {"q": "BRB-TECH hamkorlari kimlar?", "lang": "uz", "expect": ["brb-tech.uz/#partners"]},
-    {"q": "Какая ставка по вкладу Мечта?", "lang": "ru", "expect": ["vklady/orzu-omonati"]},
-    {"q": "Что такое целевой ипотечный накопительный вклад?", "lang": "ru", "expect": ["maqsadli-ipoteka-omonati"]},
-    {"q": "Какие преимущества у карты Visa Platinum?", "lang": "ru", "expect": ["karty/visa-platinum"]},
-    {"q": "Для кого карта CHEMPION?", "lang": "ru", "expect": ["karta-chempion"]},
+    {"q": "Какая ставка по вкладу Мечта?", "lang": "ru", "expect": ["omonatlar/orzu-deposit"]},
+    {"q": "Что такое целевой ипотечный накопительный вклад?", "lang": "ru", "expect": ["omonatlar/maqsadli-ipoteka-omonati"]},
+    {"q": "Какие преимущества у карты Visa Platinum?", "lang": "ru", "expect": ["kartalar/visa-platinum"]},
+    {"q": "Для кого карта CHEMPION?", "lang": "ru", "expect": ["chempion-bank-kartasi"]},
     {"q": "Есть ли микрозайм для женщин-предпринимателей?", "lang": "ru", "expect": ["business-woman"]},
     {"q": "Что такое овердрафт Пакет доверия?", "lang": "ru", "expect": ["ishonch-paketi-overdraft-krediti"]},
     {"q": "Условия кредита на развитие рыбоводства", "lang": "ru", "expect": ["baliqchilikka-kredit"]},
     {"q": "Как получить банковскую гарантию?", "lang": "ru", "expect": ["biznes-bankovskaya-garantiya", "bank-kafolati"]},
-    {"q": "Какой номер контактного центра банка?", "lang": "ru", "expect": ["/ru/kontakty", "/boglanish", "/ru/o-banke"]},
-    {"q": "Кто входит в наблюдательный совет банка?", "lang": "ru", "expect": ["nablyudatelnyy-sovet"]},
-    {"q": "Как открыть расчетный счет для бизнеса?", "lang": "ru", "expect": ["hisob-raqamni-ochish", "rko", "raschyotnye-scheta"]},
+    {"q": "Какой номер контактного центра банка?", "lang": "ru", "expect": ["/boglanish", "bank-haqida"]},
+    {"q": "Кто входит в наблюдательный совет банка?", "lang": "ru", "expect": ["kuzatuv-kengashi"]},
+    {"q": "Как открыть расчетный счет для бизнеса?", "lang": "ru", "expect": ["hisob-kitob-va-kassa-xizmati", "hisob-raqamni-ochish"]},
     {"q": "Что такое приложение Менинг бизнесим?", "lang": "ru", "expect": ["projects#10", "mening-biznesim"]}
   ]
 }

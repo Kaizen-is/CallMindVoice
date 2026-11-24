@@ -44,6 +44,8 @@ STICKY_BONUS = 0.05  # the group the previous turn was answered from
 #   plain search 55% / 90% / 0.70, ~1 s · best group only 60% / 79% / 0.68 · best 2 groups 64% / 86% / 0.73
 #   best 3 + focus 67% / 88% / 0.76, ~0.15 s (chosen) · best 3 without focus 62% / 83% / 0.72
 #   an LLM picking the group 67% / 83% / 0.74, +0.8 s per turn. Small set: re-measure as it grows.
+# With Uzbek pages only (24 Nov): plain 55% / 81% / 0.65, best 3 + focus 57% / 76% / 0.65 — the drop is the
+# Russian questions, whose translated product names no longer match a page in their own language.
 GROUPS_SEARCHED = 3  # how many of the best groups are always searched…
 RUNNER_UP_GAP = 0.04  # …plus the next one when it scores this close
 # Scores are multiplied by (focus / most focused group) ** FOCUS_POWER, focus being how alike a group's
