@@ -19,6 +19,16 @@ def filler_lines(language: str) -> list[str]:
     return LINES.get(language, LINES["uz"])
 
 
+def fillers_enabled() -> bool:
+    """FILLERS=off (or 0/false/no) turns the holding lines off everywhere: the agent then just answers.
+
+    Not in the TypeScript port it mirrors before 24 Nov 2026; unset, behaviour is unchanged (parity holds).
+    """
+    from app.env import env
+
+    return env("FILLERS", "").strip().lower() not in ("0", "false", "no", "off")
+
+
 async def filler_pcm(tenant_id: str, voice_id: str | None, language: str, index: float = 0) -> bytes:
     """One filler as 8 kHz PCM; `index` rotates through distinct lines."""
     lines = filler_lines(language)

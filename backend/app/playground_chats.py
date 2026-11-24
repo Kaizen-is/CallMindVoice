@@ -12,10 +12,12 @@ from app.agent_studio import agent_by_id
 from app.auth import Session
 from app.bank_agent import ensure_bank_agent
 from app.catalog import VOICES
+from app.default_agents import ensure_default_agents
 from app.engine.calls import list_agents, live_agent, start_call
 from app.engine.conversation import run_turn
 from app.jscompat import js_trim
 from app.llm.choice import agent_engine_label, safe_json, tenant_default_llm
+from app.llm.goal_call import agent_goal
 from app.llm.provider import engine_is_hosted, engine_label
 from app.playground import close_playground_call
 from app.speech.speko import ELEVEN_VOICES, GEMINI_VOICES, speko_configured
@@ -51,6 +53,9 @@ async def playground_turn(session: Session, params: dict[str, Any]) -> dict[str,
             to="playground",
             caller_name=f"{session.user['name']} (test)",
             channel="web",
+            # A goal-led agent calls the tester (app/llm/goal_call.py): Python-only, so no TypeScript recording
+            # to match. Every other typed chat stays "inbound", as the TypeScript action recorded it.
+            direction="outbound" if agent_goal(agent) is not None else "inbound",
         )
     else:
         with db.connect() as conn:
@@ -159,8 +164,10 @@ def playground_page(session: Session) -> dict[str, Any]:
     account default's label, or None when it is the local synthesiser (the page words that itself).
     """
     tenant_id = session.tenant["id"]
-    # Every account gets the /demo banking agent to try, once (see bank_agent.py).
+    # Every account gets the /demo banking agent to try, once (see bank_agent.py), and copies of the BRB
+    # website agents once the BRB library exists (default_agents.py; a no-op without it).
     ensure_bank_agent(tenant_id)
+    ensure_default_agents(tenant_id)
     agent = live_agent(tenant_id)
     agents = list_agents(tenant_id)
     default_llm = tenant_default_llm(tenant_id)

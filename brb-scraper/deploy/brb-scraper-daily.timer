@@ -1,0 +1,11 @@
+# Every morning at 07:00 Tashkent, before the working day (Sunday too; the weekly full run is at 03:00).
+[Unit]
+Description=BRB knowledge scraper, daily changed pages
+
+[Timer]
+OnCalendar=*-*-* 07:00:00 Asia/Tashkent
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

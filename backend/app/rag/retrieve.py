@@ -158,10 +158,13 @@ def rank(
     query_vector: list[float] | None = None,
     engine_id: str = LOCAL_ENGINE_ID,
     use_dense: bool = True,
+    dense_scores: list[float] | None = None,
 ) -> RetrievalResult:
     """
     Score the corpus for `query`. `query_vector` defaults to the local embedding; `use_dense=False`
-    (the hosted embedding failed) ranks on words alone.
+    (the hosted embedding failed) ranks on words alone. `dense_scores` (one per row, already worked
+    out — the grouped search does it with numpy) replaces the per-row cosine loop; left out, the
+    ranking is exactly the TypeScript's.
     """
     started = time.perf_counter()
     if not corpus.rows:
@@ -170,9 +173,14 @@ def rank(
     query_terms = expand_terms([stem(t) for t in tokenize(query)])
     lex = _bm25(corpus, query_terms)
 
-    qv = (query_vector if query_vector is not None else local_embed(query)) if use_dense else None
-    dense_used = qv is not None
-    dense = [cosine(v, qv) if qv is not None and v is not None and len(v) == len(qv) else 0.0 for v in corpus.vectors]
+    if dense_scores is not None:
+        dense_used, dense = True, dense_scores
+    else:
+        qv = (query_vector if query_vector is not None else local_embed(query)) if use_dense else None
+        dense_used = qv is not None
+        dense = [
+            cosine(v, qv) if qv is not None and v is not None and len(v) == len(qv) else 0.0 for v in corpus.vectors
+        ]
 
     lex_rank = _rank_of(lex)
     dense_rank = _rank_of(dense)

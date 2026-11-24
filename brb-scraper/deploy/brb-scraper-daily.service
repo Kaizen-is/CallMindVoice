@@ -1,0 +1,12 @@
+# Daily: every site, but only pages that are new or whose sitemap/API date moved (news, promotions,
+# edited product pages). ~1 minute. Install: systemctl --user enable --now brb-scraper-daily.timer
+[Unit]
+Description=BRB knowledge scraper, new and edited pages → CallMind
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/callmind/brb-scraper
+ExecStart=%h/callmind/brb-scraper/.venv/bin/python -m brb_scraper run --changed-only
+SuccessExitStatus=1
+TimeoutStartSec=30min

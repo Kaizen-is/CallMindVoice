@@ -34,6 +34,7 @@ import {
   type SttChoice,
   type TtsChoice,
 } from './model-picker';
+import { ScenarioCard } from './scenario-card';
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from '@/components/ui/primitives';
 import { Input, Select } from '@/components/ui/forms';
 import { useToast } from '@/components/ui/overlays';
@@ -1249,6 +1250,8 @@ export function Playground({
         )}
       </div>
 
+      {/* A goal-led agent calls the tester: who to play and what it will ask (Python backend only). */}
+      <ScenarioCard agentId={selectedAgentId} callId={callId} t={t} />
 
       <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_320px]">
         {/* ── The call surface. This page exists to rehearse a real phone call,

@@ -46,7 +46,7 @@ from app.llm.local import classify_intent
 from app.llm.prompts import GenerateInput
 from app.llm.provider import generate_answer
 from app.rag.text import detect_language
-from app.speech.fillers import filler_lines
+from app.speech.fillers import filler_lines, fillers_enabled
 from app.speech.stt import Transcript, transcribe
 from app.speech.tts import (
     SynthOptions,
@@ -460,7 +460,7 @@ def warm_demo(agent: dict[str, Any]) -> None:
                 _warmed.discard(opening_key(agent, lang))
                 log.warning("[demo] warm-up failed: %s", err)
         # Then the fillers, which are only ever played from the cache.
-        for lang in pending:
+        for lang in pending if fillers_enabled() else []:
             for line in filler_lines(lang):
                 with contextlib.suppress(Exception):  # `.catch(() => null)`
                     await synthesize_pcm(line, voice_options(agent, lang))
@@ -483,7 +483,7 @@ def filler_for(agent: dict[str, Any], call_id: str, heard: str, voice_id: str | 
     repeats back to back, and only a cached rendering is ever used: rendering one now would queue in
     front of the real answer on the TTS server, which works one request at a time.
     """
-    if not tts_configured() or classify_intent(heard) in NO_FILLER:
+    if not fillers_enabled() or not tts_configured() or classify_intent(heard) in NO_FILLER:
         return None
     language = detect_language(heard)
     lines = filler_lines(language)

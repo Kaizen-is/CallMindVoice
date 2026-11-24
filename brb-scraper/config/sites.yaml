@@ -1,0 +1,355 @@
+# What to scrape, what to skip, and which group every page belongs to.
+#
+# This file is the only place that knows about the shape of the two websites.
+# When a site changes its URLs or layout, you change this file, not the code.
+#
+# URL patterns are shell-style globs (`*` = anything) matched against the page
+# path WITHOUT the leading slash and WITHOUT the language prefix, so
+# https://brb.uz/ru/fizicheskim-litsam/kredity/avto  →  fizicheskim-litsam/kredity/avto
+
+run:
+  user_agent: "BRB-CallMind-KnowledgeBot/1.0"
+  concurrency: 4            # pages fetched at the same time
+  min_delay_sec: 0.25       # gap between two requests to the same host
+  timeout_sec: 25
+  retries: 3                # on timeouts, 429 and 5xx, with growing waits
+  # Safety brake: if a run would remove more than this share of a site's
+  # pages, something is broken (empty sitemap, site down, layout change), so
+  # nothing is removed and the report says why.
+  max_removed_share: 0.2
+  data_dir: data
+
+# Groups are the "shelves" the agent searches. CallMind will pick one or two
+# groups per question and search only inside them. `description` and
+# `keywords` are exported with the pages so CallMind can build a profile of
+# each group (see ARCHITECTURE.md ▸ Group routing).
+groups:
+  personal_loans:
+    title: Loans and mortgage for individuals
+    description: Consumer loans, car loans, microloans, education loans, mortgage, online loans, loan requirements and how to apply.
+    keywords: [kredit, ipoteka, avtokredit, mikroqarz, mikrokredit, "ta'lim krediti", кредит, ипотека, автокредит, микрозайм, loan, mortgage]
+  personal_cards:
+    title: Cards for individuals
+    description: Humo, Uzcard, Visa and Mastercard cards, card opening, fees, limits, delivery.
+    keywords: [karta, humo, uzcard, visa, mastercard, карта, карты, card]
+  personal_deposits:
+    title: Deposits and savings
+    description: Deposits (omonat), interest rates, terms, deposit guarantee, gold bars and coins.
+    keywords: [omonat, depozit, jamgarma, oltin, вклад, депозит, слитки, deposit, savings, gold]
+  personal_transfers:
+    title: Money transfers
+    description: Money transfers, SWIFT, international transfers, currency exchange services, escrow and transit accounts.
+    keywords: [otkazma, "o'tkazma", swift, eskrou, tranzit, перевод, эскроу, transfer]
+  currency:
+    title: Exchange rates
+    description: BRB bank's current currency exchange rates - buy and sell, for individuals, for businesses and in the mobile app - with the time they were updated. Refreshed every 15 minutes.
+    keywords: [kurs, "valyuta kursi", valyuta, dollar, yevro, evro, rubl, "sotib olish", sotish, курс, доллар, евро, рубль, валюта, "exchange rate", usd, eur, rub]
+  personal_general:
+    title: Personal banking - general and tariffs
+    description: Overview of services for individuals, personal banking tariffs and fees, neighbourhood (mahalla) bankers.
+    keywords: [tarif, tariflar, "jismoniy shaxs", mahalla, тариф, "физическим лицам", tariff, fees]
+  business:
+    title: Business banking
+    description: Business and corporate loans, current accounts and cash services, business tariffs, business deposits, bank guarantees, factoring, corporate cards, payroll project, remote banking, QR payments, terminals, foreign credit lines, Islamic financing, business plans.
+    keywords: [biznes, tadbirkor, "yuridik shaxs", korporativ, kafolat, faktoring, "hisob raqam", бизнес, юридических, гарантия, факторинг, "расчетный счет", business, corporate, guarantee]
+  about:
+    title: About the bank and contacts
+    description: About BRB, leadership, structure, strategy, ESG, branches and offices, contacts, call centre, vacancies, FAQ, interactive services, citizen appeals, anti-corruption.
+    keywords: [bank haqida, rahbariyat, filial, ofis, manzil, "bog'lanish", vakansiya, faq, "о банке", руководство, филиал, контакты, вакансии, about, branch, contacts, vacancies]
+  investors:
+    title: Shareholders and investors
+    description: Shareholder information, financial indicators, ratings, information disclosure, regulatory and internal documents, corporate governance, shares, open data.
+    keywords: [aksiya, aksiyador, investor, reyting, "moliyaviy ko'rsatkich", акции, акционер, рейтинг, "финансовые показатели", shareholder, rating, financial]
+  news:
+    title: News and announcements
+    description: Recent bank news, press releases, announcements and promotions.
+    keywords: [yangilik, aksiya, "e'lon", новости, акция, объявление, news, announcement, promotion]
+  brbtech:
+    title: BRB-TECH (IT company)
+    description: BRB-TECH, the IT company of BRB - what it does, services (UX/UI, CRM/ERP, mobile apps, e-commerce), projects, team, partners, news.
+    keywords: [brb-tech, brb tech, "it kompaniya", loyiha, dasturlash, ilova, проект, разработка, приложение, project, software, app]
+  other:
+    title: Other pages
+    description: Pages that matched no rule. Listed in every run report so a person can add a rule.
+    keywords: []
+
+sites:
+  # ── BRB bank ──────────────────────────────────────────────────────────
+  brb:
+    name: "BRB bank (Biznesni rivojlantirish banki)"
+    source: sitemap
+    base_url: https://brb.uz
+    sitemap: https://brb.uz/sitemap.xml
+    default_lang: uz
+    lang_prefixes: {ru: ru, en: en}        # /ru/... is Russian, /en/... is English, the rest is Uzbek
+    # Only these languages are kept. The ru/en pages are mostly translations of the uz ones; the agent
+    # still answers a Russian caller in Russian, from the Uzbek pages.
+    keep_langs: [uz]
+    html:
+      main_selector: main.main-wrapper
+      breadcrumb_selector: section.section_breadcrumbs
+      breadcrumb_home: [Bosh sahifa, Главная, Home]
+      # Inside the main content, these are forms, surveys, tab menus and pop-ups.
+      drop_selectors:
+        - form
+        - .form-wrapper
+        - .business-application-content
+        - .form_01
+        - .form-rate_01
+        - .section_survey
+        - .w-tab-menu
+        - .component_textarticle_sticky_wrapper   # the side menu on "Bank haqida" pages
+        - .contact_03-reduced_wrapper             # "subscribe to our blog" box on every news page
+        - .newsfeed_01_wrapper                    # "all news" list of other headlines
+        - "[class*=button]"           # "Open a deposit", "Details", "Download" buttons
+        - "[class*=btn]"
+        - "[class*=modal]"
+        - "[class*=popup]"
+      # Whole lines that carry no information.
+      drop_lines: [Batafsil, Подробнее, More, "More details", "Ariza qoldirish", "Оставить заявку", "Leave a request", "Aksiya shartlari", "Условия акции"]
+      title_suffixes: [" | Biznesni rivojlantirish banki", " | Банк развития бизнеса", " | Business Development Bank", " | BRB"]
+    exclude:
+      - mulklar*                      # property for sale (459 listings)
+      - sotuvdagi-mulklar*
+      - informaciia-o-prodavaemom-imushhestve*
+      - axborot-markazi/tender*       # tenders
+      - press-tsentr/tender*
+      - press-centr/tender*
+      - test
+      - test/*
+      - search*
+      - pulse-cookie
+      - auth*
+      - login*
+      - PersonalCabinet*
+      - biznesni-rivojlantirish-banki-atb-balansida-sotuvdagi-mol-mulklar*   # property for sale
+      - karta-saita*                  # HTML sitemaps
+      - saytning-xaritasi*
+      - polls*                        # surveys
+      - valyutalar-kursi              # its table is filled by JavaScript (empty HTML); the brb_rates site reads it
+      - kurs-valyut
+    news:
+      # News, plus promotions (they expire, so the same age limit applies).
+      patterns: [axborot-markazi, axborot-markazi/*, press-tsentr, press-tsentr/*, press-centr, press-centr/*,
+                 aksiyalar-va-yutuqli-oyinlar*, "*-aksiyasi*"]
+      max_age_days: 180               # older news is not indexed
+    # Order matters: the first matching group wins. Specific rules go first
+    # (investor pages live under bank-haqida/, so `investors` comes before `about`).
+    groups:
+      personal_loans:
+        - jismoniy-shaxslarga/kredit*
+        - jismoniy-shaxslarga/ipoteka*
+        - fizicheskim-litsam/kredit*
+        - fizicheskim-litsam/ipoteka*
+        - fiziceskim-licam/fiziceskim-licam-kredity*
+        - jismoniy-shaxslar-ipoteka*
+        - kredit-turar-joy-maskani*
+      personal_cards:
+        - jismoniy-shaxslarga/kartalar*
+        - fizicheskim-litsam/karty*
+        - fiziceskim-licam*kart*
+        - brb-kartasi-bilan-chegirmalar*
+        - brb-mobil-ilovasi-orqali-kartani-aktivlashtirish*
+      personal_deposits:
+        - jismoniy-shaxslarga/omonatlar*
+        - jismoniy-shaxslarga/investitsiyalar*
+        - fizicheskim-litsam/vklady*
+        - fizicheskim-litsam/investitsii*
+        - fiziceskim-licam*vklad*
+        - investitsii*
+        - sizning-bankdagi-barcha-omonatlaringiz-kafolatlangan*
+      personal_transfers:
+        - jismoniy-shaxslarga/pul-otkazmalari*
+        - jismoniy-shaxslarga/swift*
+        - fizicheskim-litsam/deneznye-perevody*
+        - fizicheskim-litsam/swift*
+        - fiziceskim-licam*swift*
+        - valyutalar-kursi*
+        - kurs-valyut*
+        - eskrou-brb*
+        - tranzit-hisobraqamlari*
+        - pul-otkazmalari/*
+        - denezhnye-perevody/*
+      personal_general:
+        - jismoniy-shaxslarga
+        - jismoniy-shaxslarga/*
+        - fizicheskim-litsam
+        - fizicheskim-litsam/*
+        - fiziceskim-licam
+        - fiziceskim-licam/*
+        - mahalla-info*
+        - brb-mobil-ilovasi*
+      investors:
+        - aksiyodorlar-va-investorlar-uchun*
+        - aksiyodarlar-va-investorlar-uchun*  # the site spells it both ways
+        - korporativ-boshqaruv*
+        - open-data*
+        - akcioneram-i-investoram*
+        - shareholders-and-investors*
+        - bank-haqida/moliyaviy-korsatkichlar*
+        - bank-haqida/bank-reytinglari*
+        - bank-haqida/malumotlarni-oshkor-qilish*
+        - bank-haqida/normativ-hujjatlar*
+        - bank-haqida/bank-aksiyalari*
+        - bank-haqida/korporativ-boshqaruv*
+        - bank-haqida/ochiq-malumotlar*
+        - bank-haqida/ichki-hujjatlar*
+        - o-banke/finansovye-pokazateli*
+        - o-banke/reytingi-banka*
+        - o-banke/raskrytie-informatsii*
+        - o-banke/normativnye-dokumenty*
+        - o-banke/aktsii-banka*
+        - o-banke/ochiq-malumotlar*
+        - o-banke/vnutrennie-dokumenty*
+        - o-bankeen/financial-highlights*
+        - o-bankeen/raskrytie-informatsii*
+        - o-bankeen/regulatory-documents*
+        - o-bankeen/aktsii-banka*
+        - o-bankeen/corporate-governance*
+        - o-bankeen/internal-documents*
+      about:
+        - bank-haqida*
+        - o-banke*
+        - o-bankeen*
+        - esg-brb*
+        - boglanish*
+        - kontakty*
+        - contacts*
+        - interaktiv-xizmatlar*
+        - virtual-qabulxona*
+        - customer-reception-procedure*
+        - ichki-nazorat*
+        - korrupsiyaga-qarshi-kurashish*
+        - protivodeystvie-korruptsii*
+        - bosh-ish-orinlari*
+        - vakansii*
+        - faq*
+        - foydali-resurslar*
+        - poleznye-resursy*
+        - biznesni-rivojlantirish-mikromoliya-tashkiloti*
+        - strategy*
+        - saytdan-foydalanish*
+        - usloviya-i-pravila*
+        - website-terms-and-conditions*
+        - bank-ofislari-va-bankomatlar*
+        - ofisy-i-bankomaty*
+        - missiia*
+        - missiya*
+        - brb-university*
+        - atamalar-yoriqnomasi*
+        - arxivlangan-xizmat-va-mahsulotlar*
+        - arhivnye-uslugi-i-produkty*
+        - contact-details*
+        - murojaat-yuborish*
+        - new-esg*
+        - vnutrennii-kontrol*
+        - pulse-oferta*
+      business:
+        - kreditlar
+        - kreditlar/*
+        - kredity
+        - kredity/*
+        - korporativ-mijozlarga*
+        - depozitlar*
+        - depozity*
+        - biznes-*
+        - bank-guarantees*
+        - tenderga-kafolat*
+        - brb-biznes*
+        - brb-lift*
+        - xorijiy-kreditlar*
+        - inostrannye-kredity*
+        - foreign-credit-lines*
+        - kartalar
+        - kartalar/*
+        - karty
+        - karty/*
+        - factoring*
+        - "*faktoring*"
+        - namunaviy-biznes-rejalar*
+        - qr-pay*
+        - tolov-terminallari*
+        - "*hisob-kitob-va-kassa*"
+        - rko-*
+        - hisob-raqamni-ochish*
+        - open-an-account*
+        - "*tarif*"
+        - islamic-financing*
+        - tranzaksion-banking*
+        - tranzakcionnyi-banking*
+        - swift-gpi-tracker*
+        - internet-banking-va-mobil-banking*
+        - distancionnoe-bankovskoe-obsluzivanie*
+        - ish-haqi-loyihasi*
+        - starter-packages*
+        - vip-*
+        - universal-*
+        - yuridik-shaxslar*
+        - xorijiy-*
+        - lizing*
+        - msb-*                       # small-business tariff packages
+        - "*-medium-corporate"        # corporate tariff packages
+        - corporate-*
+        - mikro-va-kichik-biznes-uchun-kreditlar*
+        - davlat-dasturlari-kreditlari*
+        - lc-diskontlash*
+        - bank-kafolati*
+        - mening-biznesim*
+        - raschyotnye-scheta*
+        - oferta-bank-client*
+        - murabaha*
+        - ""                          # the home page (brb.uz opens on business banking)
+    # Pages that no URL rule matched are tried by their breadcrumb text.
+    breadcrumb_groups:
+      personal_loans: [kredit, ipoteka, кредит, ипотек, loan, mortgage]
+      personal_cards: [karta, карт, card]
+      personal_deposits: [omonat, вклад, deposit]
+      business: [biznes, бизнес, business, yuridik, юридическ, korporativ, корпоратив]
+      about: [bank haqida, о банке, about]
+
+  # ── BRB-TECH ──────────────────────────────────────────────────────────
+  brbtech:
+    name: BRB-TECH
+    source: brbtech_api
+    base_url: https://brb-tech.uz
+    api_base: https://brb-tech.uz/api-client
+    # language code in our records → code the API and the site use (Uzbek only, as brb.uz)
+    languages: {uz: uz}
+    # The site's public pages per language. The home page holds "about",
+    # services, the work process and the team; the rest comes from the API.
+    html_pages: {uz: /}
+    html:
+      main_selector: div.min-h-screen
+      drop_selectors: [header, nav, footer, form, "[class*=modal]"]
+      drop_lines: [Batafsil, Подробнее, "Read more", "Learn more"]
+      title_suffixes: []
+    exclude: []
+    news:
+      patterns: []
+      max_age_days: 0                 # 0 = keep all (the site has few news items)
+    groups: {}
+    default_group: brbtech
+
+  # ── BRB exchange rates (every 15 minutes) ─────────────────────────────
+  # The "Valyutalar kursi" page fills its table with JavaScript from this JSON endpoint, so the HTML has
+  # no figures. We read the same endpoint and publish one page per rate type. Own job:
+  #   python -m brb_scraper run --site brb_rates     (deploy/brb-scraper-rates.timer)
+  brb_rates:
+    name: "BRB bank — valyuta kurslari"
+    source: currency_api
+    base_url: https://brb.uz
+    api_path: /api/currency/compare
+    page_url: https://brb.uz/valyutalar-kursi       # what people see; each record is <page_url>#<type>
+    rate_types:                                     # ?type=…  →  who the rates are for (Uzbek, as on the page)
+      jismoniy: jismoniy shaxslar
+      yuridik: yuridik shaxslar
+    # brb.uz robots.txt closes /api to bots. BRB-TECH, which runs the site, approved reading this one
+    # endpoint on 2026-11-24. Ask the web team to add `Allow: /api/currency/compare` to robots.txt,
+    # then delete this line.
+    robots_allow: [https://brb.uz/api/currency/compare]
+    exclude: []
+    news:
+      patterns: []
+      max_age_days: 0
+    groups: {}
+    default_group: currency

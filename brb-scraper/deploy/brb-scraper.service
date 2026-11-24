@@ -1,0 +1,17 @@
+# One scraper run (systemd user service, like CallMind's own services).
+# Install all three jobs: cp deploy/brb-scraper*.service deploy/brb-scraper*.timer ~/.config/systemd/user/
+#          && systemctl --user daemon-reload
+#          && systemctl --user enable --now brb-scraper.timer brb-scraper-daily.timer brb-scraper-rates.timer
+# Run now: systemctl --user start brb-scraper.service      Logs: journalctl --user -u brb-scraper
+[Unit]
+Description=BRB knowledge scraper, weekly full run (brb.uz, brb-tech.uz → CallMind)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/callmind/brb-scraper
+# CALLMIND_URL (http://127.0.0.1:8100 on the CallMind server) and CALLMIND_API_KEY live in .env.
+ExecStart=%h/callmind/brb-scraper/.venv/bin/python -m brb_scraper run
+# Exit 1 = partial (some pages failed or the safety brake held): still a finished run, see data/reports/all/latest.md.
+SuccessExitStatus=1
+TimeoutStartSec=1h

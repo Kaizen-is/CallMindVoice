@@ -1,0 +1,12 @@
+# Exchange rates only: brb.uz/api/currency/compare → two small pages in CallMind (~5 s, 2 requests).
+# Install with the weekly service (see brb-scraper.service), then: systemctl --user enable --now brb-scraper-rates.timer
+[Unit]
+Description=BRB exchange rates → CallMind
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/callmind/brb-scraper
+ExecStart=%h/callmind/brb-scraper/.venv/bin/python -m brb_scraper run --site brb_rates
+SuccessExitStatus=1
+TimeoutStartSec=10min

@@ -13,6 +13,7 @@ from typing import Any
 import regex as re
 
 from app.jscompat import JS_S, js_trim, utf16_slice
+from app.llm.goal_call import goal_block
 from app.llm.loan_call import calendar_block, identity_check, named_day
 
 LANGUAGE_NAME = {"uz": "Uzbek", "ru": "Russian", "en": "English"}
@@ -53,6 +54,8 @@ class GenerateInput:
     stream: bool | None = None
     # Fixed "now" for the loan calendar (tests); None = the real time.
     now: datetime | None = field(default=None, repr=False)
+    # A goal-led call (app.llm.goal_call.agent_goal); None = not one. Not in the TypeScript: a Python-only feature.
+    goal: dict[str, Any] | None = None
 
 
 def _target_name(inp: GenerateInput) -> str:
@@ -106,6 +109,15 @@ def system_prompt(inp: GenerateInput) -> str:
             inp.now,
         )
         if _target_name(inp)
+        else "",
+        # A goal-led call (Python only). Agents without a goal never reach this, so their prompt is unchanged.
+        goal_block(
+            inp.goal,
+            lang,
+            [*(h["text"] for h in history if h.get("role") == "caller"), inp.question],
+            inp.greeting,
+        )
+        if inp.goal and not _target_name(inp)
         else "",
     ]
     # `.filter(Boolean)`: the '' entries above disappear too, blank lines included.

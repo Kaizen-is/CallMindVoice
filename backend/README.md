@@ -69,7 +69,8 @@ busy machine run it on its own.
 | `app/dashboards.py`, `app/analytics.py`, `app/workspace.py` | Overview / analytics / numbers / team / settings / developers / billing data and their actions |
 | `app/model_lab.py`, `app/custom_voices.py`, `app/benchmark.py` | Model lab, designed / cloned voices, the deploy benchmark (once per site build) |
 | `app/routers/` | One router per area (table below) |
-| `alembic/` | Schema changes from now on (baseline `0001_baseline` = the state after the ten migrations) |
+| `app/rag/pages.py`, `app/rag/routing.py`, `app/llm/goal_call.py`, `app/brb_setup.py`, `app/default_agents.py` | Website knowledge, grouped search, goal-led calls, the BRB agents (`docs/brb-knowledge-agent.md`) |
+| `alembic/` | Schema changes from now on (baseline `0001_baseline` = the state after the ten migrations; `0002_website_knowledge`, `0003_shared_knowledge` add the website-knowledge tables and columns: run `alembic upgrade head`) |
 | `tests/` | pytest; `fixtures/schema.sql` is the database structure without data; `fixtures/golden_*.json` are outputs of the original TypeScript the Python must reproduce exactly |
 | `deploy/` | systemd units: `callmind-api.service`, `callmind-bridge.service` |
 
@@ -86,6 +87,9 @@ busy machine run it on its own.
 | `/api/speech/tts`, `/api/speech/stt`, `/api/models/stt` | `speech.py` | TTS (WAV or 16-bit PCM stream), STT, the STT lab |
 | `/api/telephony/bridge/{turn,filler,end}` | `telephony.py` | the phone bridge (`x-bridge-secret`) |
 | `/api/demo/{call,turn,end}`, `/api/logistics/{call,turn,end}` | `demo.py`, `logistics.py` | the public demos (no login; per-address limits) |
+| `/api/core/playground/{say,scenario,collect}` | `POST /playground/say`, `GET /playground/scenario`, `POST /playground/collect` (`playground_chat.py`) | typed turn for Python-only agents; the tester's role when a goal-led agent calls; what it collected (`call_results`) |
+| `/api/core/knowledge/{pages,groups}` | `PUT`/`GET /knowledge/pages`, `POST /knowledge/pages/delete`, `PUT /knowledge/groups` (`website_knowledge.py`) | website page import by URL for the BRB scraper (API key: `write` / `read`) |
+| `/api/core/agents/defaults` | `POST /agents/defaults` (`agents.py`) | copies the default BRB agents into the signed-in company once |
 | `/api/v1/calls`, `/api/v1/answer`, `/api/v1/documents` | `v1_calls.py`, `knowledge.py` | public API (API key with the right scope) |
 | (page data) | `GET /views/<page>` | `console-layout`, `overview`, `analytics`, `numbers`, `team`, `settings`, `developers`, `billing`, `knowledge`, `agent`, `playground`, `onboarding`, `inbox`, `calls`, `calls/<id>`, `live`, `models/lab`, `models/voices`, `dev/{stt,tts,voice-clone,voice-design}`, `demo`, `logistics` |
 | (server actions in `src/app/actions/*.ts`) | `POST /actions/<name>` | all 53: agent studio + onboarding + Playground chats (`agent_studio.py`), knowledge (`knowledge.py`), simulator / escalations / inbox (`operations.py`), numbers / team / keys / webhooks / settings / billing / gaps (`workspace_actions.py`), default model + custom voices (`models_voices.py`), login (`account.py`) |

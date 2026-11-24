@@ -7,6 +7,7 @@ latency instrumentation and knowledge-gap capture. The phone path and the
 Playground both call this, so the Playground is a true rehearsal of a call.
 """
 
+import asyncio
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -18,10 +19,13 @@ from app.engine.bus import publish
 from app.ids import new_id, now_iso
 from app.jscompat import js_fixed_number, js_json, js_round, js_trim, utf16_len, utf16_slice
 from app.llm.choice import agent_llm, safe_json
+from app.llm.goal_call import agent_goal
 from app.llm.prompts import GenerateInput
 from app.llm.provider import engine_name, generate_answer, sentiment_of, summarize_call
+from app.rag.library import knowledge_tenant
 from app.rag.retrieve import retrieve_async
-from app.rag.text import detect_language
+from app.rag.routing import has_grouped_knowledge, retrieve_routed
+from app.rag.text import detect_language, stems
 from app.webhooks import dispatch_webhook
 
 DEFAULT_ESCALATION = {
@@ -147,6 +151,16 @@ def _lookup_for(context: Context | None, caller_lines: list[str]) -> dict[str, s
     return {"extra_system": out.get("facts"), "extra_note": out.get("note")}
 
 
+def _names_its_subject(question: str, hit: dict[str, Any]) -> bool:
+    """Whether the question shares a word with the found page's title or place on the site (its subject)."""
+
+    def words(text: str) -> set[str]:
+        # Real words only: concept tags ("~payment") join "muddat" and "karta" and would name every page.
+        return {s for s in stems(text) if not s.startswith("~")}
+
+    return bool(words(question) & words(f"{hit.get('documentTitle') or ''} {hit.get('heading') or ''}"))
+
+
 def _ms(started: float) -> float:
     return (time.perf_counter() - started) * 1000
 
@@ -181,22 +195,52 @@ async def run_turn(
     policy = agent_escalation(agent)
     threshold = agent["confidence_threshold"] if agent.get("confidence_threshold") is not None else 0.55
 
-    # retrieval
+    # retrieval — in the agent's knowledge base (its own company's, or a shared library: app.rag.library);
+    # grouped (app.rag.routing) where the pages came from a website import, else the plain search
+    with db.connect() as conn:
+        kb_tenant = knowledge_tenant(conn, agent, tenant_id)
+        routed = has_grouped_knowledge(conn, kb_tenant)
+
+    async def search(query: str) -> Any:
+        if routed:
+            return await retrieve_routed(
+                kb_tenant, query, language=language, threshold=threshold, call_id=call_id, top_k=5
+            )
+        return await retrieve_async(kb_tenant, query, top_k=5)
+
     t_retrieve = time.perf_counter()
-    retrieval = await retrieve_async(tenant_id, utterance, top_k=5)
+    if routed and model_history:
+        # Grouped search (Python only): a follow-up ("Uning foizi qancha?", "o'rtada yechib olsam bo'ladimi?")
+        # rarely names its subject, and a generic page can match the bare words confidently — the retry below
+        # then never runs and the answer comes from the wrong page. So the bare question and the question in
+        # context (the caller's last lines and the agent's last answer, which names the product) are searched
+        # side by side. If the bare question names the page it found ("Humo kartasini…" → "Humo"), it stands
+        # on its own (a change of topic); otherwise it is a follow-up and the search in context is used.
+        # (Comparing confidences does not work: a longer query lowers every page's coverage.)
+        recent = [js_trim(t["text"]) for t in model_history if t["role"] == "caller"][-2:]
+        last_reply = next((t["text"] for t in reversed(model_history) if t["role"] == "agent"), "")
+        context_query = "\n".join([*(t for t in recent if t), utf16_slice(last_reply, 0, 300), utterance])
+        bare, in_context = await asyncio.gather(search(utterance), search(context_query))
+        if bare.hits and _names_its_subject(utterance, bare.hits[0]):
+            retrieval = bare
+        else:
+            retrieval = in_context if in_context.hits else bare
+    else:
+        retrieval = await search(utterance)
     # Short follow-ups ("dam olish kunlari-chi?") may not repeat the subject: if the lookup is weak,
     # retry once with the two most recent caller turns and keep the more confident one.
-    if model_history and retrieval.confidence < threshold:
+    if not routed and model_history and retrieval.confidence < threshold:
         recent = [js_trim(t["text"]) for t in model_history if t["role"] == "caller"][-2:]
         recent = [t for t in recent if t]
         if recent:
-            contextual = await retrieve_async(tenant_id, "\n".join([*recent, utterance]), top_k=5)
+            contextual = await search("\n".join([*recent, utterance]))
             if contextual.confidence > retrieval.confidence:
                 retrieval = contextual
     retrieval_ms = _ms(t_retrieve)
 
     # generation
     target = target if target is not None else agent_target(agent)
+    goal = agent_goal(agent)
     caller_lines = [*(t["text"] for t in model_history if t["role"] == "caller"), utterance]
     t_gen = time.perf_counter()
     generated = await generate_answer(
@@ -215,6 +259,7 @@ async def run_turn(
             time_zone=agent_hours(agent)["timezone"],
             llm=agent_llm(agent),
             stream=stream_llm,
+            goal=goal,
             **_lookup_for(context, caller_lines),
         ),
         on_delta,
@@ -225,17 +270,26 @@ async def run_turn(
     sentiment = sentiment_of(utterance)
     failed_before = sum(1 for h in history if h["role"] == "system" and h["text"] == "__unanswered__")
     is_loan_call = bool(target.get("fullName"))
+    # A goal-led call (Python only) is the agent's own outbound call, like the loan call: no live transfer,
+    # and a question the knowledge base cannot answer is promised to a specialist, not handed to the inbox.
+    is_goal_call = goal is not None and not is_loan_call
+    no_transfer = is_loan_call or is_goal_call
 
     escalate: str | None = None
     # A loan call has no live transfer: the agent says a colleague will call back and keeps going.
-    if policy["onExplicitRequest"] and generated["intent"] == "human" and not is_loan_call:
+    if policy["onExplicitRequest"] and generated["intent"] == "human" and not no_transfer:
         escalate = "explicit_request"
-    elif policy["onLowConfidence"] and not generated["answered"]:
+    elif policy["onLowConfidence"] and not generated["answered"] and not is_goal_call:
         escalate = "low_confidence"
     # On a loan call, "I have money problems" is the expected answer, not a reason to pull the person away.
-    elif policy["onNegativeSentiment"] and sentiment <= -0.5 and not is_loan_call:
+    elif policy["onNegativeSentiment"] and sentiment <= -0.5 and not no_transfer:
         escalate = "negative_sentiment"
-    elif policy["onRepeatedFailure"] and not generated["answered"] and failed_before + 1 >= policy["maxFailedTurns"]:
+    elif (
+        policy["onRepeatedFailure"]
+        and not generated["answered"]
+        and failed_before + 1 >= policy["maxFailedTurns"]
+        and not is_goal_call
+    ):
         escalate = "repeated_failure"
     elif (
         policy["afterHoursAction"] != "answer_anyway"
@@ -380,6 +434,8 @@ async def run_turn(
             },
         }
     )
+    if retrieval.extra.get("routing"):  # grouped search only: which shelf was searched, and why
+        result["retrievalDebug"]["routing"] = retrieval.extra["routing"]
     return result
 
 
