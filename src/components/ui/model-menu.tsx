@@ -2,7 +2,8 @@
 
 /**
  * A compact model picker: a button showing the chosen model; a click opens the
- * list. Models this server cannot run are shown dimmed with what they need.
+ * list of model names. Models this server cannot run are dimmed (what they need
+ * shows on hover).
  * Used by For developers ▸ STT, the Playground and Models ▸ Voices.
  */
 import { useEffect, useRef, useState } from 'react';
@@ -12,7 +13,7 @@ import { IconCheck, IconChevronDown } from '@/components/icons';
 export interface ModelOption {
   id: string;
   name: string;
-  /** Short note on the right, e.g. the vendor or a price. */
+  /** A short note (vendor, price); kept for callers, not shown in the list. */
   detail?: string;
   ready: boolean;
   /** What it needs when not ready, e.g. an env var. */
@@ -93,6 +94,7 @@ export function ModelMenu({
                 role="option"
                 aria-selected={selected}
                 disabled={!o.ready}
+                title={o.ready ? undefined : needsLabel.replace('{setup}', o.setup ?? '')}
                 onClick={() => {
                   onChange(o.id);
                   setOpen(false);
@@ -106,9 +108,6 @@ export function ModelMenu({
               >
                 <span className="flex w-3.5 shrink-0 justify-center text-brand">{selected && <IconCheck size={13} />}</span>
                 <span className="min-w-0 flex-1 truncate text-ink">{o.name}</span>
-                <span className="shrink-0 text-[11px] text-ink-3">
-                  {o.ready ? o.detail : needsLabel.replace('{setup}', o.setup ?? '')}
-                </span>
               </button>
             );
           })}

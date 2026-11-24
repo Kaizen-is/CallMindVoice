@@ -40,6 +40,20 @@ ENGINES: tuple[EngineInfo, ...] = (
     EngineInfo(
         "stt", "speko", "gemini-3.5", "Google", "cloud", False, ("uz", "ru", "en"), 0.005, "SPEKO_API_KEY", via="Speko"
     ),
+    # The streaming variant of gemini-3.5: in the Playground it streams (a phrase at a time, as soon as
+    # the caller pauses; app/speech/speko_live.py), elsewhere it gets one finished utterance.
+    EngineInfo(
+        "stt",
+        "speko_live",
+        "gemini-3.5 live",
+        "Google",
+        "cloud",
+        True,
+        ("uz", "ru", "en"),
+        None,
+        "SPEKO_API_KEY",
+        via="Speko",
+    ),
     EngineInfo(
         "stt",
         "scribe",
@@ -49,6 +63,19 @@ ENGINES: tuple[EngineInfo, ...] = (
         False,
         ("uz", "ru", "en"),
         0.0065,
+        "SPEKO_API_KEY",
+        via="Speko",
+    ),
+    # ElevenLabs Scribe v3 Live: word by word while the caller speaks (Playground live words).
+    EngineInfo(
+        "stt",
+        "scribe_live",
+        "ElevenLabs Scribe v3 Live",
+        "ElevenLabs",
+        "cloud",
+        True,
+        ("uz", "ru", "en"),
+        None,
         "SPEKO_API_KEY",
         via="Speko",
     ),
@@ -84,6 +111,32 @@ ENGINES: tuple[EngineInfo, ...] = (
         True,
         ("uz", "ru", "en"),
         0.036,
+        "SPEKO_API_KEY",
+        via="Speko",
+    ),
+    # Gemini's TTS through Speko (24 kHz only; other rates converted in app/speech/resample.py).
+    # Speko's model list carries no prices yet: None until they are known.
+    EngineInfo(
+        "tts",
+        "gemini-3.8-flash-tts",
+        "Gemini 3.8 Flash TTS",
+        "Google",
+        "cloud",
+        True,
+        ("uz", "ru", "en"),
+        None,
+        "SPEKO_API_KEY",
+        via="Speko",
+    ),
+    EngineInfo(
+        "tts",
+        "gemini-3.8-flash-lite-tts",
+        "Gemini 3.8 Flash-Lite TTS",
+        "Google",
+        "cloud",
+        True,
+        ("uz", "ru", "en"),
+        None,
         "SPEKO_API_KEY",
         via="Speko",
     ),

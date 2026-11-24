@@ -1,8 +1,10 @@
 'use client';
 
 /**
- * Word-by-word transcript from Zipformer, the streaming Uzbek model that runs
- * inside the app (`@/lib/speech/zipformer`, route `/api/speech/live`).
+ * Live transcript while the caller speaks (route `/api/speech/live`): from
+ * Zipformer, the streaming Uzbek model inside the app (`engine` 'local'), or a
+ * streaming model through Speko — 'scribe_live' (ElevenLabs Scribe v3 Live,
+ * word by word) or 'gemini_live' (gemini-3.5-transcribe-live, a phrase at a time).
  *
  * While `active`, the microphone is resampled to 16 kHz mono by the
  * AudioContext and posted in ~quarter-second pieces; each answer is the whole
@@ -20,7 +22,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const SAMPLE_RATE = 16000;
 const FRAME_SAMPLES = 1600; // the worklet posts every 100 ms
-const SEND_EVERY_SAMPLES = 4000; // a request at most every 250 ms
+const SEND_EVERY_SAMPLES = 4000; // a request at most every 250 ms (the in-app Zipformer)
+const SEND_EVERY_SAMPLES_SPEKO = 1600; // every 100 ms for a streaming Speko model: its words show sooner
 
 /** Collects mic samples on the audio thread and posts them in fixed frames. */
 const WORKLET = `
@@ -51,7 +54,18 @@ function toPcm16(frames: Float32Array[]): Blob {
   return new Blob([out.buffer], { type: 'application/octet-stream' });
 }
 
-export function useLiveTranscript({ url, active }: { url: string | null; active: boolean }) {
+export function useLiveTranscript({
+  url,
+  active,
+  engine = 'local',
+  language = 'uz',
+}: {
+  url: string | null;
+  active: boolean;
+  /** Which streaming model hears the caller: 'local' (Zipformer), 'scribe_live' or 'gemini_live'. */
+  engine?: string;
+  language?: string;
+}) {
   const [text, setText] = useState('');
   const [connected, setConnected] = useState(false);
   /** The whole utterance so far. */
@@ -65,6 +79,10 @@ export function useLiveTranscript({ url, active }: { url: string | null; active:
   const genRef = useRef(0);
   const urlRef = useRef(url);
   urlRef.current = url;
+  const engineRef = useRef(engine);
+  engineRef.current = engine;
+  const languageRef = useRef(language);
+  languageRef.current = language;
 
   const show = (value: string) => {
     textRef.current = value;
@@ -77,6 +95,8 @@ export function useLiveTranscript({ url, active }: { url: string | null; active:
     const form = new FormData();
     form.append('sid', sidRef.current);
     form.append('op', op);
+    form.append('engine', engineRef.current);
+    form.append('language', languageRef.current);
     if (audio) form.append('audio', audio, 'piece.pcm');
     try {
       const res = await fetch(target, { method: 'POST', body: form });
@@ -102,7 +122,8 @@ export function useLiveTranscript({ url, active }: { url: string | null; active:
 
   /** Send the piled-up audio if nothing is in flight. */
   const pump = useCallback(() => {
-    if (inflightRef.current || pendingSamplesRef.current < SEND_EVERY_SAMPLES) return;
+    const every = engineRef.current === 'local' ? SEND_EVERY_SAMPLES : SEND_EVERY_SAMPLES_SPEKO;
+    if (inflightRef.current || pendingSamplesRef.current < every) return;
     const gen = genRef.current;
     const audio = toPcm16(takePending());
     const job = post('feed', audio).then((heard) => {
@@ -195,12 +216,13 @@ export function useLiveTranscript({ url, active }: { url: string | null; active:
       const form = new FormData();
       form.append('sid', sid);
       form.append('op', 'close');
+      form.append('engine', engine);
       void fetch(url, { method: 'POST', body: form, keepalive: true }).catch(() => {});
       sidRef.current = '';
       show('');
       setConnected(false);
     };
-  }, [active, url, post, pump]);
+  }, [active, url, engine, post, pump]);
 
   return { text, connected, reset, finish };
 }

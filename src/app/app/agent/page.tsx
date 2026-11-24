@@ -1,41 +1,36 @@
 import type { Metadata } from 'next';
+import type { ComponentProps } from 'react';
 import { requireSession } from '@/lib/auth';
-import { get } from '@/lib/db';
-import { liveAgent, listAgents } from '@/lib/engine/calls';
-import { agentEscalation, agentHours, agentTarget } from '@/lib/engine/conversation';
-import { knowledgeStats } from '@/lib/analytics';
+import { coreGet } from '@/lib/core';
 import { translator } from '@/lib/i18n';
-import type { Agent, Locale } from '@/lib/types';
-import { safeJson } from '@/lib/utils';
-import { listCustomVoices } from '@/lib/voices';
-import { engineLabel } from '@/lib/llm/provider';
-import { llmOptions, tenantDefaultLlm } from '@/lib/llm/choice';
-import { ENGINES } from '@/lib/speech/registry';
-import { ELEVEN_VOICES } from '@/lib/speech/speko';
-import { ttsEngines } from '@/lib/speech/tts';
 import { AgentStudio } from './studio';
 
 export const metadata: Metadata = { title: 'Agent studio' };
 export const dynamic = 'force-dynamic';
+
+type StudioProps = ComponentProps<typeof AgentStudio>;
+
+/** The studio's data, from the Python backend (`GET /views/agent`); `agent` is null when the tenant has none. */
+type AgentPageData =
+  | { agent: null }
+  | (Omit<StudioProps, 'locale' | 'agent'> & { agent: StudioProps['agent'] });
 
 export default async function AgentPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const { tenant, user } = await requireSession();
+  const { user } = await requireSession();
   const t = translator(user.locale);
   const params = await searchParams;
-  const agents = listAgents(tenant.id);
 
   // The studio edits the agent named in ?agent=<id> (verified against the tenant),
   // defaulting to the live agent — which stays the telephony/simulator default.
-  const agent =
-    (params.agent
-      ? get<Agent>('SELECT * FROM agents WHERE id=? AND tenant_id=?', params.agent, tenant.id)
-      : undefined) ?? liveAgent(tenant.id);
+  const data = await coreGet<AgentPageData>(
+    params.agent ? `/views/agent?agent=${encodeURIComponent(params.agent)}` : '/views/agent',
+  );
 
-  if (!agent) {
+  if (!data.agent) {
     return (
       <div className="mx-auto max-w-2xl py-20 text-center">
         <h1 className="text-[22px] font-semibold text-ink">{t('agent.noAgent.title', 'No agent yet')}</h1>
@@ -49,48 +44,23 @@ export default async function AgentPage({
     );
   }
 
+  const studio = data as Exclude<AgentPageData, { agent: null }>;
   return (
     <AgentStudio
-      key={agent.id}
+      key={studio.agent.id}
       locale={user.locale}
-      canEdit={user.role === 'owner' || user.role === 'admin'}
-      knowledgeChunks={knowledgeStats(tenant.id).chunks}
-      agents={agents}
-      customVoices={listCustomVoices(tenant.id).map((v) => ({ id: v.id, name: v.name, mode: v.mode }))}
-      llmOptions={llmOptions()}
+      canEdit={studio.canEdit}
+      knowledgeChunks={studio.knowledgeChunks}
+      agents={studio.agents}
+      customVoices={studio.customVoices}
+      llmOptions={studio.llmOptions}
       // What "Account default" means here, e.g. "OpenAI gpt-5.5".
-      llmDefaultLabel={engineLabel(tenantDefaultLlm(tenant.id))}
-      // ElevenLabs models (through Speko) an agent can speak with; '' = own TTS.
-      ttsModels={ENGINES.filter((e) => e.kind === 'tts' && e.id !== 'default').map((e) => ({
-        id: e.id,
-        name: e.name,
-        pricePerMin: e.pricePerMin,
-        ready: Boolean((ttsEngines() as Record<string, boolean>)[e.id]),
-        setup: e.setup,
-      }))}
-      elevenVoices={ELEVEN_VOICES.map((v) => ({ id: v.id, name: v.name, note: v.note }))}
-      agent={{
-        id: agent.id,
-        name: agent.name,
-        status: agent.status,
-        persona: agent.persona,
-        greeting: agent.greeting,
-        fallbackLine: agent.fallback_line,
-        instructions: agent.instructions,
-        languages: safeJson<Locale[]>(agent.languages_json, ['uz', 'ru', 'en']),
-        primaryLang: agent.primary_lang,
-        voiceId: agent.voice_id,
-        speakingRate: agent.speaking_rate,
-        maxTurns: agent.max_turns,
-        confidenceThreshold: agent.confidence_threshold,
-        version: agent.version,
-        escalation: agentEscalation(agent),
-        hours: agentHours(agent),
-        target: agentTarget(agent),
-        llmModel: agent.llm_model ?? '',
-        ttsEngine: agent.tts_engine ?? '',
-        ttsVoiceId: agent.tts_voice_id ?? '',
-      }}
+      llmDefaultLabel={studio.llmDefaultLabel}
+      // Speko models (ElevenLabs, Gemini) and the BRB model an agent can speak with; '' = own TTS.
+      ttsModels={studio.ttsModels}
+      elevenVoices={studio.elevenVoices}
+      geminiVoices={studio.geminiVoices}
+      agent={studio.agent}
     />
   );
 }

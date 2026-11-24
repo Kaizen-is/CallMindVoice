@@ -38,22 +38,48 @@ const serverActionOrigins = (process.env.SERVER_ACTIONS_ALLOWED_ORIGINS ?? '')
   .filter(Boolean);
 
 /**
- * The Python backend (FastAPI, `backend/`), which takes over this app's server
- * code area by area. It listens privately on 127.0.0.1:8100; the browser
- * reaches it only through this app, as `/api/core/*` — so the edge proxy needs
- * no change and the login cookie travels with every request. Read at build
- * time; set CORE_API_URL to point elsewhere.
+ * The Python backend (FastAPI, `backend/`), which runs all of CallMind's server
+ * code. It listens privately on 127.0.0.1:8100; the browser reaches it only
+ * through this app, as `/api/core/*` — so the edge proxy needs no change and
+ * the login cookie travels with every request. Read at build time; set
+ * CORE_API_URL to point elsewhere.
  */
 const coreApiUrl = (process.env.CORE_API_URL ?? 'http://127.0.0.1:8100').replace(/\/+$/, '');
 
+/**
+ * Routes the Python backend serves at their original paths (this app has no
+ * API routes of its own): the pages, the phone bridge and API clients keep
+ * calling the same URLs. Each entry forwards `/api/<path>` to `/<path>`.
+ */
+const pythonRoutes = [
+  // Phase 1 — the Playground voice call and the console's speech routes.
+  '/api/playground/:path*',
+  '/api/speech/live',
+  '/api/speech/tts',
+  '/api/speech/stt',
+  '/api/models/stt',
+  // Phase 2 — the phone line: the AudioSocket bridge's turn, filler and end calls.
+  '/api/telephony/:path*',
+  // Phase 3 — the public bank demo and logistics demo (no login, per-address limits).
+  '/api/demo/:path*',
+  '/api/logistics/:path*',
+  // Phase 4 — the live wallboard feed and the public API (API-key auth): calls, answer, documents.
+  '/api/stream',
+  '/api/v1/:path*',
+];
+
 const nextConfig: NextConfig = {
-  // sherpa-onnx-node is a native addon (Zipformer STT): loaded at runtime, never bundled.
-  serverExternalPackages: ['mammoth', 'unpdf', 'sherpa-onnx-node'],
+  // sherpa-onnx-node (the native Zipformer addon) stays installed for the CI image check
+  // (scripts/ci-isolated-smoke.sh); speech recognition itself runs in the Python backend.
+  serverExternalPackages: ['sherpa-onnx-node'],
   allowedDevOrigins,
   async rewrites() {
     return {
       // Before the app's own routes, so /api/core/* is always the Python backend.
-      beforeFiles: [{ source: '/api/core/:path*', destination: `${coreApiUrl}/:path*` }],
+      beforeFiles: [
+        { source: '/api/core/:path*', destination: `${coreApiUrl}/:path*` },
+        ...pythonRoutes.map((source) => ({ source, destination: `${coreApiUrl}${source.slice('/api'.length)}` })),
+      ],
       afterFiles: [],
       fallback: [],
     };

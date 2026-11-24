@@ -28,7 +28,7 @@ from app.llm.local import classify_intent
 from app.playground import call_voice
 from app.rag.text import detect_language
 from app.speech.fillers import filler_lines, fillers_enabled
-from app.speech.speko import ELEVEN_VOICES
+from app.speech.speko import ELEVEN_VOICES, GEMINI_VOICES, speko_voices
 from app.speech.stt import Transcript, is_stt_engine, transcribe
 from app.speech.tts import (
     SAMPLE_RATE,
@@ -125,12 +125,13 @@ def voice_pick(agent: dict[str, Any], engine: object, voice: object) -> VoicePic
     if tts == "brb":  # our BRB model has a single voice
         return VoicePick(tts, "")
     want = voice if isinstance(voice, str) and voice else agent.get("tts_voice_id")
-    known = any(v["id"] == want for v in ELEVEN_VOICES)
-    return VoicePick(tts, want if known else ELEVEN_VOICES[0]["id"])  # type: ignore[arg-type]
+    voices = speko_voices(tts)  # the model's own voices: ElevenLabs' or Gemini's
+    known = any(v["id"] == want for v in voices)
+    return VoicePick(tts, want if known else voices[0]["id"])  # type: ignore[arg-type]
 
 
 def _voice_name(agent: dict[str, Any], voice_id: str | None) -> str | None:
-    for v in (*VOICES, *ELEVEN_VOICES):
+    for v in (*VOICES, *ELEVEN_VOICES, *GEMINI_VOICES):
         if v["id"] == voice_id:
             return v["name"]
     return next((v["name"] for v in list_custom_voices(agent["tenant_id"]) if v["id"] == voice_id), None)

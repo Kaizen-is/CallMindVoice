@@ -1,20 +1,33 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { get, now, run } from '@/lib/db';
-import { audit, createSession, currentSession, destroySession, requireSession, verifyPassword } from '@/lib/auth';
-import { provisionTenant } from '@/lib/provision';
+import { corePost } from '@/lib/core';
 import { LOCALES, translator } from '@/lib/i18n';
-import type { UiLocale, User } from '@/lib/types';
+import type { UiLocale } from '@/lib/types';
+
+const SESSION_COOKIE = 'ovoz_session';
+
+/** Store the session Python created, with the cookie attributes createSession always used. */
+async function setSessionCookie(token: string, expires: string) {
+  // Secure only when the edge connection is actually HTTPS (x-forwarded-proto); a Secure cookie
+  // sent over plain http:// is never stored and the login would silently not stick.
+  const proto = ((await headers()).get('x-forwarded-proto') ?? '').split(',')[0].trim();
+  (await cookies()).set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: proto === 'https',
+    path: '/',
+    expires: new Date(expires),
+  });
+}
 
 export interface FormState {
   error?: string;
   ok?: boolean;
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /** Translator bound to the visitor's `ovoz_locale` cookie (Uzbek default), so
  *  auth error messages come back in the same language as the login form. */
@@ -26,65 +39,46 @@ async function authTranslator() {
 
 export async function signUpAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const t = await authTranslator();
-  const company = String(formData.get('company') ?? '').trim();
-  const fullName = String(formData.get('name') ?? '').trim();
-  const email = String(formData.get('email') ?? '').trim();
-  const password = String(formData.get('password') ?? '');
-  const industry = String(formData.get('industry') ?? 'other');
-
-  if (company.length < 2) return { error: t('auth.err.company') };
-  if (fullName.length < 2) return { error: t('auth.err.name') };
-  if (!EMAIL_RE.test(email)) return { error: t('auth.err.email') };
-  if (password.length < 8) return { error: t('auth.err.password') };
-
-  let created: { tenantId: string; userId: string };
-  try {
-    created = provisionTenant({ company, industry, fullName, email, password });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '';
-    if (message.toLowerCase().includes('already exists')) {
-      return { error: t('auth.err.emailExists') };
-    }
-    return { error: t('auth.err.createFailed') };
-  }
-
-  await createSession(created.userId, created.tenantId);
-  redirect('/onboarding');
+  // Python validates the form, creates the company, its owner, a first agent and a number
+  // (provisionTenant) and the session; error messages come back as keys and are translated here.
+  const result = await corePost<{ errorKey?: string; token?: string; expires?: string; redirect?: string }>(
+    '/actions/signUpAction',
+    {
+      company: String(formData.get('company') ?? ''),
+      name: String(formData.get('name') ?? ''),
+      email: String(formData.get('email') ?? ''),
+      password: String(formData.get('password') ?? ''),
+      industry: String(formData.get('industry') ?? 'other'),
+    },
+  );
+  if (result.errorKey || !result.token || !result.expires) return { error: t(result.errorKey ?? 'auth.err.createFailed') };
+  await setSessionCookie(result.token, result.expires);
+  redirect(result.redirect ?? '/onboarding');
 }
 
 export async function signInAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const t = await authTranslator();
-  const email = String(formData.get('email') ?? '').trim().toLowerCase();
-  const password = String(formData.get('password') ?? '');
-
-  const user = get<User>('SELECT * FROM users WHERE email=?', email);
-  if (!user || !verifyPassword(password, user.password_hash)) {
-    // Same message either way — never reveal whether an address is registered.
-    return { error: t('auth.err.credentials') };
-  }
-  if (user.status === 'disabled') return { error: t('auth.err.disabled') };
-
-  await createSession(user.id, user.tenant_id);
-  audit(user.tenant_id, { id: user.id, name: user.name }, 'auth.signin', user.id);
-
-  const tenant = get<{ onboarded: number }>('SELECT onboarded FROM tenants WHERE id=?', user.tenant_id);
-  redirect(tenant?.onboarded ? '/app' : '/onboarding');
+  // Python checks the password, writes the session and the audit row (same message for a wrong
+  // address or password — never reveal whether an address is registered).
+  const result = await corePost<{ errorKey?: string; token?: string; expires?: string; redirect?: string }>(
+    '/actions/signInAction',
+    { email: String(formData.get('email') ?? ''), password: String(formData.get('password') ?? '') },
+  );
+  if (result.errorKey || !result.token || !result.expires) return { error: t(result.errorKey ?? 'auth.err.credentials') };
+  await setSessionCookie(result.token, result.expires);
+  redirect(result.redirect ?? '/app');
 }
 
 export async function signOutAction() {
-  const session = await requireSession().catch(() => null);
-  if (session) {
-    audit(session.tenant.id, { id: session.user.id, name: session.user.name }, 'auth.signout');
-  }
-  await destroySession();
+  // Python writes the audit row and ends the session; the cookie is dropped here.
+  await corePost('/actions/signOutAction');
+  (await cookies()).delete(SESSION_COOKIE);
   redirect('/login');
 }
 
 export async function setLocaleAction(locale: UiLocale) {
   if (!LOCALES.includes(locale)) return;
-  const { user, tenant } = await requireSession();
-  run('UPDATE users SET locale=?, updated_at=? WHERE id=?', locale, now(), user.id);
-  run('UPDATE tenants SET locale=?, updated_at=? WHERE id=?', locale, now(), tenant.id);
+  await corePost('/actions/setLocaleAction', { locale });
   revalidatePath('/app', 'layout');
 }
 
@@ -105,10 +99,7 @@ export async function setPublicLocaleAction(formData: FormData) {
     maxAge: 60 * 60 * 24 * 365,
     sameSite: 'lax',
   });
-  const session = await currentSession();
-  if (session) {
-    run('UPDATE users SET locale=?, updated_at=? WHERE id=?', locale, now(), session.user.id);
-    run('UPDATE tenants SET locale=?, updated_at=? WHERE id=?', locale, now(), session.tenant.id);
-  }
+  // Mirrored into the user and company records when signed in (Python).
+  await corePost('/actions/setPublicLocaleAction', { locale });
   revalidatePath('/', 'layout');
 }

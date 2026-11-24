@@ -1,7 +1,7 @@
 """
-Alembic: schema changes for the shared database, from now on written here
-instead of in the TypeScript migrations (src/lib/db.ts, frozen at
-010_agent_tts). Migrations are plain SQL via `op.execute` / `op.add_column`.
+Alembic: schema changes for the database, written here. The original schema
+(001_core … 010_agent_tts) is applied by app/schema.py when the API starts;
+revisions build on `0001_baseline`. Plain SQL via `op.execute` / `op.add_column`.
 """
 
 from alembic import context

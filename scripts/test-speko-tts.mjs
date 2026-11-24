@@ -3,7 +3,7 @@
  * Check that the Speko/ElevenLabs TTS models speak Uzbek.
  *
  * Renders one Uzbek sentence with each model through the same Router call the
- * app makes (`src/lib/speech/speko.ts`), saves data/speko-<model>.wav to
+ * app makes (`backend/app/speech/speko.py`), saves data/speko-<model>.wav to
  * listen to, and prints status, latency to first audio, and length.
  *
  *   npm run test:speko

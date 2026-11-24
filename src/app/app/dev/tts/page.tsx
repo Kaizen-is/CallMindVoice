@@ -1,40 +1,29 @@
 import type { Metadata } from 'next';
+import type { ComponentProps } from 'react';
 import { requireSession } from '@/lib/auth';
-import { all } from '@/lib/db';
-import { listSpeechTests } from '@/lib/engine/calls';
-import { VOICES } from '@/lib/catalog';
-import { listCustomVoices } from '@/lib/voices';
-import { brbConfigured } from '@/lib/speech/brb';
-import { ELEVEN_VOICES, spekoConfigured } from '@/lib/speech/speko';
+import { coreGet } from '@/lib/core';
 import { TtsLab } from './tts-lab';
 
 export const metadata: Metadata = { title: 'Text to Speech' };
 export const dynamic = 'force-dynamic';
 
-export default async function DevTtsPage() {
-  const { tenant, user } = await requireSession();
+/** Agents with their voices, every voice, recent tests and what is set up, from `GET /views/dev/tts`. */
+type TtsData = Omit<ComponentProps<typeof TtsLab>, 'locale'>;
 
-  // The voice selector needs each agent's voice, so load id/name/voice_id
-  // directly (listAgents intentionally exposes only id/name/status).
-  const agents = all<{ id: string; name: string; voice_id: string }>(
-    'SELECT id, name, voice_id FROM agents WHERE tenant_id=? ORDER BY created_at ASC',
-    tenant.id,
-  );
-  const history = listSpeechTests(tenant.id, 'tts');
+export default async function DevTtsPage() {
+  const { user } = await requireSession();
+  const data = await coreGet<TtsData>('/views/dev/tts');
 
   return (
     <TtsLab
       locale={user.locale}
-      agents={agents.map((a) => ({ id: a.id, name: a.name, voiceId: a.voice_id }))}
-      voices={VOICES.map((v) => ({ id: v.id, name: v.name }))}
-      customVoices={listCustomVoices(tenant.id).map((v) => ({ id: v.id, name: v.name }))}
-      elevenVoices={ELEVEN_VOICES.map((v) => ({ id: v.id, name: v.name }))}
-      history={history}
-      speech={{
-        tts: Boolean(process.env.TTS_CLIENT_SECRET || process.env.TTS_JWT_TOKEN),
-        eleven: spekoConfigured(),
-        brb: brbConfigured(),
-      }}
+      agents={data.agents}
+      voices={data.voices}
+      customVoices={data.customVoices}
+      elevenVoices={data.elevenVoices}
+      geminiVoices={data.geminiVoices}
+      history={data.history}
+      speech={data.speech}
     />
   );
 }

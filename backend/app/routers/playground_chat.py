@@ -1,9 +1,9 @@
 """
-Playground extras served by Python (the page uses them with `?py=1`):
+Playground extras for goal-led agents:
 
-    POST /playground/say        a typed turn — the Python twin of `playgroundTurnAction`
-                                (src/app/actions/agent.ts), same reply shape, so typed chat
-                                also gets the Python-only features (grouped search, goal calls)
+    POST /playground/say        a typed turn, same reply shape as `playgroundTurnAction`
+                                (app/playground_chats.py), which the page itself uses; kept
+                                for API clients and tests
     GET  /playground/scenario   ?agentId= — who the tester plays when a goal agent calls them
     POST /playground/collect    {callId} — what the goal agent collected in that call (stored)
 
@@ -55,7 +55,7 @@ async def say(request: Request, session: LoggedIn) -> JSONResponse:
 
     call_id = body.get("callId") if isinstance(body.get("callId"), str) else None
     if call_id:
-        # A chat reopened from the chats rail continues even after it was closed, as in the TypeScript action.
+        # A chat reopened from the chats rail continues even after it was closed, as in `playgroundTurnAction`.
         if not owned_playground_call(tenant_id, call_id, agent["id"]):
             return _fail("That test session has expired.")
     else:

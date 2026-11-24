@@ -2,12 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireSession } from '@/lib/auth';
+import { coreGet } from '@/lib/core';
 import { translator } from '@/lib/i18n';
-import { get } from '@/lib/db';
-import { callWithTurns } from '@/lib/engine/calls';
 import { CALL_STATUS_LABEL, ESCALATION_REASON_LABEL, OUTCOME_LABEL } from '@/lib/catalog';
-import type { Escalation } from '@/lib/types';
-import { cn, fmtDateTime, fmtDuration, fmtLatency, fmtMoney, safeJson } from '@/lib/utils';
+import type { Call, Escalation, Turn } from '@/lib/types';
+import { cn, fmtDateTime, fmtDuration, fmtLatency, fmtMoney } from '@/lib/utils';
 import { Badge, Card, KeyValue, PageHeader } from '@/components/ui/primitives';
 import {
   IconAlert,
@@ -29,18 +28,22 @@ const STAGES = [
   { key: 'ttsMs', tkey: 'calls.stage.synthesis', label: 'Synthesis', color: 'var(--series-4)' },
 ];
 
+/** The call with its transcript (`callWithTurns`) and latest hand-off, from the Python backend. */
+interface CallDetail {
+  call: Call;
+  turns: Array<Turn & { citations: unknown[]; timings: Record<string, number> }>;
+  escalation: Escalation | null;
+}
+
 export default async function CallDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { tenant, user } = await requireSession();
+  const { user } = await requireSession();
   const t = translator(user.locale);
   const { id } = await params;
-  const data = callWithTurns(tenant.id, id);
+  const data = await coreGet<CallDetail | null>(`/views/calls/${encodeURIComponent(id)}`);
   if (!data) notFound();
 
   const { call, turns } = data;
-  const escalation = get<Escalation>(
-    'SELECT * FROM escalations WHERE call_id=? ORDER BY created_at DESC LIMIT 1',
-    call.id,
-  );
+  const escalation = data.escalation ?? undefined;
   const operatorMinutes = Math.round((call.duration_ms || 0) / 60000) || 1;
 
   return (

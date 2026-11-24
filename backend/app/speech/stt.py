@@ -29,6 +29,10 @@ from app.speech.gapi import gapi_configured, gapi_transcribe
 from app.speech.numbers import uzbek_numbers_to_digits
 from app.speech.speko import (
     SPEKO_GEMINI_ROUTE,
+    SPEKO_LIVE_MODEL,
+    SPEKO_LIVE_ROUTE,
+    SPEKO_SCRIBE_LIVE_MODEL,
+    SPEKO_SCRIBE_LIVE_ROUTE,
     SPEKO_SCRIBE_MODEL,
     SPEKO_SCRIBE_ROUTE,
     SPEKO_STT_MODEL,
@@ -42,7 +46,7 @@ log = logging.getLogger("callmind.stt")
 
 Transcript = dict  # {text, engine, language}
 
-STT_ENGINES = ("auto", "gapi", "local", "gemini", "scribe", "brb")
+STT_ENGINES = ("auto", "gapi", "local", "gemini", "gemini_live", "scribe", "scribe_live", "brb")
 
 
 class SttError(Exception):
@@ -69,7 +73,9 @@ def stt_engines() -> dict[str, bool]:
         "gapi": gapi_configured(),
         "local": zipformer.zipformer_available(),
         "gemini": speko_configured(),
+        "gemini_live": speko_configured(),
         "scribe": speko_configured(),
+        "scribe_live": speko_configured(),
         "brb": brb_stt_configured(),
     }
 
@@ -86,8 +92,10 @@ def stt_engine_ids() -> dict[str, bool]:
         "gapi": gapi_configured(),
         "local": zipformer.zipformer_available(),
         "speko": speko_configured(),
+        "speko_live": speko_configured(),
         "gemini": has_gemini(),
         "scribe": speko_configured(),
+        "scribe_live": speko_configured(),
         "brb": brb_stt_configured(),
     }
 
@@ -111,8 +119,12 @@ async def transcribe_one(engine: str, audio: bytes, language: str | None = None)
         return await _local_zipformer(audio)
     if engine == "speko":
         return await _speko_gemini(audio, language)
+    if engine == "speko_live":
+        return await _speko_gemini(audio, language, live=True)
     if engine == "scribe":
         return await _speko_scribe(audio, language)
+    if engine == "scribe_live":
+        return await _speko_scribe(audio, language, live=True)
     if engine == "brb":
         return await _brb_whisper(audio, language)
     heard = await _gemini(audio, language or "uz")
@@ -202,32 +214,44 @@ async def _local_zipformer(audio: bytes) -> Transcript:
     return await _logged("local", "uzbek-zipformer", audio, work)
 
 
-async def _speko_gemini(audio: bytes, language: str | None = None) -> Transcript:
+async def _speko_gemini(audio: bytes, language: str | None = None, live: bool = False) -> Transcript:
+    """gemini-3.5 through Speko; `live` = its streaming variant (engine `speko_live` in the usage log)."""
+    engine, model, route = (
+        ("speko_live", SPEKO_LIVE_MODEL, SPEKO_LIVE_ROUTE) if live else ("speko", SPEKO_STT_MODEL, SPEKO_GEMINI_ROUTE)
+    )
+
     async def work() -> Transcript:
         try:
-            text = await speko_transcribe(wav_to_pcm16k(audio), language, SPEKO_GEMINI_ROUTE)
+            text = await speko_transcribe(wav_to_pcm16k(audio), language, route)
         except Exception as err:
-            raise SttError(f"gemini-3.5: {err or 'failed'}") from err
+            raise SttError(f"{model}: {err or 'failed'}" if live else f"gemini-3.5: {err or 'failed'}") from err
         return (
-            {"text": text, "engine": "speko", "language": language or "uz"}
+            {"text": text, "engine": engine, "language": language or "uz"}
             if text and not _is_hallucination(text)
             else _empty()
         )
 
-    return await _logged("speko", SPEKO_STT_MODEL, audio, work)
+    return await _logged(engine, model, audio, work)
 
 
-async def _speko_scribe(audio: bytes, language: str | None = None) -> Transcript:
+async def _speko_scribe(audio: bytes, language: str | None = None, live: bool = False) -> Transcript:
+    """ElevenLabs Scribe through Speko; `live` = Scribe v3 Live (engine `scribe_live`), as one utterance."""
+    engine, model, route = (
+        ("scribe_live", SPEKO_SCRIBE_LIVE_MODEL, SPEKO_SCRIBE_LIVE_ROUTE)
+        if live
+        else ("scribe", SPEKO_SCRIBE_MODEL, SPEKO_SCRIBE_ROUTE)
+    )
+
     async def work() -> Transcript:
         try:
-            text = await speko_transcribe(wav_to_pcm16k(audio), language, SPEKO_SCRIBE_ROUTE)
+            text = await speko_transcribe(wav_to_pcm16k(audio), language, route)
         except Exception as err:
-            raise SttError(f"scribe: {err or 'failed'}") from err
+            raise SttError(f"{engine}: {err or 'failed'}" if live else f"scribe: {err or 'failed'}") from err
         if not text or _is_hallucination(text):
             return _empty()
-        return {"text": uzbek_numbers_to_digits(text), "engine": "scribe", "language": language or "uz"}
+        return {"text": uzbek_numbers_to_digits(text), "engine": engine, "language": language or "uz"}
 
-    return await _logged("scribe", SPEKO_SCRIBE_MODEL, audio, work)
+    return await _logged(engine, model, audio, work)
 
 
 async def _brb_whisper(audio: bytes, language: str | None = None) -> Transcript:
@@ -373,8 +397,12 @@ async def transcribe(
             return await _local_zipformer(await denoise(audio) if clean else audio)
         if engine == "gemini":
             return await _speko_gemini(await denoise(audio) if clean else audio, language)
+        if engine == "gemini_live":
+            return await _speko_gemini(await denoise(audio) if clean else audio, language, live=True)
         if engine == "scribe":
             return await _speko_scribe(await denoise(audio) if clean else audio, language)
+        if engine == "scribe_live":
+            return await _speko_scribe(await denoise(audio) if clean else audio, language, live=True)
         if engine == "brb":
             return await _brb_whisper(await denoise(audio) if clean else audio, language)
         return await _gapi_one(audio, language, clean)

@@ -206,7 +206,12 @@ async def _raw_engine_pcm(text: str, voice: ResolvedVoice, opts: SynthOptions) -
     try:
         async with aclosing(
             speko.speko_stream_pcm(
-                text, engine, opts.language or "uz", speko.eleven_voice(opts.voice_id), _rate(opts), opts.quick_start
+                text,
+                engine,
+                opts.language or "uz",
+                speko.tts_voice(engine, opts.voice_id),
+                _rate(opts),
+                opts.quick_start,
             )
         ) as pieces:
             async for piece in pieces:
@@ -279,10 +284,11 @@ def cache_key(
     if engine == "brb":
         h.update(f"brb{'' if rate == SAMPLE_RATE else f':{rate}'}".encode())
         return h.hexdigest()
-    # ElevenLabs renders ignore the internal voice: the model, voice and (when not 8 kHz) rate key them.
+    # Speko renders (ElevenLabs, Gemini) ignore the internal voice: the model, voice and (when not 8 kHz)
+    # rate key them.
     if engine != "default":
         suffix = "" if rate == SAMPLE_RATE else f":{rate}"
-        h.update(f"speko:{engine}:{speko.eleven_voice(voice_id)}{suffix}".encode())
+        h.update(f"speko:{engine}:{speko.tts_voice(engine, voice_id)}{suffix}".encode())
         return h.hexdigest()
     if voice.kind == "speaker":
         h.update(f"speaker:{voice.speaker}".encode())

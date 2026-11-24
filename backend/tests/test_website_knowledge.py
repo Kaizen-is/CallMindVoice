@@ -1,6 +1,6 @@
 """
 Website knowledge (app.rag.pages, app.rag.routing), goal-led calls (app.llm.goal_call) and their
-endpoints (routers/knowledge.py, routers/playground_chat.py). Python-only features: there is no
+endpoints (routers/website_knowledge.py, routers/playground_chat.py). Python-only features: there is no
 TypeScript to be identical to, so these are behaviour tests. The parity suites guard the other side:
 tenants without imported pages and agents without a goal must behave exactly as before.
 """

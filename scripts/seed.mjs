@@ -11,7 +11,7 @@
  *   npm run seed
  *
  * Needs node:sqlite (Node ≥ 22.13, or --experimental-sqlite on 22.5–22.12).
- * Run it while the dev server has already booted once, so migrations exist.
+ * Run it after the Python API has started once (it creates the database and its tables).
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -23,7 +23,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dbPath = path.join(root, 'data', 'ovoz.db');
 
 if (!fs.existsSync(dbPath)) {
-  console.error('data/ovoz.db does not exist yet — start the app once (npm run dev), then re-run.');
+  console.error('data/ovoz.db does not exist yet — start the Python API once (backend: uvicorn app.main:app), then re-run.');
   process.exit(1);
 }
 
@@ -31,14 +31,14 @@ const db = new DatabaseSync(dbPath);
 db.exec('PRAGMA foreign_keys = ON');
 db.exec('PRAGMA busy_timeout = 5000');
 
-/* Same format as hashPassword() in src/lib/auth.ts. */
+/* Same format as hash_password() in backend/app/auth.py. */
 function hashPassword(password) {
   const salt = crypto.randomBytes(16);
   const derived = crypto.scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1 });
   return `scrypt$16384$8$1$${salt.toString('base64')}$${derived.toString('base64')}`;
 }
 
-/* Same alphabet/shape as id() in src/lib/db.ts. */
+/* Same alphabet/shape as new_id() in backend/app/ids.py. */
 const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
 function id(prefix) {
   let out = '';
@@ -48,7 +48,7 @@ function id(prefix) {
 
 const now = () => new Date().toISOString();
 
-/* Mirrors DEFAULT_ESCALATION / DEFAULT_HOURS in src/lib/engine/conversation.ts. */
+/* Mirrors DEFAULT_ESCALATION / DEFAULT_HOURS in backend/app/engine/conversation.py. */
 const DEFAULT_ESCALATION = {
   onLowConfidence: true,
   onExplicitRequest: true,
@@ -79,7 +79,7 @@ const DEMO = {
   industry: 'finance',
 };
 
-/* The /demo banking agent — mirrors the BANK_AGENT_* constants and the target in src/lib/bank-agent.ts. */
+/* The /demo banking agent — mirrors the BANK_AGENT_* constants and the target in backend/app/bank_agent.py. */
 const BANK_AGENT = {
   name: 'Isomiddin — bank kredit eslatmasi',
   greeting: 'Assalomu alaykum! Men Isomiddin, Biznesni rivojlantirish bankidan qoʻngʻiroq qilyapman.',

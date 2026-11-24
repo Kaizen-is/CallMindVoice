@@ -1,7 +1,7 @@
 """Baseline: the schema as the TypeScript migrations left it (001_core … 010_agent_tts).
 
-Nothing to create — the tables already exist in data/ovoz.db. Mark an existing
-database as being at this revision once, with:
+Nothing to create — app/schema.py has created the tables (on a fresh install, when the
+API first starts). Mark a database as being at this revision once, with:
 
     .venv/bin/alembic stamp 0001_baseline
 

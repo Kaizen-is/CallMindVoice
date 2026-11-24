@@ -1,6 +1,7 @@
 """
-Authentication, compatible with the Next.js app (`src/lib/auth.ts`,
-`src/lib/api-auth.ts`), so one login works for both apps during the move.
+Authentication for CallMind (the site's pages ask `GET /session`; sign-in, sign-up
+and sign-out are actions here). Same formats as the TypeScript app had, so existing
+sessions, passwords and API keys keep working.
 
 - Session cookie `ovoz_session` = `<sid>.<base64url(HMAC-SHA256(secret, sid))>`
   (no padding; split at the last dot). The secret is OVOZ_SESSION_SECRET (or
@@ -13,6 +14,8 @@ Authentication, compatible with the Next.js app (`src/lib/auth.ts`,
 import base64
 import hashlib
 import hmac
+import os
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -24,6 +27,7 @@ from fastapi.responses import JSONResponse
 from app import db
 from app.config import get_settings
 from app.ids import now_iso, parse_iso
+from app.jscompat import JS_S, js_trim
 
 COOKIE = "ovoz_session"
 
@@ -40,18 +44,32 @@ _SAFE_USER_COLUMNS = (
 
 
 def session_secret() -> str | None:
-    """The cookie-signing secret, or None when neither the env var nor the file exists.
+    """The cookie-signing secret: OVOZ_SESSION_SECRET, else `data/.secret`.
 
-    Unlike the TypeScript code this never creates `data/.secret`: a secret made
-    here would not match the Next.js app's, and every login would silently fail.
+    On a fresh install the file does not exist yet: it is created with a random
+    secret (owner-only), as the TypeScript app did on first use. None only when
+    the file can be neither read nor created, or is empty.
     """
     settings = get_settings()
     if settings.ovoz_session_secret:
         return settings.ovoz_session_secret
+    path = settings.callmind_data_dir / ".secret"
     try:
-        return (settings.callmind_data_dir / ".secret").read_text(encoding="utf-8").strip() or None
+        return path.read_text(encoding="utf-8").strip() or None
+    except FileNotFoundError:
+        pass
     except OSError:
         return None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:  # another worker made it first
+        return path.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(secrets.token_hex(32))
+    return path.read_text(encoding="utf-8").strip() or None
 
 
 def _b64url(raw: bytes) -> str:
@@ -193,6 +211,10 @@ class ApiAuth:
     scopes: list[str]
 
 
+# `/^Bearer\s+(\S+)$/i` with JavaScript's \s (Python's split() and \s also take \x1c-\x1f and \x85).
+_BEARER = re.compile(rf"Bearer[{JS_S}]+([^{JS_S}]+)\Z", re.IGNORECASE | re.ASCII)
+
+
 def api_key_hash(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -209,11 +231,10 @@ class ApiKeyError(Exception):
 
 def check_api_key(authorization: str | None, scope: Literal["read", "write", "admin"]) -> ApiAuth:
     """Resolve a `Bearer ovoz_sk_…` header and check its scope, like `requireApiKey`."""
-    header = (authorization or "").strip()
-    parts = header.split()
-    if len(parts) != 2 or parts[0].lower() != "bearer":
+    match = _BEARER.match(js_trim(authorization or ""))
+    if not match:
         raise ApiKeyError(401, "unauthorized", "Provide an API key as `Authorization: Bearer ovoz_sk_...`.")
-    raw = parts[1]
+    raw = match.group(1)
     if not raw.startswith("ovoz_sk_"):
         raise ApiKeyError(401, "unauthorized", "Malformed API key. Keys start with `ovoz_sk_`.")
 

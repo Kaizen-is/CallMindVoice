@@ -1,19 +1,29 @@
 # CallMind backend (FastAPI)
 
-The Python backend. It takes over the Next.js app's server code one area at a
-time (plan: `docs/architecture/platform-architecture.md`); the Next.js app
-stays as the web UI.
+All of CallMind's server code: calls, the turn engine, speech, knowledge base,
+console data and actions, login, the public API and the phone line. The Next.js
+app (`src/`) is only the web UI: pages and components, plus thin server-action
+proxies (`src/app/actions/*.ts` → `POST /actions/<name>`) and `src/lib/core.ts`,
+the client that calls this API.
 
 ## How it is wired
 
 - Runs on **127.0.0.1:8100** only (systemd user service `callmind-api.service`).
-- The browser never calls it directly. Next.js forwards **`/api/core/*`** here
-  (`rewrites` in `next.config.ts`), so `/api/core/me` → `GET /me`.
-- **Same login** as the web app: it reads the `ovoz_session` cookie and checks
-  it exactly like `src/lib/auth.ts` (same `OVOZ_SESSION_SECRET` from `.env`).
-- **Same database**: `data/ovoz.db` (SQLite, WAL), shared with Next.js while
-  both run. Do not change the schema from TypeScript any more; write an Alembic
-  migration here instead.
+- The browser never calls it directly. Next.js forwards **`/api/core/*`** here, and
+  the original public paths too (`pythonRoutes` in `next.config.ts`: `/api/playground/*`,
+  `/api/speech/{live,tts,stt}`, `/api/models/stt`, `/api/telephony/*`, `/api/demo/*`,
+  `/api/logistics/*`, `/api/stream`, `/api/v1/*`), so `/api/demo/call` → `POST /demo/call`.
+- Pages read their data with `coreGet('/views/<page>')`; server actions forward with
+  `corePost('/actions/<name>', {...})`. Both carry the visitor's cookie, address and
+  user agent, so role checks and audit rows happen here.
+- **Login**: the `ovoz_session` cookie (`OVOZ_SESSION_SECRET`, or `data/.secret`,
+  created on a fresh install). The site asks `GET /session` who is signed in.
+- **Database**: `data/ovoz.db` (SQLite, WAL). At start, `app/schema.py` applies the
+  original migrations a database has not had yet (a fresh install gets every table);
+  later schema changes are Alembic revisions in `alembic/`.
+- **Phone line**: `telephony-bridge/bridge.py` (Asterisk AudioSocket ↔ this API,
+  `callmind-bridge.service`) calls `/api/telephony/bridge/{turn,filler,end}` with
+  the `x-bridge-secret` header.
 
 ## Develop
 
@@ -27,68 +37,84 @@ python3 -m venv .venv
 ```
 
 Set `API_DOCS=true` in your shell to get interactive docs at http://127.0.0.1:8100/docs.
+`test_bridge.py` runs the bridge against a simulated Asterisk with 20 ms timing; on a
+busy machine run it on its own.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `app/main.py` | FastAPI app; mounts the routers |
+| `app/main.py` | FastAPI app; mounts every router in `app/routers/`; at start: schema, then the deploy benchmark |
+| `app/schema.py` | The original ten migrations (001_core … 010_agent_tts), applied at start as the TypeScript did |
 | `app/config.py` | Settings from the environment / repo `.env` |
-| `app/db.py` | Shared SQLite access: `connect()`, `transaction()`, `fetch_one/fetch_all/execute` with `:named` params |
+| `app/db.py` | SQLite access: `connect()`, `transaction()`, `fetch_one/fetch_all/execute` with `:named` params |
 | `app/auth.py` | Session cookie, roles (`LoggedIn`, `require_role("admin")`), API keys, password hashes |
+| `app/provision.py` | Sign-up: a new company with its owner, draft agent and simulator number |
+| `app/audit.py`, `app/views_common.py` | Audit rows; `js_response` and the conventions shared by views and actions |
 | `app/ids.py` | IDs (`agt_…`) and timestamps in the TypeScript formats |
 | `app/jscompat.py` | Where Python and JavaScript differ (string length, rounding, `Math.log`, `JSON.stringify`, …) |
 | `app/env.py` | Provider keys and URLs, read like `process.env` (falls back to the repo `.env`) |
 | `app/http.py` | One shared HTTP client for outside services (connections stay open between turns) |
 | `app/registry.py`, `app/usage_log.py` | Every STT/TTS/LLM engine with its price; one `model_usage` row per use |
-| `app/rag/` | Knowledge-base search: text folding, embeddings (local, or OpenAI), chunking, ranking |
+| `app/rag/` | Knowledge base: text folding, embeddings (local, or OpenAI), chunking, ranking; `ingest.py` (uploads, pages, pasted text, FAQ → indexed chunks); `pdf_text.py` (PDF text laid out exactly as pdf.js/unpdf did, on pdfminer.six) |
+| `app/knowledge.py`, `app/starter_packs.py` | The knowledge base's console actions, page data and public API; the starter packs |
 | `app/llm/` | Answers: prompts, Gemini / Claude (SDK) / OpenAI / Ollama with streaming, the Claude Haiku fallback, the local engine, the loan-call identity check and calendar |
-| `app/speech/` | STT (Kotib, Whisper, GAPI, Zipformer, Speko gemini-3.5 / Scribe, Gemini), TTS (own server, ElevenLabs via Speko) with the shared disk cache, number words, spoken-form text |
-| `app/engine/` | The turn (`run_turn`), call start / end / billing, the live event bus |
-| `app/playground.py`, `app/playground_voice.py` | The Playground call: opening line, fillers, voicing a reply while it is written |
-| `app/routers/` | One router per area: `system.py`, `playground.py` (the Playground call), `live.py` (live Zipformer words, SSE feed), `bridge.py` (the Asterisk phone bridge), `knowledge.py` (website page import), `playground_chat.py` (typed turns, scenario card, collected answers) |
-| `app/rag/pages.py`, `app/rag/routing.py`, `app/llm/goal_call.py`, `app/brb_setup.py` | Website knowledge, grouped search, goal-led calls, BRB setup — Python-only features (`docs/brb-knowledge-agent.md`) |
-| `alembic/` | Schema migrations from now on (baseline `0001_baseline` = today's schema; `0002_website_knowledge` adds the website-knowledge tables) |
+| `app/speech/` | STT (Kotib, Whisper, GAPI, Zipformer, Speko gemini-3.5 / Scribe, Gemini, BRB Whisper), TTS (own server, ElevenLabs voices via Speko, BRB) with the shared disk cache, number words, spoken-form text |
+| `app/engine/` | The turn (`run_turn`), call start / end / billing, the live event bus, the call simulator, demo history |
+| `app/telephony.py` | The phone bridge's secret check, which agent answers a dialled number, telephony status |
+| `app/playground.py`, `app/playground_voice.py`, `app/playground_chats.py` | The Playground call and its saved chats |
+| `app/demo.py`, `app/logistics.py`, `app/logistics_data.py` | The public demos (`/demo`, `/logistics`): per-address limits, demo calls (never billed), the logistics shipment lookup |
+| `app/agent_studio.py`, `app/onboarding.py`, `app/bank_agent.py` | Agent studio, onboarding, the bank demo agent |
+| `app/operations.py` | Simulator, demo history, escalations and the operator inbox; calls pages |
+| `app/dashboards.py`, `app/analytics.py`, `app/workspace.py` | Overview / analytics / numbers / team / settings / developers / billing data and their actions |
+| `app/model_lab.py`, `app/custom_voices.py`, `app/benchmark.py` | Model lab, designed / cloned voices, the deploy benchmark (once per site build) |
+| `app/routers/` | One router per area (table below) |
+| `app/rag/pages.py`, `app/rag/routing.py`, `app/llm/goal_call.py`, `app/brb_setup.py`, `app/default_agents.py` | Website knowledge, grouped search, goal-led calls, the BRB agents (`docs/brb-knowledge-agent.md`) |
+| `alembic/` | Schema changes from now on (baseline `0001_baseline` = the state after the ten migrations; `0002_website_knowledge`, `0003_shared_knowledge` add the website-knowledge tables and columns: run `alembic upgrade head`) |
 | `tests/` | pytest; `fixtures/schema.sql` is the database structure without data; `fixtures/golden_*.json` are outputs of the original TypeScript the Python must reproduce exactly |
-| `deploy/callmind-api.service` | systemd unit |
+| `deploy/` | systemd units: `callmind-api.service`, `callmind-bridge.service` |
 
-## Endpoints so far
+## Endpoints
 
-| Through the site | Here | |
+| Through the site | Here (`app/routers/`) | |
 |---|---|---|
-| `/api/core/healthz` | `GET /healthz` | process is up |
-| `/api/core/readyz` | `GET /readyz` | database, schema and session secret OK |
-| `/api/core/me` | `GET /me` | logged-in user and company |
+| `/api/core/healthz`, `/readyz`, `/me` | `GET …` (`system.py`) | process up; database, schema and session secret OK; logged-in user |
 | `/api/core/diagnostics/ndjson`, `/sse` | `GET /diagnostics/…` | streaming checks (login required) |
-| `/api/core/playground/call` | `POST /playground/call` | Playground call picked up: NDJSON `call`, opening line, its voice |
-| `/api/core/playground/turn` | `POST /playground/turn` | one spoken turn (multipart; `?prefetch=1` → 202) |
-| `/api/core/playground/end` | `POST /playground/end` | hang up, bill once → 204 |
-| `/api/core/playground/say` | `POST /playground/say` | a typed Playground turn (Python twin of `playgroundTurnAction`) — Python-only features, see `docs/brb-knowledge-agent.md` |
-| `/api/core/playground/scenario` | `GET /playground/scenario?agentId=` | the tester's role when a goal-led agent calls |
-| `/api/core/playground/collect` | `POST /playground/collect` | what a goal-led agent collected in a call (stored in `call_results`) |
-| `/api/core/knowledge/pages` | `PUT` / `GET /knowledge/pages`, `POST /knowledge/pages/delete` | website page import by URL (API key: `write` / `read`) — the BRB scraper |
-| `/api/core/knowledge/groups` | `PUT /knowledge/groups` | the groups pages are sorted into (routing) |
-| `/api/core/speech/live` | `POST /speech/live` | live Zipformer words (multipart `sid`, `op`, `audio`) |
-| `/api/core/stream` | `GET /stream` | SSE feed of this process's bus events |
-| `/api/core/api/telephony/bridge/turn` | `POST /api/telephony/bridge/turn` | phone bridge: one caller utterance → streamed 8 kHz PCM reply (`x-bridge-secret`; same path as the Next.js route, so the bridge can also call this port directly) |
-| `/api/core/api/telephony/bridge/filler` | `GET /api/telephony/bridge/filler` | phone bridge: one holding line as PCM |
-| `/api/core/api/telephony/bridge/end` | `POST /api/telephony/bridge/end` | phone bridge: close and bill the call once |
+| (site, `src/lib/auth.ts`) | `GET /session` (`account.py`) | who is signed in: `{user, tenant}` or null |
+| (sign-in pages) | `POST /actions/{signIn,signUp,signOut,setLocale,setPublicLocale}Action` | login, sign-up (new company), sign-out, language |
+| `/api/playground/{call,turn,end}` | `POST /playground/…` (`playground.py`) | the Playground voice call (NDJSON; `?prefetch=1` → 202; end → 204) |
+| `/api/speech/live`, `/api/stream` | `POST /speech/live`, `GET /stream` (`live.py`) | live Zipformer words; SSE feed of call events (wallboard, inbox) |
+| `/api/speech/tts`, `/api/speech/stt`, `/api/models/stt` | `speech.py` | TTS (WAV or 16-bit PCM stream), STT, the STT lab |
+| `/api/telephony/bridge/{turn,filler,end}` | `telephony.py` | the phone bridge (`x-bridge-secret`) |
+| `/api/demo/{call,turn,end}`, `/api/logistics/{call,turn,end}` | `demo.py`, `logistics.py` | the public demos (no login; per-address limits) |
+| `/api/core/playground/{say,scenario,collect}` | `POST /playground/say`, `GET /playground/scenario`, `POST /playground/collect` (`playground_chat.py`) | typed turn for Python-only agents; the tester's role when a goal-led agent calls; what it collected (`call_results`) |
+| `/api/core/knowledge/{pages,groups}` | `PUT`/`GET /knowledge/pages`, `POST /knowledge/pages/delete`, `PUT /knowledge/groups` (`website_knowledge.py`) | website page import by URL for the BRB scraper (API key: `write` / `read`) |
+| `/api/core/agents/defaults` | `POST /agents/defaults` (`agents.py`) | copies the default BRB agents into the signed-in company once |
+| `/api/v1/calls`, `/api/v1/answer`, `/api/v1/documents` | `v1_calls.py`, `knowledge.py` | public API (API key with the right scope) |
+| (page data) | `GET /views/<page>` | `console-layout`, `overview`, `analytics`, `numbers`, `team`, `settings`, `developers`, `billing`, `knowledge`, `agent`, `playground`, `onboarding`, `inbox`, `calls`, `calls/<id>`, `live`, `models/lab`, `models/voices`, `dev/{stt,tts,voice-clone,voice-design}`, `demo`, `logistics` |
+| (server actions in `src/app/actions/*.ts`) | `POST /actions/<name>` | all 53: agent studio + onboarding + Playground chats (`agent_studio.py`), knowledge (`knowledge.py`), simulator / escalations / inbox (`operations.py`), numbers / team / keys / webhooks / settings / billing / gaps (`workspace_actions.py`), default model + custom voices (`models_voices.py`), login (`account.py`) |
 
 ## Deploy (on the server)
+
+First time:
 
 ```bash
 cd ~/callmind/backend && python3 -m venv .venv && .venv/bin/pip install -e ".[zipformer]"
 .venv/bin/alembic stamp 0001_baseline          # once: marks the existing database
-cp deploy/callmind-api.service ~/.config/systemd/user/
+cp deploy/callmind-api.service deploy/callmind-bridge.service ~/.config/systemd/user/
 systemctl --user daemon-reload && systemctl --user enable --now callmind-api.service
 curl -s http://127.0.0.1:8100/readyz
 ```
 
+The phone bridge switch-over (from the Node `bridge.mjs` to `bridge.py`) and its
+rollback are described in `deploy/callmind-bridge.service`.
+
 ## Parity with the TypeScript
 
-Ported code must behave exactly like the TypeScript it replaces: both apps share
-the database and the TTS cache, and callers must not notice which one answered.
-The `golden_*.json` fixtures were recorded by running the original TypeScript on
-fixed inputs (with scripted provider responses for the LLM, TTS and STT
-clients); the `test_*_parity.py` tests replay the same inputs in Python and
-compare requests, prompts, streamed pieces, answers, rows written and events.
+Ported code behaves exactly like the TypeScript it replaced: callers must not
+notice which one answered. The `golden_*.json` fixtures were recorded by running
+the original TypeScript on fixed inputs (with scripted provider responses for the
+LLM, TTS and STT clients); the `test_*_parity.py` tests replay the same inputs in
+Python and compare requests, prompts, streamed pieces, answers, rows written and
+events. The TypeScript is no longer in the tree; the generators in
+`tools/golden/` run from a checkout that still has it (see the README there).

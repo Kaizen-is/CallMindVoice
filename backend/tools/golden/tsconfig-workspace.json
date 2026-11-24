@@ -1,0 +1,16 @@
+{
+  "//": "The workspace/dashboards port (make-golden-workspace.cjs): compiles the ORIGINAL analytics library and server actions into ./out. The actions in src/app/actions/ops.ts are thin proxies after the port, so compile from commit b68a116 (see README). Run from the repo root: npx tsc -p backend/tools/golden/tsconfig-workspace.json",
+  "extends": "./tsconfig.json",
+  "files": [
+    "../../../src/lib/analytics.ts",
+    "../../../src/lib/auth.ts",
+    "../../../src/lib/catalog.ts",
+    "../../../src/lib/engine/calls.ts",
+    "../../../src/lib/llm/choice.ts",
+    "../../../src/lib/llm/provider.ts",
+    "../../../src/lib/rag/embed.ts",
+    "../../../src/lib/telephony/status.ts",
+    "../../../src/lib/utils.ts",
+    "../../../src/app/actions/ops.ts"
+  ]
+}

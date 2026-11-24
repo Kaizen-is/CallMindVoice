@@ -1,87 +1,127 @@
 """
-Website knowledge import — the API the BRB scraper sends pages to.
+The knowledge base — the console's server actions, the page data and the public API endpoint,
+ported from src/app/actions/knowledge.ts, src/app/app/knowledge/page.tsx and
+src/app/api/v1/documents/route.ts (logic in app/knowledge.py and app/rag/ingest.py).
 
-Machine-to-machine: authenticated with an API key of the receiving tenant
-(`Authorization: Bearer ovoz_sk_…`, scope `write` to change, `read` to list),
-not a browser session. Through the site it is /api/core/knowledge/*; on the
-server the scraper can call 127.0.0.1:8100/knowledge/* directly.
-
-    PUT  /knowledge/pages          {"pages": [record, …]}   create or replace by URL (unchanged fingerprint: skipped)
-    POST /knowledge/pages/delete   {"urls": [url, …]}       remove pages
-    GET  /knowledge/pages                                    url, group, lang, fingerprint of every page
-    PUT  /knowledge/groups         {"groups": {id: {title, description, keywords}}}
-
-A record is the scraper's page contract: url, site, lang, group, kind, title,
-breadcrumb, text (Markdown), fingerprint.
+  POST /actions/uploadDocumentsAction     multipart `files` (admin)
+  POST /actions/addUrlAction              {url} (admin)
+  POST /actions/addTextAction             {title, text} (admin)
+  POST /actions/addFaqAction              {title, pairs: [{q, a}]} (admin)
+  POST /actions/addStarterPackAction      {} (admin)
+  POST /actions/deleteDocumentAction      {documentId} (admin)
+  POST /actions/reindexDocumentAction     {documentId} (admin)
+  POST /actions/testRetrievalAction       {query} (any signed-in role)
+  POST /actions/listDocumentsAction       {} (any signed-in role)
+  GET  /views/knowledge                   the knowledge page's data
+  POST /v1/documents                      public API, `Authorization: Bearer ovoz_sk_…` with the write scope
 """
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
+from starlette.datastructures import UploadFile
 
-from app.auth import check_api_key
-from app.rag.pages import PageError, delete_pages, list_pages, set_groups, upsert_pages
+from app import knowledge
+from app.auth import LoggedIn, Session, check_api_key, require_role
+from app.views_common import action_args, js_response
 
-router = APIRouter(prefix="/knowledge")
+router = APIRouter()
 
-MAX_PAGES_PER_REQUEST = 200
-
-
-def _invalid(message: str) -> JSONResponse:
-    return JSONResponse({"error": {"type": "invalid_request", "message": message}}, status_code=400)
+Admin = Annotated[Session, Depends(require_role("admin"))]
 
 
-async def _body(request: Request) -> dict[str, Any] | None:
+def _string(args: dict[str, Any], name: str) -> str:
+    """An argument the TypeScript used as a string (calling a string method on anything else threw)."""
+    value = args.get(name)
+    if not isinstance(value, str):
+        raise HTTPException(status_code=400, detail="bad_request")
+    return value
+
+
+@router.post("/actions/uploadDocumentsAction")
+async def upload_documents_action(request: Request, session: Admin) -> Response:
+    files: list[tuple[str, str | None, bytes]] = []
     try:
-        body = await request.json()
-    except Exception:  # noqa: BLE001
-        return None
-    return body if isinstance(body, dict) else None
+        form = await request.form(max_files=10_000, max_fields=10_000)
+    except Exception:  # noqa: BLE001 - not a form: no files were received
+        form = None
+    if form is not None:
+        for item in form.getlist("files"):
+            if isinstance(item, UploadFile):
+                files.append((item.filename or "", item.content_type, await item.read()))
+    return js_response(await knowledge.upload_documents(session, files))
 
 
-@router.put("/pages")
-async def put_pages(request: Request) -> JSONResponse:
+@router.post("/actions/addUrlAction")
+async def add_url_action(request: Request, session: Admin) -> Response:
+    args = await action_args(request)
+    return js_response(await knowledge.add_url(session, _string(args, "url")))
+
+
+@router.post("/actions/addTextAction")
+async def add_text_action(request: Request, session: Admin) -> Response:
+    args = await action_args(request)
+    return js_response(await knowledge.add_text(session, _string(args, "title"), _string(args, "text")))
+
+
+@router.post("/actions/addFaqAction")
+async def add_faq_action(request: Request, session: Admin) -> Response:
+    args = await action_args(request)
+    title = _string(args, "title")
+    pairs = args.get("pairs")
+    if not isinstance(pairs, list) or not all(
+        isinstance(p, dict) and isinstance(p.get("q"), str) and isinstance(p.get("a"), str) for p in pairs
+    ):
+        raise HTTPException(status_code=400, detail="bad_request")
+    return js_response(await knowledge.add_faq(session, title, [{"q": p["q"], "a": p["a"]} for p in pairs]))
+
+
+@router.post("/actions/addStarterPackAction")
+async def add_starter_pack_action(session: Admin) -> Response:
+    return js_response(await knowledge.add_starter_pack(session))
+
+
+@router.post("/actions/deleteDocumentAction")
+async def delete_document_action(request: Request, session: Admin) -> Response:
+    args = await action_args(request)
+    return js_response(knowledge.delete_document(session, args.get("documentId")))
+
+
+@router.post("/actions/reindexDocumentAction")
+async def reindex_document_action(request: Request, session: Admin) -> Response:
+    args = await action_args(request)
+    return js_response(await knowledge.reindex_document(session, args.get("documentId")))
+
+
+@router.post("/actions/testRetrievalAction")
+async def test_retrieval_action(request: Request, session: LoggedIn) -> Response:
+    args = await action_args(request)
+    return js_response(await knowledge.test_retrieval(session, _string(args, "query")))
+
+
+@router.post("/actions/listDocumentsAction")
+async def list_documents_action(session: LoggedIn) -> Response:
+    return js_response(knowledge.list_documents(session))
+
+
+@router.get("/views/knowledge")
+async def knowledge_view(session: LoggedIn) -> Response:
+    return js_response(knowledge.knowledge_view(session))
+
+
+@router.post("/v1/documents")
+async def v1_documents(request: Request) -> Response:
     auth = check_api_key(request.headers.get("authorization"), "write")
-    body = await _body(request)
-    pages = body.get("pages") if body else None
-    if not isinstance(pages, list) or not all(isinstance(p, dict) for p in pages):
-        return _invalid('Send {"pages": [ … ]}.')
-    if len(pages) > MAX_PAGES_PER_REQUEST:
-        return _invalid(f"At most {MAX_PAGES_PER_REQUEST} pages per request.")
+    raw = await request.body()
     try:
-        result = await upsert_pages(auth.tenant_id, pages)
-    except PageError as err:
-        return _invalid(str(err))
-    return JSONResponse(result.as_dict())
-
-
-@router.post("/pages/delete")
-async def remove_pages(request: Request) -> JSONResponse:
-    auth = check_api_key(request.headers.get("authorization"), "write")
-    body = await _body(request)
-    urls = body.get("urls") if body else None
-    if not isinstance(urls, list) or not all(isinstance(u, str) for u in urls):
-        return _invalid('Send {"urls": [ … ]}.')
-    return JSONResponse({"removed": delete_pages(auth.tenant_id, urls)})
-
-
-@router.get("/pages")
-async def get_pages(request: Request) -> JSONResponse:
-    auth = check_api_key(request.headers.get("authorization"), "read")
-    pages = list_pages(auth.tenant_id)
-    return JSONResponse({"count": len(pages), "pages": pages})
-
-
-@router.put("/groups")
-async def put_groups(request: Request) -> JSONResponse:
-    auth = check_api_key(request.headers.get("authorization"), "write")
-    body = await _body(request)
-    groups = body.get("groups") if body else None
-    if not isinstance(groups, dict):
-        return _invalid('Send {"groups": {id: {title, description, keywords}}}.')
-    try:
-        count = set_groups(auth.tenant_id, groups)
-    except PageError as err:
-        return _invalid(str(err))
-    return JSONResponse({"groups": count})
+        text = raw.decode("utf-8", errors="replace")  # Request.json(): UTF-8, a leading BOM dropped
+        body = knowledge.parse_json(text[1:] if text.startswith("\ufeff") else text)
+    except ValueError:
+        return js_response(
+            {"error": {"type": "invalid_request", "message": "Request body must be valid JSON."}}, status=400
+        )
+    if body is None:
+        return Response(status_code=500)  # `null.title` threw in the route
+    status, payload = await knowledge.api_add_document(auth.tenant_id, body)
+    return js_response(payload, status=status)

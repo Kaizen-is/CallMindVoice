@@ -6,6 +6,13 @@ TypeScript** on fixed inputs and write what it produced to
 `backend/tests/fixtures/golden_*.json`; the `test_*_parity.py` tests replay the
 same inputs in Python and compare.
 
+**The original TypeScript is no longer in the tree** (removed in Phase 5, the
+commit after `1377346`). To regenerate a fixture, use a checkout that still has it:
+`git worktree add ../callmind-ts ac9d4d1` (the code before the move to Python),
+`npm ci` there, copy this folder (`backend/tools/golden/`) into it, and run the
+commands below from that folder; copy the fixture back. `golden_migrations.json` is
+the `MIGRATIONS` list of that checkout's `src/lib/db.ts`.
+
 | Script | Fixture | What it records |
 |---|---|---|
 | `make-golden-rag.cjs` | `golden_rag.json` | text folding, embeddings (byte-exact), chunking, a 30-chunk corpus and 25 searches |
@@ -16,6 +23,11 @@ same inputs in Python and compare.
 | `make-golden-turn.cjs` | `golden_turn.json` | `runTurn` on a real SQLite file: results, rows written, bus events |
 | `make-golden-bridge.cjs` | `golden_bridge.json` | the phone-bridge routes (`/api/telephony/bridge/*`) on the requests in `scenarios-bridge.json`: responses, calls and turns touched, usage, wallet |
 | `make-golden-auth.cjs` | (values in `test_auth_parity.py`) | session cookie, password hash and API key made the TypeScript way |
+| `make-golden-workspace.cjs` | `golden_workspace.json` | the console pages' data (overview, analytics, numbers, team, settings, developers, billing) and 62 workspace server-action calls on a seeded SQLite file, frozen clock: answers and rows added/removed |
+| `make-golden-url.cjs` | `golden_url.json` | `new URL(input).protocol` (or a throw) for 2,300 inputs — the webhook form's URL check |
+| `make-golden-logistics.cjs` | `golden_logistics.json` | the logistics demo's lookup: numbers read from speech, shipments found, day labels and the whole prompt part, at pinned moments |
+| `make-golden-ops.cjs` | `golden_ops.json` | `seededRandom` streams; 36 simulated calls (simulator.ts) and the demo history (demo-data.ts) on a real SQLite file, clock pinned, zone Asia/Tashkent: every row written and every bus event |
+| `make-golden-knowledge.cjs` | `golden_knowledge.json` | every knowledge-base server action, the knowledge page's data and `POST /api/v1/documents` on a real SQLite file (uploads of every file type incl. a synthetic PDF and DOCX, pages, text, FAQ, starter packs, retrieval, reindex, delete, role checks): results, bus events, webhooks, every row written; ingest helpers on edge cases |
 
 How they work: `tsc` compiles the TypeScript to CommonJS in `./out` (gitignored);
 each script swaps in recorders for `fetch`, the Anthropic SDK, the usage log or the
@@ -31,8 +43,21 @@ node backend/tools/golden/make-golden-log.cjs backend/tests/fixtures/golden_math
 node backend/tools/golden/make-golden-llm.cjs backend/tests/fixtures/golden_llm.json
 node backend/tools/golden/make-golden-speech.cjs backend/tests/fixtures/golden_speech.json "$TMPDIR/golden-speech"
 node backend/tools/golden/make-golden-turn.cjs backend/tests/fixtures/golden_rag.json backend/tests/fixtures/golden_turn.json "$TMPDIR/golden-turn"
+node backend/tools/golden/make-golden-url.cjs backend/tests/fixtures/golden_url.json
+# workspace: from a checkout of b68a116 (the server actions in ops.ts are thin proxies after the port)
+npx tsc -p backend/tools/golden/tsconfig-workspace.json
+node --experimental-sqlite backend/tools/golden/make-golden-workspace.cjs backend/tests/fixtures/golden_workspace.json "$TMPDIR/golden-workspace"
+node backend/tools/golden/make-golden-logistics.cjs backend/tests/fixtures/golden_logistics.json
+node --experimental-sqlite backend/tools/golden/make-golden-ops.cjs backend/tests/fixtures/golden_rag.json backend/tests/fixtures/golden_ops.json "$TMPDIR/golden-ops"
+node --experimental-sqlite backend/tools/golden/make-golden-knowledge.cjs backend/tests/fixtures/golden_knowledge.json "$TMPDIR/golden-kb"
+node backend/tools/pdfjs-tables.cjs backend/app/rag/pdfjs_tables.json   # pdf.js's tables for app/rag/pdf_text.py (after an unpdf upgrade)
 node backend/tools/golden/make-golden-bridge.cjs backend/tools/golden/scenarios-bridge.json backend/tests/fixtures/golden_bridge.json "$TMPDIR/golden-bridge"
 ```
+
+(`--experimental-sqlite` is needed on Node 22.5–22.12; `make-golden-ops.cjs` regenerates byte for byte.)
+
+`make-golden-knowledge.cjs` patches db.ts's `id()` and `now()` with counters (the Python test does the
+same), so even IDs and timestamps compare exactly. Node 22 before 22.13 needs `--experimental-sqlite`.
 
 (On Windows use a folder such as `%TEMP%\golden-speech` for the last argument.)
 A `TS2688 … 'node'` warning from `tsc` is harmless when `@types/node` is not

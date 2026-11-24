@@ -1,0 +1,41 @@
+# CallMind telephony bridge (Python) — Asterisk AudioSocket on AUDIOSOCKET_PORT (default 8090) ⇄
+# the site's /api/telephony/bridge/* (served by the FastAPI backend through the Next.js rewrite).
+# Replaces `node telephony-bridge/bridge.mjs`: same protocol, same requests, same audio.
+#
+# Settings come from the repo .env and, if present, telephony-bridge/.env (later wins):
+#   NEXT_BASE_URL (e.g. http://127.0.0.1:9925), BRIDGE_SHARED_SECRET, BRIDGE_TO_NUMBER,
+#   BRIDGE_FROM_NUMBER, AUDIOSOCKET_PORT, VAD_*, FILLER_AFTER_MS, FILLERS, BRIDGE_LOG.
+#
+# Switch over (as the user that runs callmind.service), after `pip install -e backend[zipformer]`:
+#   1. stop the Node bridge (however it is run today, e.g. its systemd unit or pm2 entry)
+#   2. cp backend/deploy/callmind-bridge.service ~/.config/systemd/user/
+#      systemctl --user daemon-reload && systemctl --user enable --now callmind-bridge.service
+#   3. place a test call; `journalctl --user -u callmind-bridge -f` shows "call up … end 200".
+# Roll back: systemctl --user disable --now callmind-bridge.service and start the Node bridge again.
+[Unit]
+Description=CallMind telephony bridge (Asterisk AudioSocket, Python)
+Documentation=file:///home/m.jumanazarov/callmind/docs/handoff.md
+Wants=network-online.target callmind-api.service
+After=network-online.target callmind-api.service
+
+[Service]
+Type=exec
+WorkingDirectory=%h/callmind
+EnvironmentFile=%h/callmind/.env
+EnvironmentFile=-%h/callmind/telephony-bridge/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+Environment=TZ=Asia/Tashkent
+ExecStart=%h/callmind/backend/.venv/bin/python telephony-bridge/bridge.py
+Restart=always
+RestartSec=2
+StartLimitBurst=0
+TimeoutStopSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=default.target

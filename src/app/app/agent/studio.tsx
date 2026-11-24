@@ -5,8 +5,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { createAgentAction, saveAgentAction, setAgentStatusAction, type AgentDraft } from '@/app/actions/agent';
 import { PERSONAS, VOICES, WEEKDAYS } from '@/lib/catalog';
 import { translator } from '@/lib/i18n';
-import type { LlmOption } from '@/lib/llm/choice';
-import type { BusinessHours, CallTarget, EscalationPolicy, Locale, UiLocale } from '@/lib/types';
+import type { BusinessHours, CallTarget, EscalationPolicy, LlmOption, Locale, UiLocale } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Badge, Button, Card, CardHeader, PageHeader, Tabs } from '@/components/ui/primitives';
 import { Checkbox, Field, Input, Select, Slider, Switch, Textarea } from '@/components/ui/forms';
@@ -68,6 +67,7 @@ export function AgentStudio({
   llmDefaultLabel,
   ttsModels = [],
   elevenVoices = [],
+  geminiVoices = [],
 }: {
   agent: AgentView;
   agents: Array<{ id: string; name: string; status: 'draft' | 'live' | 'paused' }>;
@@ -77,13 +77,17 @@ export function AgentStudio({
   customVoices?: Array<{ id: string; name: string; mode: 'clone' | 'design' }>;
   llmOptions?: LlmOption[];
   llmDefaultLabel?: string;
-  /** The ElevenLabs models (through Speko) an agent can speak with. */
+  /** The Speko models (ElevenLabs, Gemini) and the BRB model an agent can speak with. */
   ttsModels?: Array<{ id: string; name: string; pricePerMin: number | null; ready: boolean; setup: string }>;
   elevenVoices?: Array<{ id: string; name: string; note: string }>;
+  /** Gemini's voices, for the Gemini TTS models (through Speko). */
+  geminiVoices?: Array<{ id: string; name: string; note: string }>;
 }) {
   const router = useRouter();
   const toast = useToast();
   const t = translator(locale);
+  /** The voices a Speko model speaks with: Gemini's for the Gemini models, else ElevenLabs'. */
+  const speakersOf = (engine: string) => (engine.startsWith('gemini-') ? geminiVoices : elevenVoices);
   const [, start] = useTransition();
   const [tab, setTab] = useState<Tab>('voice');
   const [saving, setSaving] = useState(false);
@@ -313,12 +317,19 @@ export function AgentStudio({
                     value={draft.ttsEngine}
                     onChange={(e) => {
                       const engine = e.target.value;
-                      // An ElevenLabs model keeps its voice, or starts on the first one; own TTS
-                      // and the BRB model (one voice) have none to pick.
+                      // A Speko model keeps its voice when it has it, or starts on its first one
+                      // (ElevenLabs and Gemini have different voices); own TTS and the BRB model
+                      // (one voice) have none to pick.
+                      const voices = speakersOf(engine);
                       setDraft((d) => ({
                         ...d,
                         ttsEngine: engine,
-                        ttsVoiceId: engine && engine !== 'brb' ? d.ttsVoiceId || elevenVoices[0]?.id || '' : '',
+                        ttsVoiceId:
+                          engine && engine !== 'brb'
+                            ? voices.some((v) => v.id === d.ttsVoiceId)
+                              ? d.ttsVoiceId
+                              : voices[0]?.id || ''
+                            : '',
                       }));
                     }}
                   >
@@ -352,7 +363,7 @@ export function AgentStudio({
                     )}
                   >
                     <Select value={draft.ttsVoiceId} onChange={(e) => set('ttsVoiceId', e.target.value)}>
-                      {elevenVoices.map((v) => (
+                      {speakersOf(draft.ttsEngine).map((v) => (
                         <option key={v.id} value={v.id}>
                           {v.name} — {v.note}
                         </option>

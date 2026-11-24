@@ -17,14 +17,14 @@ nothing changes for existing agents.
         ▼
  FastAPI ── app/rag/pages.py ──▶ documents + chunks + knowledge_pages, knowledge_groups
         │
- Playground (?py=1) ─▶ run_turn ─▶ app/rag/routing.py   pick the group, search it, fall back
+ Playground, phone line ─▶ run_turn ─▶ app/rag/routing.py   pick the group, search it, fall back
                               └─▶ app/llm/goal_call.py  goal-led call prompt, scenario card, results
 ```
 
 | Piece | Where | What |
 |---|---|---|
 | Migration `0002_website_knowledge` | `backend/alembic/versions/` | adds `knowledge_pages`, `knowledge_groups`, `call_results`, `agents.goal_json`; nothing existing changes |
-| Page import | `backend/app/rag/pages.py`, `routers/knowledge.py` | create-or-replace by URL (unchanged fingerprint ⇒ skipped), delete, list, group list |
+| Page import | `backend/app/rag/pages.py`, `routers/website_knowledge.py` | create-or-replace by URL (unchanged fingerprint ⇒ skipped), delete, list, group list |
 | Grouped search | `backend/app/rag/routing.py` | used by `run_turn` only for tenants that have imported pages |
 | Goal-led calls | `backend/app/llm/goal_call.py`, `prompts.py`, `playground.py` | the agent calls, checks identity, collects answers, answers questions from the knowledge base |
 | Playground extras | `backend/app/routers/playground_chat.py`, `src/app/app/playground/scenario-card.tsx` | typed turns through Python, the tester's scenario card, "what did the agent collect?" |
@@ -94,9 +94,10 @@ nothing changes for existing agents.
 ## 3. Every company has the agents
 
 - **Default agents.** Every company gets "BRB ma'lumot xizmati" and "Isomiddin —
-  kredit arizasi" the first time its Playground opens: the page calls
-  `POST /api/core/agents/defaults` (`backend/app/default_agents.py`). The third
-  default, "Isomiddin — bank kredit eslatmasi", comes from `src/lib/bank-agent.ts`
+  kredit arizasi" the first time its Playground opens: the page data
+  (`GET /views/playground`, `app/playground_chats.py`) calls `ensure_default_agents`
+  (`backend/app/default_agents.py`; also `POST /agents/defaults`). The third
+  default, "Isomiddin — bank kredit eslatmasi", comes from `backend/app/bank_agent.py`
   as before. The copies are **drafts**, so a company's live agent and phone number
   never change, and each company may edit or delete its copies (a settings note
   stops them coming back).
@@ -107,12 +108,13 @@ nothing changes for existing agents.
   it is marked `"sharedLibrary": true` (set by `brb_setup.py`), so a wrong id can
   never read another customer's documents. Re-running `brb_setup.py` also brings
   every copy's texts up to date.
-- **No `?py=1` needed.** For agents with a goal, a shared library or website pages,
-  the Playground talks to the Python backend by itself (`pythonAgents` in
-  `src/app/app/playground/page.tsx`).
+- **Every path has it.** All server code is Python now, and the typed Playground turn
+  (`playgroundTurnAction` → `app/playground_chats.py`), the Playground voice call and the
+  phone line all go through `run_turn`, so grouped search and goal-led calls work on
+  each of them. A goal-led chat is recorded as an outbound call.
 - **No holding lines.** `FILLERS=off` in `.env` stops the "bir daqiqa" lines in
-  Playground voice calls and the public demo; the phone bridge already honours the
-  same variable. Unset, behaviour is as before.
+  Playground voice calls (`app/playground_voice.py`) and the public demo
+  (`app/demo.py`); the phone bridge already honours the same variable. Unset, behaviour is as before.
 
 ## 4. Run it locally
 
@@ -129,7 +131,7 @@ Then in the scraper folder put `CALLMIND_URL=http://127.0.0.1:8100` and
 first run sends every page; later runs send only what changed and reconcile.
 
 Start the site (`npm run dev`), log in as `brb@callmind.uz`, open
-**`/app/playground?py=1`** and pick an agent:
+**`/app/playground`** and pick an agent:
 
 - **BRB ma'lumot xizmati** — ask anything about BRB bank or BRB-TECH. The reply's
   details show which group was searched (`retrieval.routing`).
@@ -155,9 +157,6 @@ LLM routing; needs a hosted model).
   (step 4 of the move to Python ports the console pages).
 - Collected answers are shown in the Playground; the Calls page does not show
   `call_results` yet.
-- The TypeScript Playground path (without `?py=1`) and the phone bridge do not
-  have grouped search or goals; the phone bridge gets them when it is switched to
-  Python (handoff, step 2).
 - The ATM map is loaded by JavaScript from brb.uz `/api/locations`; only the office list
   page is in the knowledge base.
 - brb.uz robots.txt still closes `/api`; the web team should add

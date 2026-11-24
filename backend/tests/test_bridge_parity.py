@@ -1,5 +1,5 @@
 """
-The phone-bridge routes (`app/routers/bridge.py`) against the ORIGINAL TypeScript
+The phone-bridge routes (`app/routers/telephony.py`) against the ORIGINAL TypeScript
 (src/app/api/telephony/bridge/*), recorded in fixtures/golden_bridge.json by
 tools/golden/make-golden-bridge.cjs: the requests in tools/golden/scenarios-bridge.json, in order,
 on one database, with the real call and turn engines and the same scripted TTS/STT. Every status,
@@ -17,7 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.jscompat import js_json, js_json_parse
-from app.routers import bridge
+from app.routers import telephony as bridge
 from app.speech import fillers
 from app.speech.stt import SttError
 from app.speech.tts import TtsError
@@ -146,7 +146,8 @@ def _finals(db_path: Path) -> dict:
 
 
 def _send(client: TestClient, sc: dict):  # noqa: ANN202
-    url = f"/api/telephony/bridge/{sc['route']}"
+    # The site forwards /api/telephony/bridge/* here as /telephony/bridge/* (next.config.ts).
+    url = f"/telephony/bridge/{sc['route']}"
     if "qs" in sc:
         url += f"?{sc['qs']}"
     headers: dict[str, str] = {}
@@ -260,5 +261,5 @@ def test_usage_wallet_and_escalations_match_typescript(replay: dict) -> None:
 
 
 def test_reply_text_header_is_utf8_base64() -> None:
-    headers = bridge._headers("c1", "", "To‘lov 😀 \ud83d", "kotib")
+    headers = bridge._headers(call_id="c1", escalate="", text="To‘lov 😀 \ud83d", engine="kotib")
     assert base64.b64decode(headers["x-ovoz-text"]).decode("utf-8") == "To‘lov 😀 �"

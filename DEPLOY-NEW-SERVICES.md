@@ -20,12 +20,12 @@ The app pod needs **outbound HTTPS** to `console.gapi.uz`, `router.speko.dev`, `
 
 ## 2. Zipformer streaming STT — nothing to deploy
 
-Zipformer is an Uzbek speech model that now runs **inside the app itself**. There is no extra service, port, WebSocket, nginx rule or variable.
+Zipformer is an Uzbek speech model that runs **inside the Python API** (`callmind-api.service`). There is no extra service, port, WebSocket, nginx rule or variable.
 
-- The model files ship in the repo: `models/uzbek-zipformer/` (~71 MB, from <https://huggingface.co/Bahrom1996/uzbek-streaming-stt-punct>, licence Apache-2.0). The image must include this folder; a normal `COPY . .` does.
-- The library is `sherpa-onnx-node` (a normal npm dependency, installed by `npm ci`). Its prebuilt binary needs a **Debian/Ubuntu-based Node image** (e.g. `node:22-bookworm-slim`), **not Alpine**. On Alpine the Zipformer button stays disabled; nothing else breaks.
+- The model files ship in the repo: `models/uzbek-zipformer/` (~71 MB, from <https://huggingface.co/Bahrom1996/uzbek-streaming-stt-punct>, licence Apache-2.0).
+- The library is `sherpa-onnx` (Python), installed with the backend: `backend/.venv/bin/pip install -e "backend[zipformer]"`.
 - It uses the CPU: ~2 threads while someone is talking, ~300 MB more RAM once loaded (on first use). Optional: `ZIPFORMER_THREADS` (default 2), `ZIPFORMER_MODEL_DIR` (default `models/uzbek-zipformer`).
-- If the app runs from a Next.js `standalone` build, copy `models/` next to it as well.
+- `sherpa-onnx-node` stays in `package.json` only for the CI image check (`scripts/ci-isolated-smoke.sh`).
 
 **Check it**: in the Playground, the STT switch shows **Zipformer** enabled; while talking, words appear as you speak.
 
@@ -35,7 +35,7 @@ Google Gemini Transcribe through Speko. It uses the same `SPEKO_API_KEY` as the 
 
 ## 2c. Model benchmark after each deploy — nothing to configure
 
-About 90 seconds after a new build starts, the app measures every engine that has a key: the Uzbek test clips in `benchmarks/stt-uz/` through each STT engine, three sentences through each TTS engine, and one short question to each LLM. The results fill Models ▸ Model lab (latency, WER, CER, clarity). It runs **once per build** — the build id is recorded first, so restarts and extra pods of the same build skip it.
+About 90 seconds after the Python API starts on a new site build (restart `callmind-api.service` after building the site), it measures every engine that has a key: the Uzbek test clips in `benchmarks/stt-uz/` through each STT engine, three sentences through each TTS engine, and one short question to each LLM. The results fill Models ▸ Model lab (latency, WER, CER, clarity). It runs **once per build** — the build id is recorded first, so restarts and extra pods of the same build skip it.
 
 - Cost per deploy is a few cents (a minute of STT audio per engine, ~200 characters per TTS engine, one short answer per LLM).
 - It needs the same outbound HTTPS as the engines themselves; a failing engine is simply left blank.
@@ -43,4 +43,4 @@ About 90 seconds after a new build starts, the app measures every engine that ha
 
 ## 3. Not for production
 
-`NODE_EXTRA_CA_CERTS` and `--experimental-sqlite` are only for the local Windows setup (company firewall certificate, Node 22.11). Do not copy them to the cluster.
+`NODE_EXTRA_CA_CERTS` (Node) and `SSL_CERT_FILE` (Python) pointing at the company firewall certificate are only for the local Windows setup. Do not copy them to the server.
