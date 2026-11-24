@@ -7,6 +7,7 @@ latency instrumentation and knowledge-gap capture. The phone path and the
 Playground both call this, so the Playground is a true rehearsal of a call.
 """
 
+import asyncio
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -24,7 +25,7 @@ from app.llm.provider import engine_name, generate_answer, sentiment_of, summari
 from app.rag.library import knowledge_tenant
 from app.rag.retrieve import retrieve_async
 from app.rag.routing import has_grouped_knowledge, retrieve_routed
-from app.rag.text import detect_language
+from app.rag.text import detect_language, stems
 from app.webhooks import dispatch_webhook
 
 DEFAULT_ESCALATION = {
@@ -150,6 +151,16 @@ def _lookup_for(context: Context | None, caller_lines: list[str]) -> dict[str, s
     return {"extra_system": out.get("facts"), "extra_note": out.get("note")}
 
 
+def _names_its_subject(question: str, hit: dict[str, Any]) -> bool:
+    """Whether the question shares a word with the found page's title or place on the site (its subject)."""
+
+    def words(text: str) -> set[str]:
+        # Real words only: concept tags ("~payment") join "muddat" and "karta" and would name every page.
+        return {s for s in stems(text) if not s.startswith("~")}
+
+    return bool(words(question) & words(f"{hit.get('documentTitle') or ''} {hit.get('heading') or ''}"))
+
+
 def _ms(started: float) -> float:
     return (time.perf_counter() - started) * 1000
 
@@ -198,10 +209,27 @@ async def run_turn(
         return await retrieve_async(kb_tenant, query, top_k=5)
 
     t_retrieve = time.perf_counter()
-    retrieval = await search(utterance)
+    if routed and model_history:
+        # Grouped search (Python only): a follow-up ("Uning foizi qancha?", "o'rtada yechib olsam bo'ladimi?")
+        # rarely names its subject, and a generic page can match the bare words confidently — the retry below
+        # then never runs and the answer comes from the wrong page. So the bare question and the question in
+        # context (the caller's last lines and the agent's last answer, which names the product) are searched
+        # side by side. If the bare question names the page it found ("Humo kartasini…" → "Humo"), it stands
+        # on its own (a change of topic); otherwise it is a follow-up and the search in context is used.
+        # (Comparing confidences does not work: a longer query lowers every page's coverage.)
+        recent = [js_trim(t["text"]) for t in model_history if t["role"] == "caller"][-2:]
+        last_reply = next((t["text"] for t in reversed(model_history) if t["role"] == "agent"), "")
+        context_query = "\n".join([*(t for t in recent if t), utf16_slice(last_reply, 0, 300), utterance])
+        bare, in_context = await asyncio.gather(search(utterance), search(context_query))
+        if bare.hits and _names_its_subject(utterance, bare.hits[0]):
+            retrieval = bare
+        else:
+            retrieval = in_context if in_context.hits else bare
+    else:
+        retrieval = await search(utterance)
     # Short follow-ups ("dam olish kunlari-chi?") may not repeat the subject: if the lookup is weak,
     # retry once with the two most recent caller turns and keep the more confident one.
-    if model_history and retrieval.confidence < threshold:
+    if not routed and model_history and retrieval.confidence < threshold:
         recent = [js_trim(t["text"]) for t in model_history if t["role"] == "caller"][-2:]
         recent = [t for t in recent if t]
         if recent:

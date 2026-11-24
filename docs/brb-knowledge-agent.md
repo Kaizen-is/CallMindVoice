@@ -10,7 +10,7 @@ nothing changes for existing agents.
 
 ```
  brb.uz, brb-tech.uz
-        │  daily
+        │  weekly
         ▼
  BRB knowledge scraper (separate Python service, D:\WORK\BRB datascrapper)
         │  PUT /knowledge/pages  (API key of the BRB tenant)
@@ -136,7 +136,7 @@ LLM routing; needs a hosted model).
    Put `FILLERS=off` in the server `.env` and in the phone bridge's environment.
 2. Restart `callmind-api.service`; build + restart the site (the Playground change).
 3. `python -m app.brb_setup --password … --new-key`, give the key to the scraper.
-4. Schedule the scraper daily (Kubernetes CronJob or a systemd timer).
+4. Schedule the scraper weekly: `deploy/brb-scraper.timer` in the scraper project (Sunday 03:00).
 
 ## 6. Not done yet
 

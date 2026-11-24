@@ -300,3 +300,15 @@ def test_say_refuses_strangers_and_empty_lines(api, client, sql) -> None:  # noq
     agent_id = seed_agent(sql)
     assert api.post("/playground/say", json={"agentId": agent_id, "utterance": "  "}).json()["ok"] is False
     assert client.post("/playground/say", json={"agentId": agent_id, "utterance": "Salom"}).status_code == 401
+
+
+def test_a_follow_up_is_searched_in_context(api, sql) -> None:  # noqa: ANN001
+    """'Uning muddati qancha?' matches both pages by its words; the conversation says it is the car loan."""
+    _import_all(api)
+    agent_id = seed_agent(sql)
+    with db.connect() as conn:
+        agent = db.fetch_one(conn, "SELECT * FROM agents WHERE id = :id", id=agent_id)
+    call_id = start_call(tenant_id=TENANT, agent_id=agent_id, from_="playground", to="playground", channel="web")
+    asyncio.run(run_turn(tenant_id=TENANT, call_id=call_id, agent=agent, utterance="Avtokredit haqida aytib bering"))
+    follow = asyncio.run(run_turn(tenant_id=TENANT, call_id=call_id, agent=agent, utterance="Uning muddati qancha?"))
+    assert follow["retrievalDebug"]["hits"][0]["title"] == "Avtokredit"
