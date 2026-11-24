@@ -48,7 +48,14 @@ from app.llm.provider import generate_answer
 from app.rag.text import detect_language
 from app.speech.fillers import filler_lines, fillers_enabled
 from app.speech.stt import Transcript, transcribe
-from app.speech.tts import SynthOptions, cached_pcm, synthesize_pcm, synthesize_stream, tts_configured
+from app.speech.tts import (
+    SynthOptions,
+    cached_pcm,
+    speaking_speed,
+    synthesize_pcm,
+    synthesize_stream,
+    tts_configured,
+)
 from app.voices import list_custom_voices
 
 log = logging.getLogger("callmind.demo")
@@ -424,6 +431,7 @@ def voice_options(agent: dict[str, Any], lang: str, voice_id: str | None = None)
         language=lang,
         tag="demo",
         cache=True,
+        speed=speaking_speed(agent),
     )
 
 
@@ -768,19 +776,19 @@ async def take_prefetch(heard: dict[str, dict[str, Any]], call_id: str, key: str
     return None
 
 
-def prefetch_heard(call_id: str, audio: bytes, lang: str) -> None:
+def prefetch_heard(call_id: str, audio: bytes, lang: str, words: list[str] | None = None) -> None:
     """
     Start transcribing an utterance the page offered at an early pause (see EARLY_SILENCE_MS). If
     the pause holds, the turn arrives with the same bytes and picks the transcript up — already
     done, or well under way.
     """
-    task = asyncio.get_running_loop().create_task(transcribe(audio, language=lang, clean=True))
+    task = asyncio.get_running_loop().create_task(transcribe(audio, language=lang, clean=True, vocabulary=words))
     remember_prefetch(_heard, call_id, audio_key(audio, lang), task)
 
 
-async def heard_in(call_id: str, audio: bytes, lang: str) -> Transcript:
+async def heard_in(call_id: str, audio: bytes, lang: str, words: list[str] | None = None) -> Transcript:
     """What the visitor said: the prefetched transcript when it matches, else a fresh one."""
     found = await take_prefetch(_heard, call_id, audio_key(audio, lang))
     if found is not None:
         return found
-    return await transcribe(audio, language=lang, clean=True)
+    return await transcribe(audio, language=lang, clean=True, vocabulary=words)

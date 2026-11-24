@@ -36,6 +36,7 @@ from app.speech.tts import (
     cached_pcm,
     is_tts_engine,
     output_rate,
+    speaking_speed,
     synthesize_pcm,
     synthesize_stream,
     tts_configured,
@@ -174,6 +175,7 @@ def _synth_options(agent: dict[str, Any], lang: str, pick: VoicePick, quick_star
         engine=pick.engine,
         sample_rate=WEB_RATE,
         quick_start=quick_start,
+        speed=speaking_speed(agent),
     )
 
 
@@ -467,9 +469,11 @@ def _quiet(task: asyncio.Task) -> None:
         task.exception()  # a failure is retried by the turn itself
 
 
-def prefetch_heard(call_id: str, audio: bytes, lang: str, engine: str) -> None:
-    """Start transcribing a phrase the page offered at an early pause."""
-    task = asyncio.get_running_loop().create_task(transcribe(audio, language=lang, clean=True, engine=engine))
+def prefetch_heard(call_id: str, audio: bytes, lang: str, engine: str, words: list[str] | None = None) -> None:
+    """Start transcribing a phrase the page offered at an early pause (`words`: names and terms to expect)."""
+    task = asyncio.get_running_loop().create_task(
+        transcribe(audio, language=lang, clean=True, engine=engine, vocabulary=words)
+    )
     task.add_done_callback(_quiet)
     _heard[call_id] = {"key": _audio_key(audio, lang, engine), "at": time.time(), "transcript": task}
     if len(_heard) > 500:
@@ -478,7 +482,7 @@ def prefetch_heard(call_id: str, audio: bytes, lang: str, engine: str) -> None:
             del _heard[cid]
 
 
-async def heard_in(call_id: str, audio: bytes, lang: str, engine: str) -> Transcript:
+async def heard_in(call_id: str, audio: bytes, lang: str, engine: str, words: list[str] | None = None) -> Transcript:
     """What the caller said: the prefetched transcript when it matches, else a fresh one."""
     entry = _heard.pop(call_id, None)
     if entry and entry["key"] == _audio_key(audio, lang, engine) and time.time() - entry["at"] < PREFETCH_TTL_S:
@@ -486,4 +490,4 @@ async def heard_in(call_id: str, audio: bytes, lang: str, engine: str) -> Transc
             return await entry["transcript"]
         except Exception:  # noqa: BLE001 - transcribe again below
             pass
-    return await transcribe(audio, language=lang, clean=True, engine=engine)
+    return await transcribe(audio, language=lang, clean=True, engine=engine, vocabulary=words)

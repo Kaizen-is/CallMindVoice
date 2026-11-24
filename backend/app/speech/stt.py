@@ -39,6 +39,7 @@ from app.speech.speko import (
     speko_configured,
     speko_transcribe,
 )
+from app.speech.vocabulary import echoes_prompt, whisper_prompt
 from app.speech.wav import is_silent, wav_duration_ms, wav_to_pcm16k
 from app.usage_log import UsageEntry, record_usage
 
@@ -169,10 +170,12 @@ async def _logged(
     return heard
 
 
-async def _gapi_one(audio: bytes, language: str | None = None, clean: bool = False) -> Transcript:
+async def _gapi_one(
+    audio: bytes, language: str | None = None, clean: bool = False, vocabulary: list[str] | None = None
+) -> Transcript:
     async def work() -> Transcript:
         try:
-            heard = await gapi_transcribe(audio, language=language, clean=clean)
+            heard = await gapi_transcribe(audio, language=language, vocabulary=vocabulary, clean=clean)
         except Exception as err:
             raise SttError(str(err) or "gapi_failed") from err
         return {**heard, "text": uzbek_numbers_to_digits(heard["text"])} if heard["text"] else _empty()
@@ -269,13 +272,18 @@ async def _brb_whisper(audio: bytes, language: str | None = None) -> Transcript:
     return await _logged("brb", brb_stt_model(), audio, work)
 
 
-async def _whisper(audio: bytes, language: str | None = None) -> Transcript:
+async def _whisper(audio: bytes, language: str | None = None, vocabulary: list[str] | None = None) -> Transcript:
     return await _logged(
-        "whisper", env("WHISPER_MODEL", "whisper-large-v3-turbo"), audio, lambda: _whisper_request(audio, language)
+        "whisper",
+        env("WHISPER_MODEL", "whisper-large-v3-turbo"),
+        audio,
+        lambda: _whisper_request(audio, language, vocabulary),
     )
 
 
-async def _whisper_request(audio: bytes, language: str | None = None) -> Transcript:
+async def _whisper_request(
+    audio: bytes, language: str | None = None, vocabulary: list[str] | None = None
+) -> Transcript:
     url = env("WHISPER_TRANSCRIBE_URL")
     if not url:
         return _empty()
@@ -287,6 +295,10 @@ async def _whisper_request(audio: bytes, language: str | None = None) -> Transcr
     # Pinning the language saves ~100 ms; omitted for Uzbek-primary agents, where the caller may switch.
     if language and language != "uz":
         files.append(("language", (None, language.encode())))
+    # The names and terms to expect, as text that "came before" (Whisper's `prompt`).
+    prompt = whisper_prompt(vocabulary)
+    if prompt:
+        files.append(("prompt", (None, prompt.encode())))
     key = env("WHISPER_API_KEY")
     headers = {"accept": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})}
     async with asyncio.timeout(TIMEOUT_S):
@@ -295,6 +307,8 @@ async def _whisper_request(audio: bytes, language: str | None = None) -> Transcr
             raise SttError(f"whisper {res.status_code}: {res.text[:160]}")
         data = res.json()
     text = js_trim(str(data.get("text") or "")) if isinstance(data, dict) else ""
+    if echoes_prompt(text, prompt):
+        return _empty()  # Whisper repeating its word list back: it heard nothing it could make out
     detected = data.get("language") if isinstance(data, dict) else None
     return {"text": text, "engine": "whisper", "language": detected or language or None} if text else _empty()
 
@@ -379,11 +393,17 @@ def _pick(a: Transcript, b: Transcript, primary: str) -> Transcript:
 
 
 async def transcribe(
-    audio: bytes, *, language: str | None = None, clean: bool = False, engine: str | None = None
+    audio: bytes,
+    *,
+    language: str | None = None,
+    clean: bool = False,
+    engine: str | None = None,
+    vocabulary: list[str] | None = None,
 ) -> Transcript:
     """
-    Transcribe one complete utterance (`clean` runs the noise cleaner first). Never raises on a
-    single engine failing — only when nothing is configured, or every configured engine errored.
+    Transcribe one complete utterance (`clean` runs the noise cleaner first; `vocabulary` lists names
+    and terms to expect, used by GAPI and Whisper). Never raises on a single engine failing — only
+    when nothing is configured, or every configured engine errored.
     """
     if not audio:
         raise SttError("empty_audio", 400)
@@ -405,7 +425,7 @@ async def transcribe(
             return await _speko_scribe(await denoise(audio) if clean else audio, language, live=True)
         if engine == "brb":
             return await _brb_whisper(await denoise(audio) if clean else audio, language)
-        return await _gapi_one(audio, language, clean)
+        return await _gapi_one(audio, language, clean, vocabulary)
 
     has_kotib = bool(env("STT_TRANSCRIBE_URL"))
     has_whisper = bool(env("WHISPER_TRANSCRIBE_URL"))
@@ -443,7 +463,7 @@ async def transcribe(
         if not has_whisper:
             return _empty()
         try:
-            return await _whisper(audio, primary)
+            return await _whisper(audio, primary, vocabulary)
         except Exception as err:  # noqa: BLE001
             log.warning("[stt] whisper failed: %s", err)
             return _empty()

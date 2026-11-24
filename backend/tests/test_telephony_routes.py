@@ -67,7 +67,7 @@ def line(data_dir, sql, monkeypatch) -> Iterator[TestClient]:  # noqa: ANN001
 @pytest.fixture
 def speech(monkeypatch: pytest.MonkeyPatch) -> dict:
     """Scripted STT, TTS and turn engine; records what each was asked."""
-    seen: dict = {"pcm": [], "stream": [], "stt": [], "turns": []}
+    seen: dict = {"pcm": [], "stream": [], "stt": [], "stt_opts": [], "turns": []}
     state = {"heard": {"text": "kredit qachon", "engine": "kotib", "language": "uz"}}
     state["result"] = {"reply": "Ertaga. Yana savol bormi?", "language": "uz", "escalate": None}
 
@@ -80,8 +80,9 @@ def speech(monkeypatch: pytest.MonkeyPatch) -> dict:
         yield b"part1-"
         yield b"part2"
 
-    async def transcribe(audio, *, language=None, clean=False, engine=None):  # noqa: ANN001
+    async def transcribe(audio, *, language=None, clean=False, engine=None, vocabulary=None):  # noqa: ANN001
         seen["stt"].append((audio, language))
+        seen["stt_opts"].append({"clean": clean, "engine": engine, "vocabulary": vocabulary})
         return state["heard"]
 
     async def run_turn(**kw):  # noqa: ANN003
@@ -231,6 +232,34 @@ def test_reply_is_streamed_with_its_headers(line, speech) -> None:  # noqa: ANN0
         "uz",
         "isomiddin",
     )
+    assert opts.speed is None  # the default speaking rate (1.0) sends no speed
+
+
+def test_phone_audio_is_cleaned_and_told_the_names_to_expect(line, sql, speech) -> None:  # noqa: ANN001
+    call_id = _first_leg(line)
+    line.post(
+        "/telephony/bridge/turn",
+        data={"to": NUMBER, "callId": call_id},
+        files={"audio": ("utterance.wav", b"RIFFfake", "audio/wav")},
+    )
+    (opts,) = speech["stt_opts"]
+    assert opts["clean"] is True
+    assert opts["engine"] is None
+    assert opts["vocabulary"] == ["Isomiddin", "Test Bank"]  # the agent's name, then the company's
+
+
+def test_agent_speaking_rate_reaches_every_phone_voice(line, sql, speech) -> None:  # noqa: ANN001
+    sql("UPDATE agents SET speaking_rate = 1.2 WHERE id = ?", AGENT)
+    call_id = _first_leg(line)
+    line.post(
+        "/telephony/bridge/turn",
+        data={"to": NUMBER, "callId": call_id},
+        files={"audio": ("utterance.wav", b"RIFFfake", "audio/wav")},
+    )
+    line.get("/telephony/bridge/filler", params={"to": NUMBER, "i": "0"})
+    greeting, filler = speech["pcm"][0][1], speech["pcm"][-1][1]
+    reply = speech["stream"][0][1]
+    assert (greeting.speed, reply.speed, filler.speed) == (1.2, 1.2, 1.2)
 
 
 def test_no_escalation_is_an_empty_header(line, speech) -> None:  # noqa: ANN001

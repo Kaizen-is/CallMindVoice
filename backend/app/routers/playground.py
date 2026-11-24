@@ -51,6 +51,7 @@ from app.playground_voice import (
 )
 from app.rag.text import detect_language
 from app.speech.numbers import uzbek_numbers_to_digits
+from app.speech.vocabulary import recognition_words
 
 router = APIRouter(prefix="/playground")
 
@@ -142,7 +143,7 @@ async def turn(request: Request, session: LoggedIn) -> Response:
     if prefetch:
         if not has_audio:
             return _error("bad_audio", 400)
-        prefetch_heard(call_id, wav, lang, stt)
+        prefetch_heard(call_id, wav, lang, stt, recognition_words(tenant_id, saved))
         return Response(status_code=202)
     pick = voice_pick(saved, form.get("ttsEngine"), form.get("voice"))
     agent = speaking_agent(saved, pick)
@@ -167,7 +168,7 @@ async def turn(request: Request, session: LoggedIn) -> Response:
                 heard = (
                     {"text": uzbek_numbers_to_digits(streamed), "engine": "local", "language": lang}
                     if streamed
-                    else await heard_in(call_id, wav, lang, stt)
+                    else await heard_in(call_id, wav, lang, stt, recognition_words(tenant_id, saved))
                 )
             except Exception as err:  # noqa: BLE001
                 # The recogniser failed (down, unreachable, bad key): say so plainly, so the page

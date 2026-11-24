@@ -15,6 +15,7 @@ ElevenLabs through Speko. On top of it:
 import asyncio
 import hashlib
 import logging
+import math
 import os
 import struct
 import time
@@ -130,6 +131,17 @@ class SynthOptions:
     sample_rate: int | None = None
     # First 0.1 s of audio out at once, then 0.25 s pieces (the audio itself is identical).
     quick_start: bool = False
+    # Own TTS server only: the agent's speaking rate, 0.5–2 (None = the voice's normal pace).
+    speed: float | None = None
+
+
+def speaking_speed(agent: dict | None) -> float | None:
+    """The agent's `speaking_rate` as a TTS speed: None at the normal pace (1) or when unusable."""
+    rate = (agent or {}).get("speaking_rate")
+    if isinstance(rate, bool) or not isinstance(rate, int | float) or not math.isfinite(rate) or rate <= 0:
+        return None
+    speed = min(2.0, max(0.5, float(rate)))
+    return None if speed == 1 else speed
 
 
 def output_rate(engine: str = "default", sample_rate: int | None = None) -> int:
@@ -151,13 +163,16 @@ QUICK_FIRST_PIECE_BYTES = 1600  # 0.1 s
 QUICK_PIECE_BYTES = 4000  # 0.25 s
 
 
-async def _stream_pcm(text: str, voice: ResolvedVoice, quick_start: bool = False) -> AsyncIterator[bytes]:
+async def _stream_pcm(
+    text: str, voice: ResolvedVoice, quick_start: bool = False, speed: float | None = None
+) -> AsyncIterator[bytes]:
     """`generate_v2/stream`: raw 8 kHz s16le (`format=l16`) sent as it is generated."""
     first_piece = QUICK_FIRST_PIECE_BYTES if quick_start else FIRST_PIECE_BYTES
     piece = QUICK_PIECE_BYTES if quick_start else PIECE_BYTES
     token = await _tts_token()
     # The stream keeps no file to download, so it needs no user_id or phone.
-    parts = [p for p in build_tts_form(user_id="stream", text=text, voice=voice) if p[0] not in ("user_id", "phone")]
+    form = build_tts_form(user_id="stream", text=text, voice=voice, speed=speed)
+    parts = [p for p in form if p[0] not in ("user_id", "phone")]
     parts.append(("format", "l16"))
     if env("TTS_STREAM_CHUNK_SEC"):
         parts.append(("chunk_sec", env("TTS_STREAM_CHUNK_SEC")))  # smaller pieces start sooner; server default 2 s
@@ -194,7 +209,7 @@ async def _brb_pcm(text: str, rate: int) -> AsyncIterator[bytes]:
 async def _raw_engine_pcm(text: str, voice: ResolvedVoice, opts: SynthOptions) -> AsyncIterator[bytes]:
     engine = opts.engine or "default"
     if engine == "default":
-        async with aclosing(_stream_pcm(text, voice, opts.quick_start)) as pieces:
+        async with aclosing(_stream_pcm(text, voice, opts.quick_start, opts.speed)) as pieces:
             async for piece in pieces:
                 yield piece
         return
@@ -271,11 +286,17 @@ def mtime_ms(path: str) -> float:
 
 
 def cache_key(
-    text: str, voice: ResolvedVoice, engine: str = "default", voice_id: str | None = None, rate: int = SAMPLE_RATE
+    text: str,
+    voice: ResolvedVoice,
+    engine: str = "default",
+    voice_id: str | None = None,
+    rate: int = SAMPLE_RATE,
+    speed: float | None = None,
 ) -> str:
     """
     The exact text plus the exact voice. A clone is keyed by its sample's path and mtime, so
-    replacing the sample invalidates every line rendered from the old one.
+    replacing the sample invalidates every line rendered from the old one. A speed other than the
+    normal pace is keyed too (own server only; the normal pace keeps the old keys).
     """
     h = hashlib.sha1()
     h.update(text.encode("utf-8", "surrogatepass"))
@@ -300,6 +321,8 @@ def cache_key(
         except OSError:
             stamp = ""  # a missing sample keys stably; the render will fail loudly
         h.update(f"clone:{voice.ref_audio_path}:{stamp}:{voice.ref_text}".encode())
+    if speed:
+        h.update(f"@{js_number_str(speed)}".encode())
     return h.hexdigest()
 
 
@@ -327,7 +350,7 @@ def _cache_write(key: str, pcm: bytes) -> None:
 
 
 def _key_for(spoken: str, voice: ResolvedVoice, opts: SynthOptions) -> str:
-    return cache_key(spoken, voice, opts.engine or "default", opts.voice_id, _rate(opts))
+    return cache_key(spoken, voice, opts.engine or "default", opts.voice_id, _rate(opts), opts.speed)
 
 
 # ── public API ──────────────────────────────────────────────────────
