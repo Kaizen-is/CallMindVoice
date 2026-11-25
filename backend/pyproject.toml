@@ -18,8 +18,6 @@ dependencies = [
   "anthropic>=2.0",
   # Audio decoding and resampling for the STT engines.
   "numpy>=1.26",
-  # BRB Whisper STT: Triton's inference protocol over gRPC (HTTP/2 + TLS).
-  "grpcio>=1.60",
   # Multipart form bodies (Playground turns, live speech pieces) — FastAPI's Form/File need it.
   "python-multipart>=0.0.9",
   # Time zones (the loan calendar): Linux has them built in, Windows Python does not.

@@ -55,8 +55,22 @@ def _engines_as_recorded(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(agent_studio, "SPEKO_TTS_MODELS", speko_models)
 
 
+def _brb_stt_as_recorded(node: Any) -> None:
+    """BRB Whisper moved from its own gRPC host (BRB_STT_URL) to the BRB speech proxy, set up with the
+    BRB TTS account (23 Nov 2026): the setting it names reads as it was recorded."""
+    if isinstance(node, dict):
+        if node.get("name") == "BRB Whisper" and node.get("setup") == "BRB_SPEECH_LOGIN":
+            node["setup"] = "BRB_STT_URL"
+        for value in node.values():
+            _brb_stt_as_recorded(value)
+    elif isinstance(node, list):
+        for value in node:
+            _brb_stt_as_recorded(value)
+
+
 def _as_recorded(view: dict[str, Any]) -> dict[str, Any]:
     """A page's data without the fields added after the port (the Gemini voices and STT choice)."""
+    _brb_stt_as_recorded(view)
     view.pop("geminiVoices", None)
     stt = view.get("speech", {}).get("stt") if isinstance(view.get("speech"), dict) else None
     if isinstance(stt, dict):
@@ -435,4 +449,6 @@ def test_benchmark_and_lab_match_the_typescript(data_dir: Path, monkeypatch: pyt
     assert rows.changes() == bench["rows"]
     assert asyncio.run(benchmark.run_benchmark("build-42")) is bench["again"]
     assert mask(benchmark.latest_benchmarks()) == bench["latest"]
-    assert mask(model_lab.model_stats()) == bench["stats"]
+    stats = mask(model_lab.model_stats())
+    _brb_stt_as_recorded(stats)
+    assert stats == bench["stats"]

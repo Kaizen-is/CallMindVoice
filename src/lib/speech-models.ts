@@ -44,7 +44,7 @@ export const STT_MODELS: Array<{ id: SttChoice; name: string; detail: string; se
     setup: 'SPEKO_API_KEY',
   },
   // Last, like BRB TTS: reachable only over the VPN.
-  { id: 'brb', name: 'BRB Whisper', detail: 'own model · VPN', setup: 'BRB_STT_URL' },
+  { id: 'brb', name: 'BRB Whisper', detail: 'own model · VPN', setup: 'BRB_SPEECH_LOGIN' },
 ];
 
 export const TTS_MODELS: Array<{ id: TtsChoice; name: string; detail: string; setup: string }> = [

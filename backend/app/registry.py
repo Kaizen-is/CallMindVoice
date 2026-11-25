@@ -82,9 +82,9 @@ ENGINES: tuple[EngineInfo, ...] = (
     EngineInfo(
         "stt", "gemini", "Gemini Flash-Lite", "Google", "cloud", False, ("uz", "ru", "en"), 0.0009, "GEMINI_API_KEY"
     ),
-    # Our own Whisper on Triton (gRPC, through the VPN).
+    # Our own Whisper behind the BRB speech proxy (VPN), with the BRB TTS account.
     EngineInfo(
-        "stt", "brb", "BRB Whisper", "BRB (own model)", "server", False, ("uz", "ru", "en"), None, "BRB_STT_URL"
+        "stt", "brb", "BRB Whisper", "BRB (own model)", "server", False, ("uz", "ru", "en"), None, "BRB_SPEECH_LOGIN"
     ),
     # text to speech
     EngineInfo("tts", "default", "Own TTS", "CallMind", "server", True, ("uz",), None, "TTS_BASE_URL"),

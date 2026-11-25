@@ -8,7 +8,7 @@ Uzbek-primary agent and the better transcript wins — the caller waits for the
 slower one, never both. Without Whisper, Gemini covers the non-Uzbek side and
 stands in when Kotib is down. By name: GAPI (`gapi`), Zipformer in-process
 (`local`), gemini-3.5 via Speko (`gemini`), ElevenLabs Scribe via Speko
-(`scribe`), BRB Whisper on Triton over gRPC (`brb`).
+(`scribe`), BRB Whisper through the BRB speech proxy (`brb`).
 """
 
 import asyncio
@@ -23,7 +23,8 @@ from app.env import env
 from app.jscompat import JS_B, js_trim, utf16_len
 from app.llm.gemini import gemini_transcribe, has_gemini
 from app.speech import zipformer
-from app.speech.brb_stt import brb_stt_configured, brb_stt_model, brb_transcribe
+from app.speech.brb import STT_MODEL as BRB_STT_MODEL
+from app.speech.brb import brb_configured, brb_transcribe
 from app.speech.denoise import denoise
 from app.speech.gapi import gapi_configured, gapi_transcribe
 from app.speech.numbers import uzbek_numbers_to_digits
@@ -39,6 +40,7 @@ from app.speech.speko import (
     speko_configured,
     speko_transcribe,
 )
+from app.speech.tts import pcm_to_wav
 from app.speech.vocabulary import echoes_prompt, whisper_prompt
 from app.speech.wav import is_silent, wav_duration_ms, wav_to_pcm16k
 from app.usage_log import UsageEntry, record_usage
@@ -77,7 +79,7 @@ def stt_engines() -> dict[str, bool]:
         "gemini_live": speko_configured(),
         "scribe": speko_configured(),
         "scribe_live": speko_configured(),
-        "brb": brb_stt_configured(),
+        "brb": brb_configured(),
     }
 
 
@@ -97,7 +99,7 @@ def stt_engine_ids() -> dict[str, bool]:
         "gemini": has_gemini(),
         "scribe": speko_configured(),
         "scribe_live": speko_configured(),
-        "brb": brb_stt_configured(),
+        "brb": brb_configured(),
     }
 
 
@@ -258,18 +260,21 @@ async def _speko_scribe(audio: bytes, language: str | None = None, live: bool = 
 
 
 async def _brb_whisper(audio: bytes, language: str | None = None) -> Transcript:
-    """BRB Whisper (our own model on Triton); numbers as digits, like the other engines."""
+    """
+    BRB Whisper (our own model, behind the BRB speech proxy); numbers as digits, like the other
+    engines. Sent as a 16 kHz mono WAV whatever came in; the proxy takes no language.
+    """
 
     async def work() -> Transcript:
         try:
-            text = await brb_transcribe(wav_to_pcm16k(audio), language)
+            text = await brb_transcribe(pcm_to_wav(wav_to_pcm16k(audio), 16000))
         except Exception as err:
             raise SttError(f"brb: {err or 'failed'}") from err
         if not text or _is_hallucination(text):
             return _empty()
         return {"text": uzbek_numbers_to_digits(text), "engine": "brb", "language": language or "uz"}
 
-    return await _logged("brb", brb_stt_model(), audio, work)
+    return await _logged("brb", BRB_STT_MODEL, audio, work)
 
 
 async def _whisper(audio: bytes, language: str | None = None, vocabulary: list[str] | None = None) -> Transcript:

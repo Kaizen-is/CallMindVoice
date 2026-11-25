@@ -1,15 +1,17 @@
 """
-BRB speech proxy — our own TTS (and, later, STT) models behind the "TTS/STT
-Proxy API" (BRB_SPEECH_URL, reachable through the BRB VPN). Port of
-src/lib/speech/brb.ts.
+BRB speech proxy — our own TTS and STT models behind the "TTS/STT Proxy API"
+(BRB_SPEECH_URL, reachable through the BRB VPN; Swagger at /docs). Port of
+src/lib/speech/brb.ts, plus speech-to-text (added 23 Nov 2026).
 
-    POST /auth/login   {login, password}   → {access_token, refresh_token}
-    POST /auth/refresh {refresh_token}     → a new pair
-    POST /tts/speech   {input} + Bearer    → the whole WAV (no streaming)
+    POST /auth/login     {login, password}         → {access_token, refresh_token}
+    POST /auth/refresh   {refresh_token}           → a new pair
+    POST /tts/speech     {input} + Bearer          → the whole WAV (no streaming)
+    POST /stt/transcribe multipart {file} + Bearer → {text}
 
 The account (BRB_SPEECH_LOGIN / BRB_SPEECH_PASSWORD) has a request limit and
 the proxy stores every input, so text goes one sentence at a time (`tts`
-caches renders on disk: a fixed line costs one request ever). Tokens live in
+caches renders on disk: a fixed line costs one request ever). The STT takes
+no language: the model decides. Tokens live in
 memory: renewed shortly before they expire, renewed once on a 401, and the
 login repeated when the refresh token is no longer accepted.
 """
@@ -33,6 +35,8 @@ log = logging.getLogger("callmind.brb")
 
 LOGIN_TIMEOUT_S = 10.0
 SPEECH_TIMEOUT_S = 30.0
+TRANSCRIBE_TIMEOUT_S = 20.0
+STT_MODEL = "brb-stt"  # the model name in the usage log; the proxy does not say which it runs
 EARLY_S = 60.0  # renew this long before the access token's `exp`
 
 
@@ -88,6 +92,17 @@ async def _post(path: str, body: object, timeout: float, token: str | None = Non
     headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {token}"} if token else {})}
     async with asyncio.timeout(timeout):
         res = await http.client().post(f"{_base()}{path}", headers=headers, content=js_json(body).encode())
+        await res.aread()
+    return res
+
+
+async def _post_file(path: str, audio: bytes, timeout: float, token: str):  # noqa: ANN202
+    async with asyncio.timeout(timeout):
+        res = await http.client().post(
+            f"{_base()}{path}",
+            headers={"Authorization": f"Bearer {token}"},
+            files=[("file", ("speech.wav", audio, "audio/wav"))],
+        )
         await res.aread()
     return res
 
@@ -161,9 +176,34 @@ async def brb_speech(text: str) -> bytes:
         res = await _post("/tts/speech", {"input": text}, SPEECH_TIMEOUT_S, token)
     if not res.is_success:
         log.warning("[brb] tts %s: %s", res.status_code, await error_body(res, 200))
-        raise BrbError(
-            "brb_limit" if res.status_code == 429 else f"brb_{res.status_code}", 429 if res.status_code == 429 else 502
-        )
+        raise _failure("tts", res)
     if not res.content:
         raise BrbError("brb_empty_audio")
     return res.content
+
+
+def _failure(kind: str, res) -> BrbError:  # noqa: ANN001
+    """`brb_limit` when the account's limit is reached (429), `brb_<status>` (or `brb_stt_<status>`) otherwise."""
+    if res.status_code == 429:
+        return BrbError("brb_limit", 429)
+    return BrbError(f"brb_{res.status_code}" if kind == "tts" else f"brb_stt_{res.status_code}", 502)
+
+
+async def brb_transcribe(wav: bytes) -> str:
+    """One utterance (a WAV) → the proxy's transcript, trimmed ('' when it heard nothing). Raises BrbError."""
+    if not brb_configured():
+        raise BrbError("brb_not_configured", 503)
+    token = await _access_token()
+    res = await _post_file("/stt/transcribe", wav, TRANSCRIBE_TIMEOUT_S, token)
+    if res.status_code == 401:
+        token = await _access_token(token)
+        res = await _post_file("/stt/transcribe", wav, TRANSCRIBE_TIMEOUT_S, token)
+    if not res.is_success:
+        log.warning("[brb] stt %s: %s", res.status_code, await error_body(res, 200))
+        raise _failure("stt", res)
+    try:
+        data = res.json()
+    except ValueError as err:
+        raise BrbError("brb_stt_bad_response") from err
+    text = data.get("text") if isinstance(data, dict) else None
+    return js_trim(text) if isinstance(text, str) else ""
