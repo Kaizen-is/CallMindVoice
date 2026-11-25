@@ -38,7 +38,6 @@ const en: Dict = {
   'lab.col.cer': 'CER',
   'lab.col.clarity': 'Clarity',
 
-  'lab.via': 'via {name}',
   'lab.own': 'Own server',
   'lab.ready': 'Ready',
   'lab.missing': 'Needs {setup}',
@@ -92,7 +91,6 @@ const ru: Dict = {
   'lab.col.cer': 'CER',
   'lab.col.clarity': 'Разборчивость',
 
-  'lab.via': 'через {name}',
   'lab.own': 'Свой сервер',
   'lab.ready': 'Готов',
   'lab.missing': 'Нужно {setup}',
@@ -146,7 +144,6 @@ const uz: Dict = {
   'lab.col.cer': 'CER',
   'lab.col.clarity': 'Aniqlik',
 
-  'lab.via': '{name} orqali',
   'lab.own': 'O‘z serverimiz',
   'lab.ready': 'Tayyor',
   'lab.missing': '{setup} kerak',

@@ -90,14 +90,11 @@ function Status({ t, ready, setup }: { t: T; ready: boolean; setup: string }) {
   );
 }
 
-function Name({ t, name, vendor, via }: { t: T; name: string; vendor: string; via?: string }) {
+function Name({ name, vendor }: { name: string; vendor: string }) {
   return (
     <>
       <span className="block font-medium text-ink">{name}</span>
-      <span className="block text-[11.5px] text-ink-3">
-        {vendor}
-        {via ? ` · ${t('lab.via').replace('{name}', via)}` : ''}
-      </span>
+      <span className="block text-[11.5px] text-ink-3">{vendor}</span>
     </>
   );
 }
@@ -165,7 +162,7 @@ function SttTab({ t, rows }: { t: T; rows: SttStat[] }) {
           {rows.map((r) => (
             <tr key={r.id}>
               <Td first>
-                <Name t={t} name={r.name} vendor={r.vendor} via={r.via} />
+                <Name name={r.name} vendor={r.vendor} />
               </Td>
               <Td>
                 <Status t={t} ready={r.ready} setup={r.setup} />
@@ -222,7 +219,7 @@ function TtsTab({ t, rows }: { t: T; rows: TtsStat[] }) {
           {rows.map((r) => (
             <tr key={r.id}>
               <Td first>
-                <Name t={t} name={r.name} vendor={r.vendor} via={r.via} />
+                <Name name={r.name} vendor={r.vendor} />
               </Td>
               <Td>
                 <Status t={t} ready={r.ready} setup={r.setup} />
