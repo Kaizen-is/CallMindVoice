@@ -8,7 +8,7 @@ what is still open. Read with `docs/brb-speech-api.md` (the STT/TTS services).
 
 | Path | Capture | Format to the server | VAD / endpointing | Where STT runs |
 |---|---|---|---|---|
-| Playground call, bank demo, logistics demo (hands-free) | `use-voice-session.ts`: one `getUserMedia` stream with browser AEC + NS + AGC; a `MediaRecorder` per utterance | `src/lib/audio.ts`: WebM/Opus → decoded, **75 Hz high-pass + resample to 16 kHz mono** (OfflineAudioContext), peak gain up to 8×, silence trimmed (150 ms padding), WAV | Browser, energy: noise floor over 300 ms, speech ≥ 3× floor for 250 ms, end after 800 ms quiet, an early "speculative" upload after 350 ms, max 30 s | Server: `playground_voice.heard_in` / `demo.heard_in` → `stt.transcribe(clean=True)` (CleanVoice if `DENOISE_URL`, then the engine) |
+| Playground call, bank demo, logistics demo (hands-free) | `use-voice-session.ts`: one `getUserMedia` stream with browser AEC + NS + AGC; a `MediaRecorder` per utterance | `src/lib/audio.ts`: WebM/Opus → decoded, **75 Hz high-pass + resample to 16 kHz mono** (OfflineAudioContext), peak gain up to 8×, silence trimmed (150 ms padding), WAV | Browser, energy: noise floor over 300 ms, speech ≥ 3× floor for 250 ms, end after 1100 ms quiet (800 ms until 25 Nov), an early "speculative" upload after 350 ms, max 30 s | Server: `playground_voice.heard_in` / `demo.heard_in` → `stt.transcribe(clean=True)` (CleanVoice if `DENOISE_URL`, then the engine) |
 | Playground with a streaming model (Zipformer, live Scribe/Gemini) | as above **plus a second mic stream** (`use-live-transcript.ts`) streamed to `/api/speech/live` | text when the stream has it, else the WAV | same browser VAD decides when the phrase ends | streaming sidecar; WAV fallback |
 | Push-to-talk (STT page "Yozib olish", Playground text-mode mic) | `startRecording()` with AEC **off**, NS **off**, AGC on | same `audio.ts` 16 kHz WAV | none (button) | `/api/speech/stt` or `/api/models/stt` |
 | STT page uploads | file → browser decode → 16 kHz WAV (no filter, no gain) | WAV | none | `/api/speech/stt` |
@@ -35,7 +35,7 @@ does not remove other people's voices.
    in that gap could start a second utterance.
 3. *Phone, stale audio.* Frames gathered during the turn stayed in the preroll
    and were glued to the start of the next utterance.
-4. *Browser, end of phrase.* During the 800 ms end-of-phrase wait, anything
+4. *Browser, end of phrase.* During the end-of-phrase wait (800 ms then, 1100 ms now), anything
    above 0.7 × the start threshold counted as "the caller went on", so a
    quieter voice in the room was **appended to the caller's phrase**.
 5. *Browser, while the agent speaks.* A barge-in needed only 320 ms of energy
