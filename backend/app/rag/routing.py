@@ -52,6 +52,7 @@ RUNNER_UP_GAP = 0.04  # …plus the next one when it scores this close
 # pages are (the length of their mean vector): a group about many things matches many questions loosely.
 FOCUS_POWER = 1.0
 MIN_LANG_CHUNKS = 3  # fewer chunks than this in the caller's language: search all languages
+SMALL_GROUP_CHUNKS = 3  # the best group this small (the rates) is passed to the model whole
 STICKY_CALLS = 500  # how many calls' last group to remember
 
 
@@ -118,6 +119,57 @@ def _signature(conn: Connection, tenant_id: str) -> str:
 
 def _phrase_stems(phrase: str) -> list[str]:
     return [stem(t) for t in tokenize(phrase, keep_stopwords=True)]
+
+
+# ── Uzbek word endings ───────────────────────────────────────────────
+# Uzbek stacks endings: valyuta-si-ni ("its currency", as an object). The shared stemmer (app.rag.text,
+# kept identical to the TypeScript) strips one layer, so "valyutasini" stays "valyutasi" and misses the
+# pages that say "valyuta" (25 Nov: "valyutasini ber" got "no rates" though the rates page was there).
+# For the grouped search only, an Uzbek question also gets the base form of such words, when the pages
+# know it; the shared ranking, the plain search and every other tenant are untouched.
+_UZ_LAYERS = (
+    ("miz", "siz", "man", "san", "dir"),  # predicate: …-man "I am …", …-dir "is …"
+    ("ning", "dagi", "gacha", "dan", "ga", "da", "ni"),  # case
+    ("imiz", "ingiz", "ing", "im", "si", "i"),  # possessive: -si after a vowel, -i after a consonant
+    ("lar",),  # plural
+)
+_VOWELS = frozenset("aeiou")
+
+
+def uz_base(token: str) -> str:
+    """The token without its endings, at most one per layer, outermost first (at least four letters kept)."""
+    word = token
+    for layer in _UZ_LAYERS:
+        for suffix in layer:
+            if not word.endswith(suffix) or len(word) - len(suffix) < 4:
+                continue
+            before = word[-len(suffix) - 1]
+            if (suffix == "si" and before not in _VOWELS) or (suffix == "i" and before in _VOWELS):
+                continue
+            word = word[: -len(suffix)]
+            break
+    return word
+
+
+def expand_query(query: str, df: dict[str, int]) -> str:
+    """The query plus the base forms of words whose stacked endings the shared stemmer left on.
+
+    A base form is added (as itself and with -lar, which the stemmer reduces differently) only when its
+    stem differs from the word's own and occurs in the corpus: words it already finds add nothing.
+    """
+    extra: list[str] = []
+    seen: set[str] = set()
+    for token in tokenize(query):
+        base = uz_base(token)
+        if base == token:
+            continue
+        own = stem(token)
+        for form in (base, base + "lar"):
+            s = stem(form)
+            if s != own and s in df and s not in seen:
+                seen.add(s)
+                extra.append(form)
+    return f"{query} {' '.join(extra)}" if extra else query
 
 
 def load(conn: Connection, tenant_id: str) -> GroupedCorpus:
@@ -296,7 +348,55 @@ def _route_and_rank(
         if max(a[1].confidence for a in attempts) < threshold:
             attempts.append(("everything", run(subset(gc, (), None))))
     scope, best = max(attempts, key=lambda a: a[1].confidence)  # first wins a tie: the narrowest search
+    if groups:
+        best = _keep_best_group(gc, best, groups[0], query, qv, engine, language, top_k, min_score)
     return best, groups, scores, scope, len(attempts)
+
+
+def _keep_best_group(
+    gc: GroupedCorpus,
+    result: RetrievalResult,
+    group: str,
+    query: str,
+    qv: np.ndarray | None,
+    engine: str,
+    language: str,
+    top_k: int,
+    min_score: float,
+) -> RetrievalResult:
+    """Make sure the best-scoring group is among the hits the model reads: its best chunk, or all of it.
+
+    Several groups are searched together, and a small group loses to big ones on shared words: the rate
+    pages (group "currency") lost to card and news pages for "100 dollarni so'mga almashtirmoqchiman"
+    although the question was routed to "currency" first. A group of SMALL_GROUP_CHUNKS or fewer is one
+    topic (the rates: individuals, with the "Yangilangan" time, then the app's rates, then companies), so
+    all of it is passed; a bigger group passes its best chunk. They take the last places, so the order on
+    top (and the confidence) is unchanged.
+    """
+    if not result.hits:
+        return result
+    part = subset(gc, (group,), language)
+    if not len(part[1]):
+        part = subset(gc, (group,), None)
+    small = len(part[1]) <= SMALL_GROUP_CHUNKS
+    if not small and len(result.hits) < top_k:
+        return result  # room left: every match above the minimum score is in already
+    own = search(gc, part, query, qv, engine, top_k=len(part[1]) if small else 1, min_score=0 if small else min_score)
+    present = {h["chunkId"] for h in result.hits}
+    missing = [h for h in own.hits if h["chunkId"] not in present]
+    if not missing:
+        return result
+    keep = max(1, min(len(result.hits), top_k - len(missing)))
+    kept = result.hits[:keep]
+    floor = kept[-1]["score"]
+    added = [{**h, "score": floor, "rank": keep + i + 1} for i, h in enumerate(missing[: top_k - keep])]
+    return RetrievalResult(
+        hits=[*kept, *added],
+        confidence=result.confidence,
+        took_ms=result.took_ms,
+        strategy=result.strategy,
+        total_chunks=result.total_chunks,
+    )
 
 
 async def retrieve_routed(
@@ -316,9 +416,10 @@ async def retrieve_routed(
     if not gc.rows:
         return rank(gc.full, query, top_k=top_k, min_score=min_score)
 
-    qv, engine = await query_vector(query, gc)
+    qv, engine = await query_vector(query, gc)  # the question as asked: the vector reads whole words
+    words = expand_query(query, gc.full.df) if language == "uz" else query
     best, groups, scores, scope, tries = await asyncio.to_thread(
-        _route_and_rank, gc, query, qv, engine, language, threshold, sticky_group(call_id), top_k, min_score
+        _route_and_rank, gc, words, qv, engine, language, threshold, sticky_group(call_id), top_k, min_score
     )
     best.strategy = f"routed:{best.strategy}"
     best.took_ms = (time.perf_counter() - started) * 1000

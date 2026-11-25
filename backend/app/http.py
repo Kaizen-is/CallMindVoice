@@ -21,7 +21,9 @@ def client() -> httpx.AsyncClient:
         _client = httpx.AsyncClient(
             transport=_transport,
             timeout=httpx.Timeout(None, connect=10.0),
-            limits=httpx.Limits(max_connections=200, max_keepalive_connections=50, keepalive_expiry=60),
+            # Idle connections are kept 5 minutes: callers pause between questions, and with 60 s the first
+            # question after a pause reconnected to every service (measured 25 Nov: +0.4–1.5 s on that turn).
+            limits=httpx.Limits(max_connections=200, max_keepalive_connections=50, keepalive_expiry=300),
             follow_redirects=True,
         )
     return _client

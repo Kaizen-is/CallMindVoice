@@ -147,6 +147,13 @@ def close_playground_call(tenant_id: str, call_id: object, csat: int | None = No
         if call["escalated"]
         else "resolved_by_ai",
     )
+    # An escalation nobody picked up before the test call ended can no longer be answered: left "waiting",
+    # it stayed in the operators' inbox and its counts for good (five such since 11 Nov 2026). The caller
+    # is gone, so it was missed.
+    with db.transaction() as tx:
+        db.execute(
+            tx, "UPDATE escalations SET status = 'missed' WHERE call_id = :id AND status = 'waiting'", id=call["id"]
+        )
     return True
 
 

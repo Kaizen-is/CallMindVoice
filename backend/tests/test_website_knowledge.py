@@ -312,3 +312,81 @@ def test_a_follow_up_is_searched_in_context(api, sql) -> None:  # noqa: ANN001
     asyncio.run(run_turn(tenant_id=TENANT, call_id=call_id, agent=agent, utterance="Avtokredit haqida aytib bering"))
     follow = asyncio.run(run_turn(tenant_id=TENANT, call_id=call_id, agent=agent, utterance="Uning muddati qancha?"))
     assert follow["retrievalDebug"]["hits"][0]["title"] == "Avtokredit"
+
+
+# ── Uzbek endings, small groups, test-call escalations (25 Nov 2026) ─
+
+RATES = page(
+    "https://brb.uz/valyutalar-kursi#jismoniy",
+    "currency",
+    "BRB valyuta kurslari",
+    "# BRB valyuta kurslari\nYangilangan: 2026-yil 25-noyabr, soat 16:45 (Toshkent vaqti)\n"
+    "- AQSH dollari (USD): sotib olish 11 960 so'm, sotish 12 050 so'm\n"
+    "- Yevro (EUR): sotib olish 12 800 so'm, sotish 13 500 so'm",
+)
+CURRENCY = {"currency": {"title": "Rates", "description": "rates", "keywords": ["valyuta", "kurs", "dollar"]}}
+
+
+def test_uz_base_takes_off_stacked_endings() -> None:
+    assert routing.uz_base("valyutasini") == "valyuta"  # -si (possessive, after a vowel) -ni (object)
+    assert routing.uz_base("kursini") == "kurs"  # -i (possessive, after a consonant) -ni
+    assert routing.uz_base("kurslarni") == "kurs"
+    assert routing.uz_base("dollarim") == "dollar"
+    assert routing.uz_base("kredit") == "kredit"
+    assert routing.uz_base("karta") == "karta"
+
+
+def test_expand_query_adds_only_base_forms_the_pages_know() -> None:
+    # "valyutasini" stems to "valyutasi"; the pages have "valyuta" (stem "valyut") and "valyutalar" ("valyuta").
+    assert routing.expand_query("valyutasini ber", {"valyut": 2, "valyuta": 1}) == "valyutasini ber valyuta valyutalar"
+    assert routing.expand_query("valyutasini ber", {}) == "valyutasini ber"
+    assert routing.expand_query("dollarim bor", {"dollar": 3}) == "dollarim bor"  # the stemmer finds it already
+
+
+def test_a_question_with_stacked_endings_finds_the_rates_page(api) -> None:  # noqa: ANN001
+    api.put("/knowledge/groups", json={"groups": {**GROUPS, **CURRENCY}}, headers=bearer(WRITE_KEY))
+    api.put("/knowledge/pages", json={"pages": [LOAN, CARD, RATES]}, headers=bearer(WRITE_KEY))
+    result = asyncio.run(
+        routing.retrieve_routed(TENANT, "Menga hozir BRB bank bo'yicha valyutasini ber", language="uz", threshold=0.3)
+    )
+    assert result.extra["routing"]["groups"][0] == "currency"
+    assert result.hits[0]["documentTitle"] == "BRB valyuta kurslari"
+
+
+def test_the_best_groups_page_is_kept_among_the_hits(api) -> None:  # noqa: ANN001
+    api.put("/knowledge/groups", json={"groups": {**GROUPS, **CURRENCY}}, headers=bearer(WRITE_KEY))
+    api.put("/knowledge/pages", json={"pages": [LOAN, CARD, RATES]}, headers=bearer(WRITE_KEY))
+    gc = routing._load(TENANT)
+    part = routing.subset(gc, ("personal_cards", "personal_loans"), "uz")
+    others = routing.search(gc, part, "karta kredit", None, "local", top_k=2)
+    assert len(others.hits) == 2
+
+    kept = routing._keep_best_group(gc, others, "currency", "valyuta kursi", None, "local", "uz", 2, 0.06)
+    assert kept.hits[0] == others.hits[0]  # the order on top is unchanged…
+    assert kept.hits[1]["documentTitle"] == "BRB valyuta kurslari"  # …the best group's page takes the last place
+    assert kept.confidence == others.confidence
+    # Already among the hits: nothing to do. With room left, a small group is added without dropping a hit.
+    assert routing._keep_best_group(gc, kept, "currency", "valyuta kursi", None, "local", "uz", 2, 0.06) is kept
+    roomy = routing._keep_best_group(gc, others, "currency", "valyuta kursi", None, "local", "uz", 3, 0.06)
+    assert roomy.hits[:2] == others.hits and roomy.hits[2]["documentTitle"] == "BRB valyuta kurslari"
+    # A big best group passes only its best chunk, and only when the hits are full.
+    monkey_small = routing.SMALL_GROUP_CHUNKS
+    try:
+        routing.SMALL_GROUP_CHUNKS = 0
+        assert routing._keep_best_group(gc, others, "currency", "valyuta kursi", None, "local", "uz", 3, 0.06) is others
+    finally:
+        routing.SMALL_GROUP_CHUNKS = monkey_small
+
+
+def test_ending_a_test_call_marks_its_waiting_escalation_missed(migrated, sql) -> None:  # noqa: ANN001
+    from app.engine.conversation import escalate_call
+    from app.playground import close_playground_call
+
+    agent_id = seed_agent(sql)
+    call_id = start_call(
+        tenant_id=TENANT, agent_id=agent_id, from_="playground", to="playground", caller_name="T (test)", channel="web"
+    )
+    escalate_call(TENANT, call_id, "low_confidence", "The caller asked for the rates.")
+    assert sql("SELECT status FROM escalations WHERE call_id = ?", call_id) == [("waiting",)]
+    assert close_playground_call(TENANT, call_id)
+    assert sql("SELECT status FROM escalations WHERE call_id = ?", call_id) == [("missed",)]

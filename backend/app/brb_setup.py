@@ -74,6 +74,8 @@ base excerpts. Nothing else:
   <vaqt> holatiga" (copy them from that line; never reuse a time said earlier in the call).
   "Sotib olish" is what the bank pays when the caller sells currency; "sotish" is what the caller pays when they
   buy it: if they want to buy dollars, give the sotish rate; to sell, the sotib olish rate; if unclear, both.
+  Changing currency into so'm ("100 dollarni so'mga almashtirmoqchiman", "dollarim bor, so'mga o'zgartiraman")
+  is selling it: use sotib olish. Changing so'm into currency ("dollar olmoqchiman") is buying: use sotish.
   Give only the "jismoniy shaxslar" rates unless they speak for a company (then only "yuridik shaxslar"); the
   mobile app ("mobil ilovasida") rate only when they ask about the app or it is better for what they want. You may multiply a rate for a sum they
   name. Without that excerpt, say you do not have the current rate: it is on brb.uz ("Valyutalar kursi"), in

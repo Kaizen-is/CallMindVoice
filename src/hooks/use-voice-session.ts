@@ -10,7 +10,12 @@ import {
   type RecordingResult,
 } from '@/lib/audio';
 
-export const SILENCE_TIMEOUT_MS = 800;
+/**
+ * This much quiet ends the caller's turn. It was 800 ms, which cut callers off when they paused
+ * mid-sentence on a phone ("…valyutasini ber…", 25 Nov 2026); the speculative STT below still starts
+ * at EARLY_SILENCE_MS, so the longer wait costs about 0.3 s per turn.
+ */
+export const SILENCE_TIMEOUT_MS = 1100;
 /**
  * A pause this long is usually the end of the phrase, so the utterance is
  * handed to `onSpeculate` while the rest of SILENCE_TIMEOUT_MS runs out: the
