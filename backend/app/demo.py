@@ -34,6 +34,7 @@ from fastapi.responses import StreamingResponse
 from starlette.datastructures import FormData, UploadFile
 
 from app import background, db
+from app.audio.pipeline import prepare_live
 from app.catalog import VOICES
 from app.engine.bus import publish
 from app.engine.calls import start_call
@@ -782,7 +783,11 @@ def prefetch_heard(call_id: str, audio: bytes, lang: str, words: list[str] | Non
     the pause holds, the turn arrives with the same bytes and picks the transcript up — already
     done, or well under way.
     """
-    task = asyncio.get_running_loop().create_task(transcribe(audio, language=lang, clean=True, vocabulary=words))
+
+    async def heard() -> Transcript:
+        return await transcribe(await prepare_live(audio, "browser"), language=lang, clean=True, vocabulary=words)
+
+    task = asyncio.get_running_loop().create_task(heard())
     remember_prefetch(_heard, call_id, audio_key(audio, lang), task)
 
 
@@ -791,4 +796,4 @@ async def heard_in(call_id: str, audio: bytes, lang: str, words: list[str] | Non
     found = await take_prefetch(_heard, call_id, audio_key(audio, lang))
     if found is not None:
         return found
-    return await transcribe(audio, language=lang, clean=True, vocabulary=words)
+    return await transcribe(await prepare_live(audio, "browser"), language=lang, clean=True, vocabulary=words)

@@ -53,6 +53,7 @@ import {
   IconZap,
 } from '@/components/icons';
 import { TimeAgo } from '@/components/ui/time-ago';
+import { useVoiceDebugEnabled, useVoiceDebugLog, VoiceDebugPanel } from '@/components/console/voice-debug-panel';
 
 /* ── Web Speech typings (not in lib.dom for all targets) ─────── */
 
@@ -332,6 +333,12 @@ export function Playground({
     setThinking(false);
   };
 
+  // Developer view of the turn gate (?voiceDebug=1): state, decisions and why.
+  const voiceDebugOn = useVoiceDebugEnabled();
+  const voiceDebugLog = useVoiceDebugLog(voiceDebugOn);
+  /** Set below, once the live transcript exists: drops room words heard between turns. */
+  const liveQuietResetRef = useRef<() => void>(() => {});
+
   const {
     voiceState,
     level: voiceLevel,
@@ -344,6 +351,9 @@ export function Playground({
     failAndResume,
     sessionIsActive,
     setMuted: setMicMuted,
+    getPhase: getVoicePhase,
+    getTurnId: getVoiceTurnId,
+    getSpeakerReference,
   } = useVoiceSession({
     onUtterance: (recording, _turn, timing) => callUtteranceRef.current(recording, timing),
     onSpeculate: (recording) => callPrefetchRef.current(recording),
@@ -356,6 +366,8 @@ export function Playground({
     onError: (message) => toast.error(t('play.toast.micTitle', 'Microphone problem'), message),
     // The agent's own voice in the mic is not the caller talking (echo guard).
     getPlaybackLevel: () => outRef.current?.rms() ?? 0,
+    onListeningQuiet: () => liveQuietResetRef.current(),
+    onDebug: voiceDebugLog.onDebug,
   });
 
   // With the local streaming model picked, words appear while the caller is
@@ -374,6 +386,11 @@ export function Playground({
   useEffect(() => {
     if (voiceState === 'ai_speaking' || voiceState === 'listening') live.reset();
   }, [voiceState, live.reset]);
+  // Listening with nobody speaking to the agent: whatever the streaming model picked up from the
+  // room since the last reset is not the caller's next phrase. (It used to be sent along with it.)
+  liveQuietResetRef.current = () => {
+    if (LIVE_STT.has(sttEngine) && live.connected) live.reset();
+  };
 
   useEffect(() => {
     const w = window as unknown as {
@@ -1538,6 +1555,15 @@ export function Playground({
             used to live here; they now sit in the call surface's dock, because
             a 360 px sidebar is the wrong place for this page's primary action. ── */}
         <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto">
+          {voiceDebugOn && (
+            <VoiceDebugPanel
+              events={voiceDebugLog.events}
+              getPhase={getVoicePhase}
+              getTurnId={getVoiceTurnId}
+              getSpeakerReference={getSpeakerReference}
+              level={voiceLevel}
+            />
+          )}
           <Card>
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-[14px] font-semibold text-ink">{t('play.chatsTitle', 'Chats')}</h3>

@@ -9,6 +9,17 @@ import {
   type Recording,
   type RecordingResult,
 } from '@/lib/audio';
+import {
+  DEFAULT_GATE,
+  phaseOf,
+  SpeakerLevel,
+  speechLikeness,
+  TurnLedger,
+  type GateConfig,
+  type RejectReason,
+  type TurnPhase,
+  type VoiceDebugEvent,
+} from '@/lib/voice/turn-gate';
 
 /**
  * This much quiet ends the caller's turn. It was 800 ms, which cut callers off when they paused
@@ -49,6 +60,10 @@ const ECHO_LEARN_MIN_PLAYBACK = 0.004;
 const MAX_ECHO_RATIO = 4;
 /** After the agent stops, its last syllable and the room's reverb must not open a new turn. */
 const TAIL_GUARD_MS = 450;
+/** Listening this long with nothing that could be the caller: `onListeningQuiet` (live STT drops room words). */
+const QUIET_NOTICE_MS = 1_500;
+/** The same rejection is reported to the debug view at most this often. */
+const DEBUG_REJECT_EVERY_MS = 500;
 
 export type VoiceState =
   | 'idle'
@@ -86,6 +101,15 @@ interface UseVoiceSessionOptions {
   getPlaybackLevel?: () => number;
   /** Mic level 0–1 on every animation frame, for visuals that must not re-render React. */
   onLevel?: (level: number) => void;
+  /**
+   * Listening, and nothing that could be the caller for QUIET_NOTICE_MS. A streaming transcript
+   * resets here, so room talk heard between turns is not sent with the caller's next phrase.
+   */
+  onListeningQuiet?: () => void;
+  /** Turn-gate decisions (state, accepted/rejected and why) for the live debug view. */
+  onDebug?: (event: VoiceDebugEvent) => void;
+  /** Overrides of the gate (see turn-gate.ts); a ratio of 0 switches that check off. */
+  gate?: Partial<GateConfig>;
 }
 
 const voiceLog = (event: string, detail?: Record<string, unknown>) => {
@@ -101,6 +125,9 @@ export function useVoiceSession({
   onError,
   onLevel,
   getPlaybackLevel,
+  onListeningQuiet,
+  onDebug,
+  gate,
 }: UseVoiceSessionOptions) {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [level, setLevel] = useState(0);
@@ -133,7 +160,15 @@ export function useVoiceSession({
   const playbackNoiseFloorRef = useRef(0.004);
   const calibratedAtRef = useRef(0);
   const bargeInCalibratedAtRef = useRef(0);
-  const turnIdRef = useRef(0);
+  /** Turn ids (one per candidate) and the one-submission-per-utterance rule. */
+  const ledgerRef = useRef(new TurnLedger());
+  /** The caller's own speech level, learned from their turns: the dominant-speaker gate. */
+  const speakerRef = useRef<SpeakerLevel | null>(null);
+  const gateRef = useRef<GateConfig>({ ...DEFAULT_GATE, ...gate });
+  const quietSinceRef = useRef(0);
+  const lastRejectRef = useRef<Partial<Record<RejectReason, number>>>({});
+  const onListeningQuietRef = useRef(onListeningQuiet);
+  const onDebugRef = useRef(onDebug);
   const isFinalizingRef = useRef(false);
   const lastLevelPaintRef = useRef(0);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -164,12 +199,49 @@ export function useVoiceSession({
     onErrorRef.current = onError;
     onLevelRef.current = onLevel;
     getPlaybackLevelRef.current = getPlaybackLevel;
-  }, [onUtterance, onSpeculate, onBargeIn, onError, onLevel, getPlaybackLevel]);
+    onListeningQuietRef.current = onListeningQuiet;
+    onDebugRef.current = onDebug;
+  }, [onUtterance, onSpeculate, onBargeIn, onError, onLevel, getPlaybackLevel, onListeningQuiet, onDebug]);
 
-  const transition = useCallback((next: VoiceState) => {
-    stateRef.current = next;
-    setVoiceState(next);
-  }, []);
+  if (!speakerRef.current) speakerRef.current = new SpeakerLevel(gateRef.current);
+  const speaker = speakerRef.current;
+
+  const currentPhase = useCallback(
+    (): TurnPhase => phaseOf(stateRef.current, { inTailGuard: performance.now() < tailGuardUntilRef.current }),
+    [],
+  );
+
+  const debug = useCallback(
+    (kind: VoiceDebugEvent['kind'], extra?: Partial<VoiceDebugEvent>) => {
+      const sink = onDebugRef.current;
+      if (!sink) return;
+      const now = performance.now();
+      if (kind === 'rejected' && extra?.reason) {
+        const reason = extra.reason as RejectReason;
+        if (now - (lastRejectRef.current[reason] ?? 0) < DEBUG_REJECT_EVERY_MS) return;
+        lastRejectRef.current[reason] = now;
+      }
+      sink({
+        at: now,
+        phase: currentPhase(),
+        turnId: ledgerRef.current.currentId,
+        kind,
+        reference: speakerRef.current?.reference(),
+        ...extra,
+      });
+    },
+    [currentPhase],
+  );
+
+  const transition = useCallback(
+    (next: VoiceState) => {
+      const changed = stateRef.current !== next;
+      stateRef.current = next;
+      setVoiceState(next);
+      if (changed) debug('phase');
+    },
+    [debug],
+  );
 
   const clearCandidate = useCallback(() => {
     candidateSinceRef.current = 0;
@@ -180,6 +252,7 @@ export function useVoiceSession({
     partsRef.current = [];
     speculationRef.current = null;
     segmentRef.current += 1;
+    speakerRef.current?.discardUtterance();
     const recording = recordingRef.current;
     recordingRef.current = null;
     recording?.cancel();
@@ -187,6 +260,14 @@ export function useVoiceSession({
 
   const resumeListening = useCallback(() => {
     if (!activeRef.current) return;
+    // The caller is mid-phrase (e.g. they interrupted the agent): a late "done" from the turn
+    // they cut off must not throw their new utterance away.
+    if (stateRef.current === 'user_speaking') {
+      voiceLog('resume_ignored_while_capturing', { turnId: ledgerRef.current.currentId });
+      debug('rejected', { reason: 'stale_turn' });
+      return;
+    }
+    quietSinceRef.current = performance.now();
     if (stateRef.current === 'ai_speaking') {
       voiceLog('tts_finished');
       tailGuardUntilRef.current = performance.now() + TAIL_GUARD_MS;
@@ -197,7 +278,7 @@ export function useVoiceSession({
     const context = contextRef.current;
     if (context?.state === 'suspended') void context.resume().catch(() => {});
     voiceLog('listening_resumed');
-  }, [clearCandidate, transition]);
+  }, [clearCandidate, debug, transition]);
 
   const failAndResume = useCallback(
     (message: string, notify = true) => {
@@ -250,15 +331,23 @@ export function useVoiceSession({
       candidateSinceRef.current = 0;
       speechStartedAtRef.current = 0;
       lastVoiceAtRef.current = 0;
+      // FINALIZING -> THINKING: from here nothing the mic hears joins or replaces this turn.
+      const turnId = ledgerRef.current.currentId;
+      speakerRef.current?.commitUtterance();
       transition('processing');
+      debug('finalized', { reason, turnId });
       voiceLog('speech_ended', { reason, early: pending === speculation });
       voiceLog('processing');
 
       const generation = generationRef.current;
-      const turnId = turnIdRef.current;
       void pending
         .then(async (result) => {
           if (!activeRef.current || generation !== generationRef.current) return;
+          // Exactly one submission per finalized utterance, and only while it is the current turn.
+          if (!ledgerRef.current.claimSubmission(turnId)) {
+            voiceLog('stale_utterance_dropped', { turnId });
+            return;
+          }
           voiceLog('utterance_finalized', {
             turnId,
             durationMs: Math.round(result.durationSec * 1000),
@@ -273,7 +362,7 @@ export function useVoiceSession({
           isFinalizingRef.current = false;
         });
     },
-    [failAndResume, transition],
+    [debug, failAndResume, transition],
   );
 
   /**
@@ -286,7 +375,7 @@ export function useVoiceSession({
     const stream = streamRef.current;
     if (!recording || !stream || speculationRef.current) return;
     const segment = segmentRef.current;
-    const turnId = turnIdRef.current;
+    const turnId = ledgerRef.current.currentId;
     recordingRef.current = null;
     void startRecording(stream)
       .then((next) => {
@@ -305,7 +394,9 @@ export function useVoiceSession({
         // Offered while the pause lasts, and also once it has finalized on
         // this very utterance: that is when the work it starts gets used.
         const current = speculationRef.current === speculation || finalizedRef.current === speculation;
-        if (current && activeRef.current) onSpeculateRef.current?.(result, turnId);
+        if (current && activeRef.current && ledgerRef.current.isCurrent(turnId)) {
+          onSpeculateRef.current?.(result, turnId);
+        }
       })
       .catch(() => {
         /* finalize reports a failed recording */
@@ -317,14 +408,13 @@ export function useVoiceSession({
       if (candidateSinceRef.current || !streamRef.current) return;
       candidateSinceRef.current = now;
       candidateLastVoiceAtRef.current = now;
-      turnIdRef.current += 1;
-      const candidateTurn = turnIdRef.current;
+      const candidateTurn = ledgerRef.current.open();
       void startRecording(streamRef.current)
         .then((recording) => {
           if (
             !activeRef.current ||
             stateRef.current !== expectedState ||
-            turnIdRef.current !== candidateTurn ||
+            !ledgerRef.current.isCurrent(candidateTurn) ||
             !candidateSinceRef.current
           ) {
             recording.cancel();
@@ -351,6 +441,12 @@ export function useVoiceSession({
     const now = performance.now();
     const frameMs = lastFrameAtRef.current ? Math.min(100, Math.max(0, now - lastFrameAtRef.current)) : 16;
     lastFrameAtRef.current = now;
+    /** Voice-like (harmonic, in the voice band)? Measured only when a decision needs it. */
+    const speechLike = () => {
+      const spectrum = new Float32Array(analyser.frequencyBinCount);
+      analyser.getFloatFrequencyData(spectrum);
+      return speechLikeness(spectrum, analyser.context.sampleRate, gateRef.current).speechLike;
+    };
 
     // What the agent is playing, held for a moment: its echo reaches the mic a little later.
     const playback = getPlaybackLevelRef.current?.() ?? 0;
@@ -383,7 +479,12 @@ export function useVoiceSession({
           predictedEcho * ECHO_MARGIN,
           inTail ? lastAiThresholdRef.current : 0,
         );
-        if (rms >= threshold) {
+        const loudEnough = rms >= threshold;
+        // Loud enough to be speech, but far quieter than the caller's own voice: someone else.
+        const primary = loudEnough && speaker.allowsStart(rms);
+        if (loudEnough && !primary) debug('rejected', { reason: 'below_primary_level', level: rms });
+        if (primary) {
+          quietSinceRef.current = now;
           if (!candidateSinceRef.current) {
             beginCandidate(now, 'listening');
           } else {
@@ -397,12 +498,20 @@ export function useVoiceSession({
             speechStartedAtRef.current = candidateSinceRef.current;
             lastVoiceAtRef.current = now;
             transition('user_speaking');
-            voiceLog('speech_started', { turnId: turnIdRef.current });
+            debug('accepted', { level: rms });
+            voiceLog('speech_started', { turnId: ledgerRef.current.currentId });
           }
         } else if (candidateSinceRef.current && now - candidateLastVoiceAtRef.current > 120) {
           clearCandidate();
-        } else if (!inTail) {
-          noiseFloorRef.current = noiseFloorRef.current * 0.98 + Math.min(rms, 0.04) * 0.02;
+          debug('rejected', { reason: 'too_short', level: rms });
+        } else {
+          if (!inTail && !loudEnough) {
+            noiseFloorRef.current = noiseFloorRef.current * 0.98 + Math.min(rms, 0.04) * 0.02;
+          }
+          if (!candidateSinceRef.current && now - quietSinceRef.current >= QUIET_NOTICE_MS) {
+            quietSinceRef.current = now;
+            onListeningQuietRef.current?.();
+          }
         }
       }
     } else if (stateRef.current === 'ai_speaking') {
@@ -426,9 +535,16 @@ export function useVoiceSession({
           predictedEcho * ECHO_MARGIN,
         );
         lastAiThresholdRef.current = threshold;
+        // An interruption must be loud enough, clearly the caller (not a quieter voice in the
+        // room) and shaped like a voice (not a click or thump): amplitude alone is not proof.
+        const loudEnough = bargeInAllowedRef.current && rms >= threshold;
+        const primary = loudEnough && speaker.allowsBargeIn(rms);
+        const voiceLike = primary && speechLike();
+        if (loudEnough && !primary) debug('rejected', { reason: 'below_primary_level', level: rms });
+        else if (primary && !voiceLike) debug('rejected', { reason: 'not_speech_like', level: rms });
         if (!bargeInAllowedRef.current) {
           // The browser's own voice: no echo reference and no cancellation, so no interruptions.
-        } else if (rms >= threshold) {
+        } else if (voiceLike) {
           if (!candidateSinceRef.current) beginCandidate(now, 'ai_speaking');
           else candidateLastVoiceAtRef.current = now;
           // Only time the caller is actually heard counts (not gaps between loud frames).
@@ -437,8 +553,9 @@ export function useVoiceSession({
             speechStartedAtRef.current = candidateSinceRef.current;
             lastVoiceAtRef.current = now;
             transition('user_speaking');
+            debug('barge_in', { level: rms });
             voiceLog('barge_in', {
-              turnId: turnIdRef.current,
+              turnId: ledgerRef.current.currentId,
               rms: Number(rms.toFixed(4)),
               threshold: Number(threshold.toFixed(4)),
               echo: Number(predictedEcho.toFixed(4)),
@@ -456,14 +573,19 @@ export function useVoiceSession({
       }
     } else if (stateRef.current === 'user_speaking') {
       const threshold = Math.max(MIN_VOICE_RMS, noiseFloorRef.current * NOISE_MULTIPLIER);
-      if (rms >= threshold * RELEASE_RATIO) {
+      if (rms >= threshold) speaker.observeFrame(rms);
+      // Going on after a pause must sound like the caller, not a quieter voice in the room:
+      // otherwise background talk in the end-of-phrase silence is glued onto their phrase.
+      if (rms >= threshold * RELEASE_RATIO && speaker.allowsContinue(rms)) {
         lastVoiceAtRef.current = now;
         if (speculationRef.current) {
           // They went on: the offered utterance is stale; the fresh recorder
           // carries on and the pieces are joined at the real end.
           speculationRef.current = null;
-          voiceLog('speech_resumed', { turnId: turnIdRef.current });
+          voiceLog('speech_resumed', { turnId: ledgerRef.current.currentId });
         }
+      } else if (rms >= threshold * RELEASE_RATIO) {
+        debug('rejected', { reason: 'below_primary_level', level: rms });
       }
       const quiet = now - lastVoiceAtRef.current;
       if (quiet >= SILENCE_TIMEOUT_MS) finalizeUtterance('silence');
@@ -472,7 +594,7 @@ export function useVoiceSession({
     }
 
     rafRef.current = requestAnimationFrame(analyse);
-  }, [beginCandidate, clearCandidate, finalizeUtterance, speculate, transition]);
+  }, [beginCandidate, clearCandidate, debug, finalizeUtterance, speculate, speaker, transition]);
 
   const cleanup = useCallback(
     (updateReactState: boolean) => {
@@ -626,6 +748,11 @@ export function useVoiceSession({
   );
 
   const sessionIsActive = useCallback(() => activeRef.current, []);
+  /** The shared turn phase right now (for the debug view; not React state). */
+  const getPhase = currentPhase;
+  const getTurnId = useCallback(() => ledgerRef.current.currentId, []);
+  /** The caller's learned speech level (0 until their first turn). */
+  const getSpeakerReference = useCallback(() => speakerRef.current?.reference() ?? 0, []);
 
   useEffect(() => () => cleanup(false), [cleanup]);
 
@@ -641,5 +768,8 @@ export function useVoiceSession({
     failAndResume,
     sessionIsActive,
     setMuted,
+    getPhase,
+    getTurnId,
+    getSpeakerReference,
   };
 }

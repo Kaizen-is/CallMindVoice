@@ -28,6 +28,7 @@ import {
   IconX,
 } from '@/components/icons';
 import { TimeAgo } from '@/components/ui/time-ago';
+import { AudioLab } from './audio-lab';
 import { useLiveTranscript } from '@/hooks/use-live-transcript';
 import { useWordReveal } from '@/hooks/use-word-reveal';
 import {
@@ -105,7 +106,7 @@ async function fileToWav16k(file: File): Promise<Blob> {
 
 /* ── source: either an uploaded file or a fresh mic recording ── */
 
-type Source = { kind: 'file'; file: File } | { kind: 'rec'; wav: Blob };
+type Source = { kind: 'file'; file: File } | { kind: 'rec'; wav: Blob; encoded?: Blob };
 
 export function SttLab({
   locale,
@@ -187,12 +188,12 @@ export function SttLab({
       setListening(false);
     }
     if (!recorded) return;
-    const { wav, durationSec, rms } = recorded;
+    const { wav, durationSec, rms, encoded } = recorded;
     if (!liveText && (durationSec < 0.35 || rms < 0.0015)) {
       toast.toast({ tone: 'info', title: t('dev.stt.nothingTitle'), description: t('dev.stt.nothingBody') });
       return;
     }
-    const recording: Source = { kind: 'rec', wav };
+    const recording: Source = { kind: 'rec', wav, encoded };
     setSource(recording);
     if (liveText) {
       setResult(liveText);
@@ -410,6 +411,16 @@ export function SttLab({
               <p className="mt-3 text-[13px] text-ink-3">{t('dev.stt.resultEmpty')}</p>
             )}
           </Card>
+
+          {source && !listening && (
+            <AudioLab
+              source={source}
+              locale={locale}
+              model={model}
+              modelName={modelName}
+              modelReady={Boolean(readiness[model])}
+            />
+          )}
         </div>
 
         {/* ── RIGHT: history ── */}

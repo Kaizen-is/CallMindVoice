@@ -188,6 +188,9 @@ so ported numeric code uses plain loops.
 
 ## 6. Our own models: the BRB speech proxy
 
+API guide (endpoints, formats, errors, what is known about limits):
+`docs/brb-speech-api.md`.
+
 `BRB TTS` (engine id `brb`) is our own TTS model behind the BRB "TTS/STT Proxy
 API" — `https://tts-stt-proxy-test.brb.uz` (internal IP `172.22.202.1`, only
 reachable through the BRB GlobalProtect VPN). Commit `d3fb787`.
@@ -214,22 +217,26 @@ reachable through the BRB GlobalProtect VPN). Commit `d3fb787`.
   network admins: **allow 10.10.50.4 → 172.22.202.1:443**, plus one line in the
   server's `/etc/hosts`: `172.22.202.1  tts-stt-proxy-test.brb.uz`. Until then, do
   not deploy `d3fb787` expecting BRB to work there (the option would show and fail).
-### BRB Whisper STT (commit `8b424c2`)
+### BRB Whisper STT (through the proxy since 23 Nov)
 
-Our own speech-to-text: Whisper on a Triton server, `stt-service.brb.uz:443`, model
-`stt`, KServe v2 **gRPC** (TLS). Engine id `brb` ("BRB Whisper" in the pickers).
+Our own speech-to-text, engine id `brb` ("BRB Whisper" in the pickers), served by the
+**same proxy and account** as BRB TTS: `POST /stt/transcribe`, multipart `file` +
+Bearer → `{text}` (Swagger: `https://tts-stt-proxy-test.brb.uz/docs`). No language
+field: the model decides. The proxy stores every request too.
 
-- Code: `src/lib/speech/brb-stt.ts` (Node `http2`, hand-written protobuf for
-  `ModelMetadata`/`ModelInfer`) and `backend/app/speech/brb_stt.py` (`grpcio`, raw
-  bytes). It asks the model's metadata once, then fills each input by its datatype
-  (FP32 waveform, INT32/INT64 length, BYTES language/prompt/WAV, UINT8 WAV).
-  Timeouts 5 s connect / 20 s answer. Errors: `brb_stt_unreachable` (gRPC 14),
-  `brb_stt_timeout` (4), `brb_stt_grpc_<code>: <detail>`.
-- Parity: `make-golden-brb-stt.cjs` → `golden_brb_stt.json`, replayed against a
-  fake Triton by `test_brb_stt_parity.py`.
-- `.env`: `BRB_STT_URL` (e.g. `stt-service.brb.uz:443`), `BRB_STT_MODEL` (default `stt`).
-- **Status: built, not yet tried against the real host** — from the dev PC the
-  connection is reset (VPN/route). Needs the same kind of network route on the server.
+- Code: `brb_transcribe` in `backend/app/speech/brb.py` (shares the login and token
+  renewal with TTS: renewed once on a 401, `brb_limit` on 429, `brb_stt_<status>`
+  otherwise); `_brb_whisper` in `stt.py` sends the utterance as a 16 kHz mono WAV and
+  turns spoken numbers into digits. Tests: `backend/tests/test_brb_stt.py`.
+- `.env`: nothing new — `BRB_SPEECH_URL`, `BRB_SPEECH_LOGIN`, `BRB_SPEECH_PASSWORD`.
+  `BRB_STT_URL` / `BRB_STT_MODEL` are no longer read.
+- Replaces the first version (commit `8b424c2`): gRPC straight to Triton at
+  `stt-service.brb.uz:443`, which never accepted a connection (TLS reset, see
+  `docs/brb-connection-test.txt`). Its code, golden fixture and the `grpcio`
+  dependency are removed.
+- **Status**: works from a PC on the VPN (23 Nov): BRB TTS sentences, also cut to
+  8 kHz like a phone line, came back word for word in about 0.3–0.4 s. Not tried on
+  real noisy calls yet. Production needs the same route as BRB TTS (above).
 
 ## 7. Running it locally (Windows)
 
@@ -295,18 +302,24 @@ database; `CALLMIND_DOTENV=0`). With the API running locally, the site's
    live site: sign in, a Playground call, a knowledge upload. For phone calls, put
    `BRIDGE_SHARED_SECRET` in the server `.env`, place one call, then switch the phone
    bridge to `bridge.py`.
-2. Ask the network admins for the routes to the BRB proxy and to
-   `stt-service.brb.uz:443` (section 6), then deploy and run one TTS render and one
-   BRB Whisper transcription on the live site.
-3. Try BRB Whisper against the real host. Ask BRB what the TTS limit is (per minute /
-   day / characters) and whether there will be a production URL (today's is `-test`).
-4. Small parity gap, harmless today: the Playground, speech, live, demo and voices routes
+2. Ask the network admins for the route to the BRB proxy (section 6; TTS and STT both
+   go through it now), then deploy and run one TTS render and one BRB Whisper
+   transcription on the live site.
+3. BRB's limit, measured 23 Nov: 20 requests per 60 s for TTS and, separately, for STT
+   (`docs/brb-speech-api.md`, section 6) — about one live call at a time. Ask BRB for
+   more for live calls, and whether there will be a production URL (today's is `-test`).
+4. Audio pipeline and turn gating (25 Nov, `docs/audio-pipeline.md`): background speech
+   while the agent thinks no longer cancels or becomes a turn — in `bridge.py` only, so
+   the phone gets it with the switch in item 1. Voice isolation (Inworld sidecar) and
+   Silero VAD are wired up but need installing; then measure with real recordings in the
+   STT page's Audio Processing Lab.
+5. Small parity gap, harmless today: the Playground, speech, live, demo and voices routes
    read the **last** value of a repeated form field or query parameter where the
    TypeScript read the first (the phone routes were fixed on 18 Nov). The pages never
    repeat a field.
-5. Not confirmed yet: `https://callmind.brb-tech.uz/api/core/me` shows the
+6. Not confirmed yet: `https://callmind.brb-tech.uz/api/core/me` shows the
    logged-in user (Step 0 check), and the GitLab pipeline of the 12 Nov push.
-6. Leftovers on the server only (untracked, can be deleted): `deploy/brb-vpn/`
+7. Leftovers on the server only (untracked, can be deleted): `deploy/brb-vpn/`
    (the dropped VPN setup). If the VPN packages were installed there:
    `sudo apt remove openconnect vpnc-scripts`, and remove the
    `tts-stt-proxy-test.brb.uz` line from `/etc/hosts` until the admin route exists.

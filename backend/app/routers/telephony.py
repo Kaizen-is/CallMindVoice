@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.datastructures import UploadFile
 
 from app import db
+from app.audio.pipeline import prepare_live
 from app.engine.calls import end_call, start_call
 from app.engine.conversation import run_turn
 from app.env import env
@@ -141,7 +142,8 @@ async def turn(request: Request) -> Response:
         # Phone audio is the noisiest the agent hears: cleaned first (a no-op without DENOISE_URL),
         # and the recognisers told which names and terms to expect.
         heard = await transcribe(
-            await audio.read(),
+            # Voice isolation / server VAD when VOICE_ISOLATION_PHONE or SERVER_VAD is on (else as is).
+            await prepare_live(await audio.read(), "phone"),
             language=lang,
             clean=True,
             vocabulary=recognition_words(number["tenant_id"], agent),

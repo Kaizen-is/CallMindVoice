@@ -139,7 +139,7 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-async def run_call(bridge_cmd: list[str]) -> dict:
+async def run_call(bridge_cmd: list[str], env_extra: dict[str, str] | None = None) -> dict:
     """Run the whole simulated call against one bridge; returns what the site saw and the line heard."""
     log: list = []
     site_port, bridge_port = free_port(), free_port()
@@ -159,6 +159,9 @@ async def run_call(bridge_cmd: list[str]) -> dict:
         "BRIDGE_TO_NUMBER": TO,
         "BRIDGE_FROM_NUMBER": FROM,
         "BRIDGE_LOG": "1",
+        # The call was recorded against bridge.mjs, which has no rearm pause after a reply.
+        "VAD_REARM_MS": "0",
+        **(env_extra or {}),
     }
     bridge = await asyncio.create_subprocess_exec(
         *bridge_cmd,

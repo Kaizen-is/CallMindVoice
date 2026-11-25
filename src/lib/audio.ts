@@ -12,12 +12,16 @@ export interface RecordingResult {
   wav: Blob;
   durationSec: number;
   rms: number;
+  /** The recorder's own encoded audio (WebM/Opus, browser rate), before any processing here. */
+  encoded?: Blob;
 }
 
 /** Decoded 16 kHz mono samples, before trimming and normalising. */
 export interface RawAudio {
   pcm: Float32Array;
   durationSec: number;
+  /** The encoded recording these samples were decoded from. */
+  encoded?: Blob;
 }
 
 export interface Recording {
@@ -89,7 +93,8 @@ export async function startRecording(sessionStream?: MediaStream): Promise<Recor
       mr.onstop = async () => {
         cleanup();
         try {
-          resolve(await decode16k(new Blob(chunks, { type: mr.mimeType || 'audio/webm' })));
+          const encoded = new Blob(chunks, { type: mr.mimeType || 'audio/webm' });
+          resolve({ ...(await decode16k(encoded)), encoded });
         } catch (e) {
           reject(e instanceof Error ? e : new Error('encode failed'));
         }
@@ -107,7 +112,7 @@ export async function startRecording(sessionStream?: MediaStream): Promise<Recor
       try { mr.stop(); } catch { /* already stopped */ }
       cleanup();
     },
-    stop: () => stopRaw().then((raw) => joinRecordings([raw])),
+    stop: () => stopRaw().then((raw) => ({ ...joinRecordings([raw]), encoded: raw.encoded })),
     stopRaw,
   };
 }

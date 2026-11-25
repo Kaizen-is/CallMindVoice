@@ -30,6 +30,18 @@ Run it with the backend's virtualenv:   backend/.venv/bin/python telephony-bridg
     aborts the in-flight turn and reports how much of the reply the caller heard.
   • Adaptive VAD: the energy threshold tracks the line's own noise floor.
 
+── Turn states (one per call; `Connection.state`) ─────────────────────────────
+  LISTENING  waiting for the caller; line noise is tracked, a short preroll is kept.
+  CAPTURING  the caller is speaking; frames go into the utterance.
+  THINKING   the utterance is finalized and its /turn is in flight (filler included). Caller audio
+             is DROPPED: background speech here must not cancel the turn or become the next one.
+             (VAD_BARGE_WHILE_THINKING=1 restores the old behaviour: barge-in also while thinking.)
+  SPEAKING   the reply's own audio is on the line; sustained speech is a barge-in.
+  REARMING   the reply just ended: for VAD_REARM_MS the line's tail and stale audio are ignored,
+             then back to LISTENING with a fresh preroll.
+  The utterance's Turn is created in the same step that finalizes it, so no frame can slip in
+  between "finalized" and "thinking" and start a second utterance.
+
 ── Remaining v1 limitations ───────────────────────────────────────────────────
   • No in-call SIP transfer on escalate — the handoff line plays, then the bridge hangs up.
   • to/from are a static env mapping (BRIDGE_TO_NUMBER / BRIDGE_FROM_NUMBER).
@@ -95,6 +107,13 @@ class Vad:
     min_voiced_ms: int = int_env("VAD_MIN_VOICED_MS", 200)
     preroll_ms: int = int_env("VAD_PREROLL_MS", 200)
     barge_ms: int = int_env("VAD_BARGE_MS", 240)
+    # Strict turn gating: while a turn is in flight and its reply has not started, caller audio is
+    # dropped. 1 = the old behaviour (loud audio while thinking cancels the turn as a barge-in).
+    barge_while_thinking: bool = bool(
+        re.fullmatch(r"(1|true|yes|on)", os.environ.get("VAD_BARGE_WHILE_THINKING", ""), re.IGNORECASE)
+    )
+    # After the reply ends, ignore the line this long (its echo tail, stale room audio).
+    rearm_ms: int = int_env("VAD_REARM_MS", 200)
 
 
 @dataclass(frozen=True)
@@ -152,6 +171,8 @@ def js_to_fixed(x: float, digits: int) -> str:
 
 # ── per-connection state ────────────────────────────────────────────
 
+LISTENING, CAPTURING, THINKING, SPEAKING, REARMING = "listening", "capturing", "thinking", "speaking", "rearming"
+
 
 class Connection:
     """One AudioSocket connection: its socket and all the endpointing/turn state."""
@@ -175,7 +196,11 @@ class Connection:
         self.preroll_ms = 0.0
         self.noise_floor = float(CONFIG.vad.min_rms)
         self.barge_voiced_ms = 0.0
+        self.rearm_until = 0.0  # now_ms() until which the line is ignored after a reply
+        self.dropped_ms = 0.0  # caller audio dropped while thinking/rearming (diagnostics)
+        self.last_state = LISTENING
         # turn lifecycle
+        self.turn_seq = 0  # every turn (greeting included) gets the next id
         self.turn: Turn | None = None
         self.fillers: list[bytes] = []
         self.filler_at = 0
@@ -190,6 +215,35 @@ class Connection:
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
         return task
+
+    @property
+    def state(self) -> str:
+        """The call's turn state, derived from what is actually happening (so it cannot drift)."""
+        if self.turn is not None:
+            return SPEAKING if self.turn.playback.reply_from is not None else THINKING
+        if now_ms() < self.rearm_until:
+            return REARMING
+        return CAPTURING if self.speaking else LISTENING
+
+    def new_turn(self) -> "Turn":
+        """Open the next turn and make it current: synchronously, in the step that needs it."""
+        self.turn_seq += 1
+        turn = Turn(Playback(self), turn_id=self.turn_seq)
+        self.turn = turn
+        return turn
+
+    def release(self, turn: "Turn") -> None:
+        """`turn` is over. Only the current turn rearms the line; a superseded one changes nothing."""
+        if self.turn is turn:
+            self.turn = None
+            self.rearm()
+
+    def rearm(self) -> None:
+        """Back to listening after a reply: forget audio gathered meanwhile, ignore the tail."""
+        self.rearm_until = now_ms() + CONFIG.vad.rearm_ms
+        self.preroll = []
+        self.preroll_ms = 0
+        self.barge_voiced_ms = 0
 
     @property
     def destroyed(self) -> bool:
@@ -213,6 +267,7 @@ class Connection:
 @dataclass
 class Turn:
     playback: "Playback"
+    turn_id: int = 0
     replyChars: int = 0  # noqa: N815 - the name bridge.mjs uses
     aborted: bool = False
     tasks: set = field(default_factory=set)
@@ -275,7 +330,7 @@ def handle_message(conn: Connection, kind: int, payload: bytes) -> None:
     if kind == UUID:
         conn.uuid = format_uuid(payload)
         log(f"call up  uuid={conn.uuid}  to={conn.to or '(unset)'}  from={conn.from_}")
-        conn.spawn(open_and_greet(conn))
+        conn.spawn(open_and_greet(conn, conn.new_turn()))
     elif kind == AUDIO:
         on_audio(conn, payload)
     elif kind == DTMF:
@@ -307,8 +362,26 @@ def on_audio(conn: Connection, payload: bytes) -> None:
     rms = rms_of(payload)
     dur_ms = (len(payload) / BYTES_PER_SAMPLE / SAMPLE_RATE) * 1000
     vad = CONFIG.vad
+    state = conn.state
+    if state != conn.last_state:
+        if CONFIG.verbose:
+            turn_note = f"  turn={conn.turn.turn_id}" if conn.turn else ""
+            log(f"state {conn.last_state} -> {state}{turn_note}")
+            if conn.last_state in (THINKING, REARMING) and conn.dropped_ms:
+                log(f"  dropped {round(conn.dropped_ms)} ms of caller audio while {conn.last_state}")
+        if state not in (THINKING, REARMING):
+            conn.dropped_ms = 0
+        conn.last_state = state
 
-    # ── barge-in: the agent is talking (or thinking) and the caller starts. ──
+    # ── thinking / rearming: the turn is decided; nothing heard now may cancel or extend it. ──
+    if state == REARMING or (state == THINKING and not vad.barge_while_thinking):
+        conn.dropped_ms += dur_ms
+        conn.barge_voiced_ms = 0
+        conn.preroll = []
+        conn.preroll_ms = 0
+        return
+
+    # ── barge-in: the agent is talking and the caller starts. ──
     if conn.turn:
         if rms >= conn.noise_floor * vad.barge_rms_factor:
             conn.barge_voiced_ms += dur_ms
@@ -382,14 +455,17 @@ def endpoint(conn: Connection) -> None:
 
     if voiced_ms < CONFIG.vad.min_voiced_ms:
         return  # a click/cough, not a turn
-    conn.spawn(_process_logged(conn, b"".join(chunks)))
+    # FINALIZING -> THINKING in this same step: the turn exists before the next frame is read.
+    turn = conn.new_turn()
+    conn.spawn(_process_logged(conn, b"".join(chunks), turn))
 
 
-async def _process_logged(conn: Connection, pcm: bytes) -> None:
+async def _process_logged(conn: Connection, pcm: bytes, turn: "Turn") -> None:
     try:
-        await process_utterance(conn, pcm)
+        await process_utterance(conn, pcm, turn)
     except Exception as err:  # noqa: BLE001
         log("turn error:", err)
+        conn.release(turn)
 
 
 def barge_in(conn: Connection) -> None:
@@ -398,7 +474,10 @@ def barge_in(conn: Connection) -> None:
     if not turn:
         return
     conn.pending_ratio = turn.playback.spoken_ratio(turn.replyChars)
-    log(f"barge-in — stopping playback at {js_to_fixed(conn.pending_ratio * 100, 0)}% of the reply")
+    log(
+        f"barge-in — stopping playback at {js_to_fixed(conn.pending_ratio * 100, 0)}% of the reply"
+        f" (turn {turn.turn_id})"
+    )
     turn.playback.cancel()
     turn.abort()
     conn.turn = None
@@ -409,10 +488,8 @@ def barge_in(conn: Connection) -> None:
 # ── turn processing ─────────────────────────────────────────────────
 
 
-async def open_and_greet(conn: Connection) -> None:
-    playback = Playback(conn)
-    turn = Turn(playback)
-    conn.turn = turn
+async def open_and_greet(conn: Connection, turn: Turn) -> None:
+    playback = turn.playback
     # Fetch the holding lines concurrently with the greeting.
     conn.spawn(prefetch_fillers(conn))
     try:
@@ -422,19 +499,16 @@ async def open_and_greet(conn: Connection) -> None:
             return
         # bridge.mjs set this unguarded: a barge-in during the greeting left `state.turn` null and the
         # TypeError ended the whole Node process. Here the reply length is only recorded if still ours.
-        if conn.turn:
-            conn.turn.replyChars = utf16_len(res["text"])
+        if conn.turn is turn:
+            turn.replyChars = utf16_len(res["text"])
         await pump(turn, res, playback)
         await playback.drain()
     finally:
-        if conn.turn and conn.turn.playback is playback:
-            conn.turn = None
+        conn.release(turn)
 
 
-async def process_utterance(conn: Connection, pcm: bytes) -> None:
-    playback = Playback(conn)
-    turn = Turn(playback)
-    conn.turn = turn
+async def process_utterance(conn: Connection, pcm: bytes, turn: Turn) -> None:
+    playback = turn.playback
 
     # Cover the STT + retrieval + generation gap with a holding line, but only if the answer is slow.
     loop = asyncio.get_running_loop()
@@ -450,8 +524,8 @@ async def process_utterance(conn: Connection, pcm: bytes) -> None:
         res = await call_turn(conn, turn, audio=pcm_to_wav(pcm))
         if not res:
             return
-        if conn.turn:
-            conn.turn.replyChars = utf16_len(res["text"])
+        if conn.turn is turn:
+            turn.replyChars = utf16_len(res["text"])
         await pump(turn, res, playback, filler_timer.cancel)
         await playback.drain()
 
@@ -462,8 +536,7 @@ async def process_utterance(conn: Connection, pcm: bytes) -> None:
             conn.end_socket()
     finally:
         filler_timer.cancel()
-        if conn.turn and conn.turn.playback is playback:
-            conn.turn = None
+        conn.release(turn)
 
 
 async def pump(turn: Turn, res: dict, playback: "Playback", on_first_chunk=None) -> None:  # noqa: ANN001
@@ -880,7 +953,8 @@ async def main() -> None:
             f"min={vad.min_voiced_ms}ms  max={vad.max_utterance_ms}ms  preroll={vad.preroll_ms}ms"
         )
         log(
-            f"barge-in: {vad.barge_ms}ms over floor×{vad.barge_rms_factor:g}  "
+            f"barge-in: {vad.barge_ms}ms over floor×{vad.barge_rms_factor:g}"
+            f"{' (also while thinking)' if vad.barge_while_thinking else ''}  rearm={vad.rearm_ms}ms  "
             f"fillers={'after ' + str(CONFIG.filler_after_ms) + 'ms' if CONFIG.fillers_enabled else 'off'}"
         )
         if not CONFIG.secret:

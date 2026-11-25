@@ -21,6 +21,7 @@ import regex as re
 from fastapi.responses import StreamingResponse
 
 from app import background
+from app.audio.pipeline import prepare_live
 from app.catalog import VOICES
 from app.engine.conversation import agent_target
 from app.jscompat import JS_S, js_json, js_trim, js_trim_end, js_trim_start, utf16_len
@@ -471,9 +472,13 @@ def _quiet(task: asyncio.Task) -> None:
 
 def prefetch_heard(call_id: str, audio: bytes, lang: str, engine: str, words: list[str] | None = None) -> None:
     """Start transcribing a phrase the page offered at an early pause (`words`: names and terms to expect)."""
-    task = asyncio.get_running_loop().create_task(
-        transcribe(audio, language=lang, clean=True, engine=engine, vocabulary=words)
-    )
+
+    async def heard() -> Transcript:
+        return await transcribe(
+            await prepare_live(audio, "browser"), language=lang, clean=True, engine=engine, vocabulary=words
+        )
+
+    task = asyncio.get_running_loop().create_task(heard())
     task.add_done_callback(_quiet)
     _heard[call_id] = {"key": _audio_key(audio, lang, engine), "at": time.time(), "transcript": task}
     if len(_heard) > 500:
@@ -490,4 +495,6 @@ async def heard_in(call_id: str, audio: bytes, lang: str, engine: str, words: li
             return await entry["transcript"]
         except Exception:  # noqa: BLE001 - transcribe again below
             pass
-    return await transcribe(audio, language=lang, clean=True, engine=engine, vocabulary=words)
+    return await transcribe(
+        await prepare_live(audio, "browser"), language=lang, clean=True, engine=engine, vocabulary=words
+    )
