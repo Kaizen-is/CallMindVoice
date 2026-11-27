@@ -168,6 +168,15 @@ const CONFIRM_INTERRUPT_MS = 1800;
 const MS_PER_CHAR = 60;
 
 /**
+ * ?pauseDecide=1: a cut-in only pauses the agent until the live words show it was meant (Q7). Off by
+ * default since 27 Nov 2026: the live words of a cut-in come late or are dropped as the phrase begins,
+ * so "stop, stop" timed out as noise and the agent talked on. By default a cut-in stops it at once.
+ */
+function pauseThenDecide(): boolean {
+  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('pauseDecide') === '1';
+}
+
+/**
  * L3, the end-of-turn model: it always scores the phrase at each early pause (what it would decide is
  * kept with the turn), but ends a phrase on its own only with ?turnModel=1 — on Uzbek it is not proven
  * yet. ?turnModelSure=0.85 sets how sure it must be (default 0.9).
@@ -534,11 +543,11 @@ export function Playground({
     setAiSpeaking();
     void outRef.current?.resume();
   };
-  // Pause, then decide: with live words the agent's voice pauses on a cut-in and the words decide
-  // within CONFIRM_INTERRUPT_MS; without them (a recording-only model) it stops at once, as before.
+  // A cut-in stops the agent at once. With ?pauseDecide=1 and live words, its voice pauses instead
+  // and the words decide within CONFIRM_INTERRUPT_MS.
   interruptHandlerRef.current = () => {
     const out = outRef.current;
-    if (!out || !(LIVE_STT.has(sttEngine) && live.connected) || interruptRef.current) {
+    if (!out || !pauseThenDecide() || !(LIVE_STT.has(sttEngine) && live.connected) || interruptRef.current) {
       confirmInterruption();
       return;
     }

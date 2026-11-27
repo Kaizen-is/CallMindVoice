@@ -14,7 +14,6 @@ import {
   DEFAULT_GATE,
   phaseOf,
   SpeakerLevel,
-  speechLikeness,
   TurnLedger,
   type GateConfig,
   type RejectReason,
@@ -55,7 +54,20 @@ registerProcessor('pre-roll-tap', PreRollTap);
 `;
 export const MIN_SPEECH_MS = 250;
 export const MAX_UTTERANCE_MS = 30_000;
-export const BARGE_IN_SPEECH_MS = 320;
+/**
+ * Talking over the agent: this much of the caller's sound, with breaks between words of up to
+ * BARGE_IN_GAP_MS, stops it. 320 ms with 120 ms breaks never stopped it on "stop, stop" (each word
+ * has ~250 ms of loud sound and a longer break between them); replayed through this detector on
+ * 27 Nov 2026, 250 ms / 400 ms stops it on "stop!", "stop, stop" and a sentence, not on coughs.
+ */
+export const BARGE_IN_SPEECH_MS = 250;
+const BARGE_IN_GAP_MS = 400;
+/*
+ * Voice-likeness (turn-gate.ts speechLikeness) does not decide anything here. Measured on 27 Nov
+ * 2026 on a real browser recording and 16 voices, only 7–91% of the loud frames of real speech
+ * passed it (26% for the real recording: a voice's fundamental lies below its 250 Hz band). Asked of
+ * every frame, it cut phrases into pieces, stopped them from starting and made barge-in impossible.
+ */
 
 const CALIBRATION_MS = 300;
 const BARGE_IN_CALIBRATION_MS = 400;
@@ -483,12 +495,6 @@ export function useVoiceSession({
     const now = performance.now();
     const frameMs = lastFrameAtRef.current ? Math.min(100, Math.max(0, now - lastFrameAtRef.current)) : 16;
     lastFrameAtRef.current = now;
-    /** Voice-like (harmonic, in the voice band)? Measured only when a decision needs it. */
-    const speechLike = () => {
-      const spectrum = new Float32Array(analyser.frequencyBinCount);
-      analyser.getFloatFrequencyData(spectrum);
-      return speechLikeness(spectrum, analyser.context.sampleRate, gateRef.current).speechLike;
-    };
 
     // What the agent is playing, held for a moment: its echo reaches the mic a little later.
     const playback = getPlaybackLevelRef.current?.() ?? 0;
@@ -524,12 +530,8 @@ export function useVoiceSession({
         const loudEnough = rms >= threshold;
         // Loud enough to be speech, but far quieter than the caller's own voice: someone else.
         const primary = loudEnough && speaker.allowsStart(rms);
-        // And shaped like a voice: a car, wind or a fan is loud but has no voice-band structure, and
-        // must not start a phrase (Q7, 26 Nov 2026: background noise kept opening "listening").
-        const voiceLike = primary && speechLike();
         if (loudEnough && !primary) debug('rejected', { reason: 'below_primary_level', level: rms });
-        else if (primary && !voiceLike) debug('rejected', { reason: 'not_speech_like', level: rms });
-        if (voiceLike) {
+        if (primary) {
           quietSinceRef.current = now;
           if (!candidateSinceRef.current) {
             beginCandidate(now, 'listening');
@@ -551,9 +553,9 @@ export function useVoiceSession({
           clearCandidate();
           debug('rejected', { reason: 'too_short', level: rms });
         } else {
-          // The room's level, kept up to date: quiet moments, and loud sound that is not a voice
-          // (a car going by, wind), so a steady noise raises the bar instead of opening a phrase.
-          if (!inTail && (!loudEnough || !voiceLike)) {
+          // The room's level, from quiet moments only: louder sound fed in here (the caller's own
+          // words, as Q7 did) raises the bar until the caller is no longer heard.
+          if (!inTail && !loudEnough) {
             noiseFloorRef.current = noiseFloorRef.current * 0.98 + Math.min(rms, 0.04) * 0.02;
           }
           if (!candidateSinceRef.current && now - quietSinceRef.current >= QUIET_NOTICE_MS) {
@@ -583,16 +585,14 @@ export function useVoiceSession({
           predictedEcho * ECHO_MARGIN,
         );
         lastAiThresholdRef.current = threshold;
-        // An interruption must be loud enough, clearly the caller (not a quieter voice in the
-        // room) and shaped like a voice (not a click or thump): amplitude alone is not proof.
+        // An interruption must be loud enough and clearly the caller (not a quieter voice in the
+        // room); a click or thump is too short to add up to BARGE_IN_SPEECH_MS.
         const loudEnough = bargeInAllowedRef.current && rms >= threshold;
         const primary = loudEnough && speaker.allowsBargeIn(rms);
-        const voiceLike = primary && speechLike();
         if (loudEnough && !primary) debug('rejected', { reason: 'below_primary_level', level: rms });
-        else if (primary && !voiceLike) debug('rejected', { reason: 'not_speech_like', level: rms });
         if (!bargeInAllowedRef.current) {
           // The browser's own voice: no echo reference and no cancellation, so no interruptions.
-        } else if (voiceLike) {
+        } else if (primary) {
           if (!candidateSinceRef.current) beginCandidate(now, 'ai_speaking');
           else candidateLastVoiceAtRef.current = now;
           // Only time the caller is actually heard counts (not gaps between loud frames).
@@ -610,7 +610,7 @@ export function useVoiceSession({
             });
             onBargeInRef.current?.();
           }
-        } else if (candidateSinceRef.current && now - candidateLastVoiceAtRef.current > 120) {
+        } else if (candidateSinceRef.current && now - candidateLastVoiceAtRef.current > BARGE_IN_GAP_MS) {
           clearCandidate();
         } else if (!candidateSinceRef.current) {
           const trackingCap = Math.max(0.012, noiseFloorRef.current * 2);
@@ -624,8 +624,7 @@ export function useVoiceSession({
       if (rms >= threshold) speaker.observeFrame(rms);
       // Going on after a pause must sound like the caller, not a quieter voice in the room:
       // otherwise background talk in the end-of-phrase silence is glued onto their phrase.
-      // Going on means voice again, not the wind or a car carrying on after the caller stopped.
-      if (rms >= threshold * RELEASE_RATIO && speaker.allowsContinue(rms) && speechLike()) {
+      if (rms >= threshold * RELEASE_RATIO && speaker.allowsContinue(rms)) {
         lastVoiceAtRef.current = now;
         if (speculationRef.current) {
           // They went on: the offered utterance is stale; the fresh recorder

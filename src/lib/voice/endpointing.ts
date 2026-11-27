@@ -9,14 +9,19 @@
  * Plain functions, no React: `tests/web/endpointing.test.mjs` runs them directly.
  */
 
-/** The waits, in ms of quiet after the caller's last sound. */
+/**
+ * The waits, in ms of quiet after the caller's last sound. The short ones were 500 / 600 / 700 ms:
+ * replayed on 27 Nov 2026, single spoken phrases of two or three sentences were cut in two by a
+ * 500 ms wait 16 times in 17, by 700 ms 6 in 17, by 900 ms once, by 1100 ms never — and the live
+ * words end in a full stop after almost every sentence.
+ */
 export const PAUSE_MS = {
-  /** "ha", "rahmat", "xo'p mayli": a reply that needs nothing more. */
-  smallTalk: 500,
+  /** "ha", "rahmat", "xo'p mayli": a reply that needs nothing more ("Ha, …" often goes on). */
+  smallTalk: 800,
   /** The phrase ends with a question mark. */
-  question: 600,
+  question: 900,
   /** The phrase ends with a full stop or "!". */
-  complete: 700,
+  complete: 900,
   /** Nothing tells: the wait the Playground used before (SILENCE_TIMEOUT_MS). */
   unsure: 1100,
   /** A number being said, a phrase left hanging, or an answer to "qancha / qachon / raqam…". */

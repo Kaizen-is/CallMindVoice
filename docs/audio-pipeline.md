@@ -69,9 +69,13 @@ person close enough to pass the energy VAD is transcribed with the caller.
   - *Dominant-speaker gate*: the caller's own speech level is learned from the
     turns they make. A new turn must reach −12 dB of it, going on after a pause
     −10.5 dB, and an interruption −6 dB. Until the first turn everything passes.
-  - *Barge-in must look like a voice*: only frames with most energy in
-    250–4000 Hz and a harmonic (non-flat) spectrum count toward the 320 ms.
-    Clicks, thumps and hiss do not.
+  - *Barge-in*: 250 ms of the caller's sound above the echo-adjusted threshold,
+    with breaks between words of up to 400 ms ("stop, stop"). Clicks, thumps and
+    coughs are too short. (Until 27 Nov 2026 only frames that looked like a voice
+    counted — most energy in 250–4000 Hz, a harmonic spectrum — toward 320 ms with
+    120 ms breaks. Measured on a real browser recording only 26% of speech frames
+    passed, and barge-in did not fire even on a full sentence; `speechLikeness`
+    in turn-gate.ts is kept but no longer decides.)
   - *One submission per finalized utterance*, by turn id (`TurnLedger`); stale
     speculative results are dropped; `resumeListening` from a superseded turn
     cannot cancel a capture in progress.
