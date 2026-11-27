@@ -19,6 +19,31 @@ def filler_lines(language: str) -> list[str]:
     return LINES.get(language, LINES["uz"])
 
 
+# The Playground's lines (Q6): short and natural, said only when the answer is late (the page holds the
+# line and plays it after PLAYGROUND_FILLER_AFTER_MS without the answer's voice). The phone line and the
+# demos keep LINES above.
+PLAYGROUND_LINES = {
+    "uz": ["Hmm, bir soniya.", "Bir qarab ko'ray.", "Hozir, qarayapman.", "Mm, bir daqiqa."],
+    "ru": ["Хм, секунду.", "Сейчас посмотрю.", "Так, смотрю.", "Минутку."],
+    "en": ["Hmm, one second.", "Let me see.", "Okay, looking.", "Just a moment."],
+}
+
+
+def playground_filler_lines(language: str) -> list[str]:
+    return PLAYGROUND_LINES.get(language, PLAYGROUND_LINES["uz"])
+
+
+def playground_filler_after_ms() -> int:
+    """How long the caller waits for the answer's voice before the filler plays (default 1200 ms)."""
+    from app.env import env
+
+    try:
+        ms = int(float(env("PLAYGROUND_FILLER_AFTER_MS") or "1200"))
+    except ValueError:
+        ms = 1200
+    return max(0, ms)
+
+
 def fillers_enabled() -> bool:
     """FILLERS=off (or 0/false/no) turns the holding lines off everywhere: the agent then just answers.
 

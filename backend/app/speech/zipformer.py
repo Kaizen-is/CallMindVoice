@@ -207,6 +207,18 @@ def finish_live(owner: str, sid: str, samples: np.ndarray | None = None) -> str:
         return text
 
 
+def begin_live(owner: str, sid: str) -> str:
+    """
+    The caller started a new phrase: the segments the recogniser already ended (speech no turn took
+    up) are not its; the segment in progress is kept, as it holds the phrase's first words.
+    """
+    with _lock:
+        rec = _recognizer()
+        s = _session(owner, sid)
+        s.finals = ""
+        return tidy(rec.get_result(s.stream))
+
+
 def reset_live(owner: str, sid: str) -> None:
     """Forget what was heard (the agent started speaking)."""
     with _lock:

@@ -38,7 +38,7 @@ from app.llm.provider import generate_answer, is_fallback_answer, llm_provider_r
 from app.registry import ENGINES, LLM_MODELS
 from app.speech import zipformer
 from app.speech.scoring import score
-from app.speech.speko import ELEVEN_VOICES, speko_voices
+from app.speech.speko import ELEVEN_VOICES, model_voices
 from app.speech.stt import stt_engine_ids, transcribe_one
 from app.speech.tts import SynthOptions, pcm_to_wav, render_timed, tts_engines
 from app.usage_log import usage_source
@@ -285,7 +285,7 @@ async def benchmark_tts(build: str) -> None:
         voice_id = (
             (VOICES[0]["id"] if VOICES else None)
             if engine == "default"
-            else (speko_voices(engine)[0]["id"] if ELEVEN_VOICES else None)
+            else (model_voices(engine)[0]["id"] if ELEVEN_VOICES else None)
         )
         if not voice_id:
             continue

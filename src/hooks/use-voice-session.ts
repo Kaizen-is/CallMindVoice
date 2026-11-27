@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  joinRecordings,
-  startRecording,
   VOICE_MIC_CONSTRAINTS,
+  joinRecordings,
+  preRollPiece,
+  startRecording,
   type RawAudio,
   type Recording,
   type RecordingResult,
@@ -20,6 +21,7 @@ import {
   type TurnPhase,
   type VoiceDebugEvent,
 } from '@/lib/voice/turn-gate';
+import { PreRoll } from '@/lib/voice/preroll';
 
 /**
  * This much quiet ends the caller's turn. It was 800 ms, which cut callers off when they paused
@@ -34,6 +36,23 @@ export const SILENCE_TIMEOUT_MS = 1100;
  * is recorded on and joined, so nothing is cut off.
  */
 export const EARLY_SILENCE_MS = 350;
+/** How much sound before a phrase was detected goes in front of its recording (Q10). */
+const PRE_ROLL_MS = 400;
+/** Posts the mic's samples from the audio thread in ~21 ms frames (at 48 kHz) for the pre-roll. */
+const PRE_ROLL_WORKLET = `
+class PreRollTap extends AudioWorkletProcessor {
+  constructor() { super(); this.buf = new Float32Array(1024); this.n = 0; }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (ch) for (let i = 0; i < ch.length; i++) {
+      this.buf[this.n++] = ch[i];
+      if (this.n === this.buf.length) { this.port.postMessage(this.buf.slice()); this.n = 0; }
+    }
+    return true;
+  }
+}
+registerProcessor('pre-roll-tap', PreRollTap);
+`;
 export const MIN_SPEECH_MS = 250;
 export const MAX_UTTERANCE_MS = 30_000;
 export const BARGE_IN_SPEECH_MS = 320;
@@ -110,6 +129,16 @@ interface UseVoiceSessionOptions {
   onDebug?: (event: VoiceDebugEvent) => void;
   /** Overrides of the gate (see turn-gate.ts); a ratio of 0 switches that check off. */
   gate?: Partial<GateConfig>;
+  /**
+   * The microphone as the browser actually set it up (Q10): echo cancellation, noise suppression and
+   * gain control are requests a browser or device may not grant.
+   */
+  onMicReady?: (settings: MediaTrackSettings) => void;
+  /**
+   * How much quiet ends the phrase right now (ms), asked on every quiet frame: the Playground reads it
+   * from the live words (src/lib/voice/endpointing.ts). Without it, SILENCE_TIMEOUT_MS.
+   */
+  silenceTimeoutMs?: () => number;
 }
 
 const voiceLog = (event: string, detail?: Record<string, unknown>) => {
@@ -128,6 +157,8 @@ export function useVoiceSession({
   onListeningQuiet,
   onDebug,
   gate,
+  silenceTimeoutMs,
+  onMicReady,
 }: UseVoiceSessionOptions) {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [level, setLevel] = useState(0);
@@ -169,6 +200,12 @@ export function useVoiceSession({
   const lastRejectRef = useRef<Partial<Record<RejectReason, number>>>({});
   const onListeningQuietRef = useRef(onListeningQuiet);
   const onDebugRef = useRef(onDebug);
+  const silenceTimeoutRef = useRef(silenceTimeoutMs);
+  const onMicReadyRef = useRef(onMicReady);
+  onMicReadyRef.current = onMicReady;
+  /** The last moments of mic sound (Q10), and the audio-thread tap that fills it. */
+  const preRollRef = useRef<PreRoll | null>(null);
+  const preRollTapRef = useRef<{ node: AudioWorkletNode; url: string } | null>(null);
   const isFinalizingRef = useRef(false);
   const lastLevelPaintRef = useRef(0);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -201,7 +238,8 @@ export function useVoiceSession({
     getPlaybackLevelRef.current = getPlaybackLevel;
     onListeningQuietRef.current = onListeningQuiet;
     onDebugRef.current = onDebug;
-  }, [onUtterance, onSpeculate, onBargeIn, onError, onLevel, getPlaybackLevel, onListeningQuiet, onDebug]);
+    silenceTimeoutRef.current = silenceTimeoutMs;
+  }, [onUtterance, onSpeculate, onBargeIn, onError, onLevel, getPlaybackLevel, onListeningQuiet, onDebug, silenceTimeoutMs]);
 
   if (!speakerRef.current) speakerRef.current = new SpeakerLevel(gateRef.current);
   const speaker = speakerRef.current;
@@ -298,14 +336,14 @@ export function useVoiceSession({
   );
 
   const finalizeUtterance = useCallback(
-    (reason: 'silence' | 'maximum') => {
+    (reason: 'silence' | 'maximum' | 'model') => {
       if (isFinalizingRef.current || stateRef.current !== 'user_speaking') return;
       const recording = recordingRef.current;
       const speculation = speculationRef.current;
       // The pause held: the utterance offered at its start is the final one,
       // and the recorder kept running since holds only silence.
       const pending: Promise<RecordingResult> | null =
-        reason === 'silence' && speculation
+        (reason === 'silence' || reason === 'model') && speculation
           ? speculation
           : recording
             ? Promise.all([...partsRef.current, recording.stopRaw()]).then(joinRecordings)
@@ -421,6 +459,10 @@ export function useVoiceSession({
             return;
           }
           recordingRef.current = recording;
+          // The sound just before the recorder started goes in front: the first syllable is kept.
+          const kept = preRollRef.current?.snapshot();
+          const rate = contextRef.current?.sampleRate;
+          if (kept?.length && rate) partsRef.current.unshift(preRollPiece(kept, rate));
         })
         .catch((cause) =>
           failAndResume(cause instanceof Error ? cause.message : 'Audio yozuvini boshlab bo‘lmadi'),
@@ -482,8 +524,12 @@ export function useVoiceSession({
         const loudEnough = rms >= threshold;
         // Loud enough to be speech, but far quieter than the caller's own voice: someone else.
         const primary = loudEnough && speaker.allowsStart(rms);
+        // And shaped like a voice: a car, wind or a fan is loud but has no voice-band structure, and
+        // must not start a phrase (Q7, 26 Nov 2026: background noise kept opening "listening").
+        const voiceLike = primary && speechLike();
         if (loudEnough && !primary) debug('rejected', { reason: 'below_primary_level', level: rms });
-        if (primary) {
+        else if (primary && !voiceLike) debug('rejected', { reason: 'not_speech_like', level: rms });
+        if (voiceLike) {
           quietSinceRef.current = now;
           if (!candidateSinceRef.current) {
             beginCandidate(now, 'listening');
@@ -505,7 +551,9 @@ export function useVoiceSession({
           clearCandidate();
           debug('rejected', { reason: 'too_short', level: rms });
         } else {
-          if (!inTail && !loudEnough) {
+          // The room's level, kept up to date: quiet moments, and loud sound that is not a voice
+          // (a car going by, wind), so a steady noise raises the bar instead of opening a phrase.
+          if (!inTail && (!loudEnough || !voiceLike)) {
             noiseFloorRef.current = noiseFloorRef.current * 0.98 + Math.min(rms, 0.04) * 0.02;
           }
           if (!candidateSinceRef.current && now - quietSinceRef.current >= QUIET_NOTICE_MS) {
@@ -576,7 +624,8 @@ export function useVoiceSession({
       if (rms >= threshold) speaker.observeFrame(rms);
       // Going on after a pause must sound like the caller, not a quieter voice in the room:
       // otherwise background talk in the end-of-phrase silence is glued onto their phrase.
-      if (rms >= threshold * RELEASE_RATIO && speaker.allowsContinue(rms)) {
+      // Going on means voice again, not the wind or a car carrying on after the caller stopped.
+      if (rms >= threshold * RELEASE_RATIO && speaker.allowsContinue(rms) && speechLike()) {
         lastVoiceAtRef.current = now;
         if (speculationRef.current) {
           // They went on: the offered utterance is stale; the fresh recorder
@@ -588,7 +637,9 @@ export function useVoiceSession({
         debug('rejected', { reason: 'below_primary_level', level: rms });
       }
       const quiet = now - lastVoiceAtRef.current;
-      if (quiet >= SILENCE_TIMEOUT_MS) finalizeUtterance('silence');
+      // Never shorter than the early pause plus a little: the speculative STT must get its chance.
+      const endAfter = Math.max(EARLY_SILENCE_MS + 100, silenceTimeoutRef.current?.() ?? SILENCE_TIMEOUT_MS);
+      if (quiet >= endAfter) finalizeUtterance('silence');
       else if (now - speechStartedAtRef.current >= MAX_UTTERANCE_MS) finalizeUtterance('maximum');
       else if (quiet >= EARLY_SILENCE_MS && onSpeculateRef.current && !speculationRef.current) speculate();
     }
@@ -609,6 +660,14 @@ export function useVoiceSession({
       clearCandidate();
       sourceRef.current?.disconnect();
       sourceRef.current = null;
+      const tap = preRollTapRef.current;
+      preRollTapRef.current = null;
+      preRollRef.current = null;
+      if (tap) {
+        tap.node.port.onmessage = null;
+        tap.node.disconnect();
+        URL.revokeObjectURL(tap.url);
+      }
       analyserRef.current = null;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -660,6 +719,15 @@ export function useVoiceSession({
       stream.getAudioTracks().forEach((track) => {
         track.enabled = !mutedRef.current;
       });
+      const settings = stream.getAudioTracks()[0]?.getSettings?.();
+      if (settings) {
+        voiceLog('microphone_settings', {
+          echoCancellation: settings.echoCancellation,
+          noiseSuppression: settings.noiseSuppression,
+          autoGainControl: settings.autoGainControl,
+        });
+        onMicReadyRef.current?.(settings);
+      }
 
       const AudioContextCtor =
         window.AudioContext ??
@@ -673,6 +741,26 @@ export function useVoiceSession({
       analyser.smoothingTimeConstant = 0.2;
       const source = context.createMediaStreamSource(stream);
       source.connect(analyser);
+      // Q10: an audio-thread tap keeps the last PRE_ROLL_MS of sound (best effort: without
+      // AudioWorklet, recordings simply start when speech is detected, as before).
+      void (async () => {
+        try {
+          const url = URL.createObjectURL(new Blob([PRE_ROLL_WORKLET], { type: 'application/javascript' }));
+          await context.audioWorklet.addModule(url);
+          if (generation !== generationRef.current) {
+            URL.revokeObjectURL(url);
+            return;
+          }
+          const node = new AudioWorkletNode(context, 'pre-roll-tap');
+          const ring = new PreRoll((PRE_ROLL_MS / 1000) * context.sampleRate);
+          node.port.onmessage = (e: MessageEvent<Float32Array>) => ring.push(e.data);
+          source.connect(node);
+          preRollRef.current = ring;
+          preRollTapRef.current = { node, url };
+        } catch (err) {
+          voiceLog('pre_roll_unavailable', { error: String(err) });
+        }
+      })();
 
       startingRef.current = false;
       activeRef.current = true;
@@ -756,7 +844,19 @@ export function useVoiceSession({
 
   useEffect(() => () => cleanup(false), [cleanup]);
 
+  /**
+   * L3: the end-of-turn model is sure the caller has finished. The phrase ends now instead of after the
+   * rest of the silence wait — only while they are still quiet since the early pause (that pause's
+   * utterance is still the one on offer). True when it ended.
+   */
+  const endPhraseNow = useCallback((): boolean => {
+    if (stateRef.current !== 'user_speaking' || !speculationRef.current || isFinalizingRef.current) return false;
+    finalizeUtterance('model');
+    return true;
+  }, [finalizeUtterance]);
+
   return {
+    endPhraseNow,
     voiceState,
     level,
     error,

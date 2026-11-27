@@ -11,6 +11,7 @@ import base64
 import contextlib
 import hashlib
 import logging
+import math
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import aclosing
@@ -20,16 +21,18 @@ from typing import Any
 import regex as re
 from fastapi.responses import StreamingResponse
 
-from app import background
+from app import background, db
 from app.audio.pipeline import prepare_live
 from app.catalog import VOICES
-from app.engine.conversation import agent_target
+from app.engine.conversation import agent_target, dialogue, read_call
+from app.engine.early import EarlyAnswer
+from app.engine.live_turn import is_small_talk
 from app.jscompat import JS_S, js_json, js_trim, js_trim_end, js_trim_start, utf16_len
 from app.llm.local import classify_intent
 from app.playground import call_voice
 from app.rag.text import detect_language
-from app.speech.fillers import filler_lines, fillers_enabled
-from app.speech.speko import ELEVEN_VOICES, GEMINI_VOICES, speko_voices
+from app.speech.fillers import fillers_enabled, playground_filler_after_ms, playground_filler_lines
+from app.speech.speko import ELEVEN_VOICES, GEMINI_VOICES, model_voices
 from app.speech.stt import Transcript, is_stt_engine, transcribe
 from app.speech.tts import (
     SAMPLE_RATE,
@@ -127,7 +130,7 @@ def voice_pick(agent: dict[str, Any], engine: object, voice: object) -> VoicePic
     if tts == "brb":  # our BRB model has a single voice
         return VoicePick(tts, "")
     want = voice if isinstance(voice, str) and voice else agent.get("tts_voice_id")
-    voices = speko_voices(tts)  # the model's own voices: ElevenLabs' or Gemini's
+    voices = model_voices(tts)  # the model's own voices: ElevenLabs' or Gemini's
     known = any(v["id"] == want for v in voices)
     return VoicePick(tts, want if known else voices[0]["id"])  # type: ignore[arg-type]
 
@@ -430,7 +433,7 @@ def warm_fillers(agent: dict[str, Any], lang: str, pick: VoicePick) -> None:
     _warmed.add(key)
 
     async def warm() -> None:
-        for line in filler_lines(lang):
+        for line in playground_filler_lines(lang):
             opts = _synth_options(agent, lang, pick)
             if not cached_pcm(line, opts):
                 with contextlib.suppress(Exception):
@@ -440,11 +443,15 @@ def warm_fillers(agent: dict[str, Any], lang: str, pick: VoicePick) -> None:
 
 
 def filler_for(agent: dict[str, Any], call_id: str, said: str, pick: VoicePick) -> dict[str, Any] | None:
-    """A cached filler for this turn, as the `filler` event's fields, or None — never rendered now."""
-    if not fillers_enabled() or not _can_speak(pick) or classify_intent(said) in NO_FILLER:
+    """
+    A cached filler for this turn, as the `filler` event's fields, or None — never rendered now. The page
+    holds it and plays it only if the answer's voice has not started `afterMs` after the turn left (Q6);
+    a short reply ("ha", "rahmat") gets none: its answer is quick.
+    """
+    if not fillers_enabled() or not _can_speak(pick) or classify_intent(said) in NO_FILLER or is_small_talk(said):
         return None
     language = detect_language(said)
-    lines = filler_lines(language)
+    lines = playground_filler_lines(language)
     turn = _fillers.get(call_id, 0)
     opts = _synth_options(agent, language, pick)
     pcm = cached_pcm(lines[turn % len(lines)], opts)
@@ -453,7 +460,70 @@ def filler_for(agent: dict[str, Any], call_id: str, said: str, pick: VoicePick) 
     _fillers[call_id] = turn + 1
     if len(_fillers) > 2000:
         _fillers.clear()
-    return {"pcm": _b64(pcm), **_rate_of(opts)}
+    return {"pcm": _b64(pcm), **_rate_of(opts), "afterMs": playground_filler_after_ms()}
+
+
+# ── talked over (Q7): stop the turn, keep only what was heard ───────
+
+
+@dataclass
+class TurnControl:
+    """The call's current (or last) turn: `stop` ends its writing, `done` is set once it is written down."""
+
+    stop: asyncio.Event = field(default_factory=asyncio.Event)
+    done: asyncio.Event = field(default_factory=asyncio.Event)
+    turn_id: str | None = None
+
+
+_controls: dict[str, TurnControl] = {}
+CUT_WAIT_S = 3.0
+
+
+def begin_turn_control(call_id: str) -> TurnControl:
+    control = TurnControl()
+    _controls[call_id] = control
+    if len(_controls) > 2000:
+        for cid in [c for c, ctl in _controls.items() if ctl.done.is_set()][:1000]:
+            _controls.pop(cid, None)
+    return control
+
+
+async def cut_turn(tenant_id: str, call_id: str, heard: float) -> str:
+    """
+    The caller talked over the agent: its writing stops at once (if still going), and once the turn is
+    written down its reply keeps only the share `heard` (0–1) the caller actually heard, word by word with
+    "…"; a reply nobody heard (`heard` 0) is not kept at all. Returns "cut", "removed" or "kept".
+    """
+    control = _controls.get(call_id)
+    if control is not None and not control.done.is_set():
+        control.stop.set()
+        with contextlib.suppress(TimeoutError):
+            async with asyncio.timeout(CUT_WAIT_S):
+                await control.done.wait()
+    turn_id = control.turn_id if control is not None else None
+    with db.transaction() as tx:
+        row = db.fetch_one(
+            tx,
+            """SELECT t.id, t.text FROM turns t JOIN calls c ON c.id = t.call_id
+               WHERE t.tenant_id = :t AND t.call_id = :c AND t.role = 'agent'
+                 AND c.channel = 'web' AND c.from_e164 = 'playground'
+                 AND (:id IS NULL OR t.id = :id)
+               ORDER BY t.ordinal DESC LIMIT 1""",
+            t=tenant_id,
+            c=call_id,
+            id=turn_id,
+        )
+        if row is None:
+            return "kept"
+        if heard <= 0 or not row["text"].strip():  # not heard, or nothing written before the cut
+            db.execute(tx, "DELETE FROM turns WHERE id = :id", id=row["id"])
+            return "removed"
+        words = row["text"].split()
+        keep = max(1, math.floor(len(words) * heard))
+        if heard >= 1 or keep >= len(words):
+            return "kept"
+        db.execute(tx, "UPDATE turns SET text = :text WHERE id = :id", text=f"{' '.join(words[:keep])}…", id=row["id"])
+    return "cut"
 
 
 # ── transcribing during the pause ───────────────────────────────────
@@ -470,8 +540,16 @@ def _quiet(task: asyncio.Task) -> None:
         task.exception()  # a failure is retried by the turn itself
 
 
-def prefetch_heard(call_id: str, audio: bytes, lang: str, engine: str, words: list[str] | None = None) -> None:
-    """Start transcribing a phrase the page offered at an early pause (`words`: names and terms to expect)."""
+def prefetch_heard(
+    call_id: str,
+    audio: bytes,
+    lang: str,
+    engine: str,
+    words: list[str] | None = None,
+    then: Callable[[str], None] | None = None,
+) -> None:
+    """Start transcribing a phrase the page offered at an early pause (`words`: names and terms to expect);
+    `then` gets the words when heard."""
 
     async def heard() -> Transcript:
         return await transcribe(
@@ -480,6 +558,8 @@ def prefetch_heard(call_id: str, audio: bytes, lang: str, engine: str, words: li
 
     task = asyncio.get_running_loop().create_task(heard())
     task.add_done_callback(_quiet)
+    if then is not None:
+        task.add_done_callback(lambda t: then(t.result()["text"]) if not t.cancelled() and not t.exception() else None)
     _heard[call_id] = {"key": _audio_key(audio, lang, engine), "at": time.time(), "transcript": task}
     if len(_heard) > 500:
         stale = time.time() - PREFETCH_TTL_S
@@ -498,3 +578,51 @@ async def heard_in(call_id: str, audio: bytes, lang: str, engine: str, words: li
     return await transcribe(
         await prepare_live(audio, "browser"), language=lang, clean=True, engine=engine, vocabulary=words
     )
+
+
+# ── answering during the pause (app/engine/early.py) ────────────────
+
+EARLY_TTL_S = 20.0
+_early: dict[str, tuple[float, EarlyAnswer]] = {}
+
+
+def start_early(call_id: str, tenant_id: str, agent: dict[str, Any], utterance: str, stream_llm: bool) -> None:
+    """Begin the answer to the phrase the page offered at an early pause (replacing an older one)."""
+    drop_early(call_id)
+    if not js_trim(utterance):
+        return
+    # Read now: if a turn is still being written down, the transcript differs from the one the
+    # coming turn reads, and run_turn will not use this answer.
+    _call, history = read_call(tenant_id, call_id)
+    early = EarlyAnswer(
+        tenant_id=tenant_id,
+        agent=agent,
+        utterance=utterance,
+        model_history=dialogue(history),
+        target=agent_target(agent),
+        stream_llm=stream_llm,
+        call_id=call_id,
+    )
+    _early[call_id] = (time.time(), early)
+    if len(_early) > 500:
+        stale = time.time() - EARLY_TTL_S
+        for cid in [c for c, (at, _e) in _early.items() if at < stale]:
+            drop_early(cid)
+
+
+def take_early(call_id: str) -> EarlyAnswer | None:
+    """The answer begun for this call's turn, if it is still fresh (the turn decides whether it matches)."""
+    entry = _early.pop(call_id, None)
+    if entry is None:
+        return None
+    at, early = entry
+    if time.time() - at > EARLY_TTL_S:
+        early.cancel()
+        return None
+    return early
+
+
+def drop_early(call_id: str) -> None:
+    entry = _early.pop(call_id, None)
+    if entry is not None:
+        entry[1].cancel()

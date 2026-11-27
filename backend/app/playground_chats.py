@@ -20,12 +20,19 @@ from app.llm.choice import agent_engine_label, safe_json, tenant_default_llm
 from app.llm.goal_call import agent_goal
 from app.llm.provider import engine_is_hosted, engine_label
 from app.playground import close_playground_call
-from app.speech.speko import ELEVEN_VOICES, GEMINI_VOICES, speko_configured
+from app.speech.speko import ELEVEN_VOICES, GEMINI_VOICES
+from app.speech.speko_live import live_ready
 from app.speech.stt import stt_engines
 from app.speech.tts import tts_engines
+from app.turn_timings import flat_timings
 from app.voices import list_custom_voices
 
 _CITATION_KEYS = ("documentTitle", "heading", "snippet", "score")
+
+
+def live_any() -> bool:
+    """Whether any streaming cloud model can give live words here."""
+    return live_ready("gemini_live") or live_ready("scribe_live")
 
 
 def _citation(c: dict[str, Any]) -> dict[str, Any]:
@@ -148,7 +155,7 @@ def load_playground_chat(session: Session, call_id: object) -> dict[str, Any]:
                 reply["language"] = r["language"]
             if r["confidence"] is not None:
                 reply["confidence"] = r["confidence"]
-            reply["timings"] = safe_json(r["timings_json"], {})
+            reply["timings"] = flat_timings(r["timings_json"])  # with its saved laps (app.turn_timings)
             reply["citations"] = [_citation(c) for c in safe_json(r["citations_json"], [])]
             turn["reply"] = reply
         turns.append(turn)
@@ -192,8 +199,8 @@ def playground_page(session: Session) -> dict[str, Any]:
         "speech": {
             "stt": stt,
             "tts": tts_engines(),
-            # Live words: the in-app Zipformer model, or a streaming Speko model (/api/speech/live).
-            "streamUrl": "/api/speech/live" if stt_engines()["local"] or speko_configured() else None,
+            # Live words: the in-app Zipformer model, or a streaming cloud model (/api/speech/live).
+            "streamUrl": "/api/speech/live" if stt_engines()["local"] or live_any() else None,
         },
         "agents": agents,
         "elevenVoices": [{"id": v["id"], "name": v["name"]} for v in ELEVEN_VOICES],

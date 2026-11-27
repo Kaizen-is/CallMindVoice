@@ -155,7 +155,8 @@ def test_turn_from_streamed_words(api, sql, voiced) -> None:  # noqa: ANN001
     shown = [e["text"] for e in events if e["t"] in ("reply", "more")]
     assert shown[-1] == final["text"] and final["end"] is None
     assert list(final["ms"])[:3] == ["stt", "retrieval", "llm"] and final["ms"]["fast"] == 1
-    assert set(final["ms"]) <= {"stt", "retrieval", "llm", "llmFirst", "firstSegment", "firstAudio", "fast"}
+    assert final["ms"]["early"] == 0  # nothing was sent ahead (see test_early_answer.py)
+    assert set(final["ms"]) <= {"stt", "retrieval", "llm", "llmFirst", "firstSegment", "firstAudio", "fast", "early"}
     assert {"firstSegment", "firstAudio"} <= set(final["ms"])
     detail = events[-2]["detail"]
     assert detail["engine"] == "local" and detail["language"] == "uz" and "citations" in detail
@@ -227,8 +228,10 @@ def test_turn_refusals(api, sql) -> None:  # noqa: ANN001
     too_big = {"audio": ("phrase.wav", b"\x00" * 1_400_001, "audio/wav")}
     assert status({"callId": call_id}, too_big) == (400, {"error": "bad_audio"})
     assert status({"callId": "cal_unknown", "text": "Salom"}) == (410, {"error": "ended"})
-    # A prefetch needs the audio itself.
-    assert status({"callId": call_id, "text": "Salom"}, query="?prefetch=1") == (400, {"error": "bad_audio"})
+    # A prefetch needs the words or the audio; the words start the answer early (test_early_answer.py).
+    assert status({"callId": call_id}, query="?prefetch=1") == (400, {"error": "bad_audio"})
+    assert status({"callId": call_id, "text": "Salom"}, query="?prefetch=1") == (202, None)
+    pv.drop_early(call_id)
     # Two turns in flight would interleave the transcript.
     assert pv.claim_call(call_id)
     assert status({"callId": call_id, "text": "Salom"}) == (409, {"error": "busy_call"})
@@ -236,6 +239,124 @@ def test_turn_refusals(api, sql) -> None:  # noqa: ANN001
     # Once hung up, the call takes no more turns.
     assert api.post("/playground/end", json={"callId": call_id}).status_code == 204
     assert status({"callId": call_id, "text": "Salom"}) == (410, {"error": "ended"})
+
+
+# ── lap times of a turn (app/turn_timings.py) ───────────────────────
+
+
+def _laps(sql, turn_id: str) -> dict:  # noqa: ANN001
+    ((raw,),) = sql("SELECT timings_json FROM turns WHERE id = ?", turn_id)
+    return json.loads(raw)["laps"]
+
+
+def test_turn_saves_its_lap_times_and_the_page_adds_its_own(api, sql, voiced) -> None:  # noqa: ANN001
+    call_id = _open_call(api, _seed_agent(sql))
+    events = _events(api.post("/playground/turn", data={"callId": call_id, "text": "Assalomu alaykum"}))
+    final = next(e for e in events if e["t"] == "final")
+    turn_id = final["turn"]
+    assert sql("SELECT role, call_id FROM turns WHERE id = ?", turn_id) == [("agent", call_id)]
+    # The server's marks, under the names the page's waterfall uses, and the engines that ran.
+    laps = _laps(sql, turn_id)
+    assert {f"srv_{k}": v for k, v in final["ms"].items()}.items() <= laps.items()
+    assert laps["srv_filler"] in (0, 1)
+    assert laps["engines"] == {"stt": "auto", "tts": "default", "llm": "local"}
+    # The original numbers stay as they were.
+    ((raw,),) = sql("SELECT timings_json FROM turns WHERE id = ?", turn_id)
+    assert {"sttMs", "retrievalMs", "llmMs", "ttsMs", "totalMs"} <= set(json.loads(raw))
+
+    page = {
+        "silenceWaitMs": 1100.4,
+        "endpointMs": 1180,
+        "mouthToEarMs": 2310,
+        "gapCount": 0,
+        "srv_llmFirst": 1,  # not the page's to write
+        "replyRecvMs": -5,  # a broken clock
+        "fillerAtMs": "300",
+        "gapMs": True,
+    }
+    body = {"callId": call_id, "turnId": turn_id, "laps": page}
+    assert api.post("/playground/timings", json=body).status_code == 204
+    laps = _laps(sql, turn_id)
+    assert {k: laps[k] for k in ("silenceWaitMs", "endpointMs", "mouthToEarMs", "gapCount")} == {
+        "silenceWaitMs": 1100,
+        "endpointMs": 1180,
+        "mouthToEarMs": 2310,
+        "gapCount": 0,
+    }
+    assert laps.get("srv_llmFirst") == final["ms"].get("llmFirst")  # the server's own value, or none
+    assert not {"replyRecvMs", "fillerAtMs", "gapMs"} & set(laps)
+
+    summary = api.get("/playground/timings").json()
+    assert summary["turns"] == 1 and summary["total"] == {"p50": 2310, "p95": 2310}
+    steps = {s["key"]: s["p50"] for s in summary["steps"]}
+    assert steps["silence"] == 1100 and steps["words"] == 80
+    assert sum(v or 0 for v in steps.values()) == 2310  # the steps add up to the whole turn
+    assert summary["llms"] == ["local"] and summary["ttsEngines"] == ["default"]
+
+
+def test_lap_times_only_for_this_tenants_playground_agent_turns(api, sql, voiced) -> None:  # noqa: ANN001
+    call_id = _open_call(api, _seed_agent(sql))
+    events = _events(api.post("/playground/turn", data={"callId": call_id, "text": "Salom"}))
+    turn_id = next(e for e in events if e["t"] == "final")["turn"]
+    ((caller_turn,),) = sql("SELECT id FROM turns WHERE call_id = ? AND role = 'caller' LIMIT 1", call_id)
+    laps = {"endpointMs": 900, "mouthToEarMs": 2000}
+    for body in (
+        {"callId": "cal_unknown", "turnId": turn_id, "laps": laps},
+        {"callId": call_id, "turnId": "trn_unknown", "laps": laps},
+        {"callId": call_id, "turnId": caller_turn, "laps": laps},
+        {"callId": call_id, "turnId": turn_id, "laps": {"nothing": 1}},
+    ):
+        assert api.post("/playground/timings", json=body).status_code == 404
+    assert api.post("/playground/timings", content=b"{garbled").status_code == 404
+
+
+def test_timing_summary_typical_worst_and_filters(api, sql) -> None:  # noqa: ANN001
+    call_id = _open_call(api, _seed_agent(sql))
+    assert api.get("/playground/timings").json()["turns"] == 0
+    for i in range(20):
+        llm = "claude:claude-haiku-5-5" if i % 2 else "gemini:gemini-3.5-flash-lite"
+        laps = {
+            "silenceWaitMs": 1100,
+            "endpointMs": 1150,
+            "srv_stt": 0,
+            "srv_retrieval": 50,
+            "srv_llmFirst": 600 + i * 10,
+            "srv_firstSegment": 700 + i * 10,
+            "srv_firstAudio": 1100 + i * 10,
+            "mouthToEarMs": 2300 + i * 10,
+            "srv_early": 1 if i < 5 else 0,
+            "engines": {"llm": llm, "tts": "gemini-3.8-flash-lite-tts"},
+        }
+        sql(
+            "INSERT INTO turns (id, tenant_id, call_id, ordinal, role, text, timings_json, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            f"trn_t{i:02d}",
+            TENANT,
+            call_id,
+            100 + i,
+            "agent",
+            "Javob",
+            json.dumps({"totalMs": 1, "laps": laps}),
+            f"2026-11-26T10:00:{i:02d}.000Z",
+        )
+    summary = api.get("/playground/timings").json()
+    assert summary["turns"] == 20
+    assert summary["total"] == {"p50": 2390, "p95": 2480}  # nearest rank over 2300…2490
+    assert summary["earlyShare"] == 0.25 and summary["fillerShare"] == 0.0
+    assert summary["llms"] == ["claude:claude-haiku-5-5", "gemini:gemini-3.5-flash-lite"]
+    haiku = api.get("/playground/timings", params={"llm": "claude:claude-haiku-5-5"}).json()
+    assert haiku["turns"] == 10 and haiku["total"]["p50"] == 2390  # 5th of 2310…2490
+    none = api.get("/playground/timings", params={"tts": "eleven_v4_turbo"}).json()
+    assert none["turns"] == 0 and none["total"] == {"p50": None, "p95": None}
+
+
+def test_a_reopened_chat_shows_its_saved_laps(data_dir) -> None:  # noqa: ANN001
+    from app.turn_timings import flat_timings
+
+    raw = json.dumps({"totalMs": 9, "laps": {"endpointMs": 900, "srv_firstAudio": 400, "engines": {"llm": "x"}}})
+    assert flat_timings(raw) == {"totalMs": 9, "endpointMs": 900, "srv_firstAudio": 400}
+    assert flat_timings('{"totalMs": 9}') == {"totalMs": 9}
+    assert flat_timings("not json") == {}
 
 
 # ── /playground/end ─────────────────────────────────────────────────
@@ -274,6 +395,7 @@ def zipformer_calls(monkeypatch: pytest.MonkeyPatch) -> list[tuple]:
         return "salom dunyo"
 
     monkeypatch.setattr(z, "finish_live", finish)
+    monkeypatch.setattr(z, "begin_live", lambda o, s: calls.append(("begin", o, s)) or "sa")
     monkeypatch.setattr(z, "reset_live", lambda o, s: calls.append(("reset", o, s)))
     monkeypatch.setattr(z, "close_live", lambda o, s: calls.append(("close", o, s)))
     return calls
@@ -290,6 +412,7 @@ def test_live_words(api, zipformer_calls) -> None:  # noqa: ANN001
     assert post("feed").json() == {"text": "salom"}
     assert post("finish", piece).json() == {"text": "salom dunyo"}
     assert post("finish").json() == {"text": "salom dunyo"}
+    assert post("begin").json() == {"text": "sa"}
     assert post("reset").json() == {"text": ""}
     assert post("close").json() == {"ok": True}
     assert zipformer_calls == [
@@ -297,6 +420,7 @@ def test_live_words(api, zipformer_calls) -> None:  # noqa: ANN001
         ("feed", USER, sid, 0),
         ("finish", USER, sid, 4000),
         ("finish", USER, sid, None),
+        ("begin", USER, sid),
         ("reset", USER, sid),
         ("close", USER, sid),
     ]
@@ -348,3 +472,80 @@ def test_stream_sends_heartbeat_events_and_pings(monkeypatch: pytest.MonkeyPatch
     assert heartbeat.startswith('data: {"type":"heartbeat","at":"') and heartbeat.endswith('Z"}\n\n')
     assert event == 'data: {"type":"call.started","callId":"cal_1"}\n\n'
     assert ping == ": ping\n\n"
+
+
+# ── talked over (Q7): stop the turn, keep only what was heard ───────
+
+
+def _agent_text(sql, call_id: str) -> list[str]:  # noqa: ANN001
+    return [t for (t,) in sql("SELECT text FROM turns WHERE call_id = ? AND role = 'agent' ORDER BY ordinal", call_id)]
+
+
+def test_a_turn_talked_over_stops_writing_and_keeps_what_it_wrote(api, sql, monkeypatch) -> None:  # noqa: ANN001
+    """The model is stopped mid-answer: the turn is written down with only the words written so far."""
+    from app.engine import conversation
+
+    words = ["Sizning", "qarzingiz", "besh", "million", "so'm,", "to'lov", "muddati", "yigirma", "beshinchi", "noyabr."]
+    told: list[str] = []
+
+    async def slow_model(inp, on_delta=None):  # noqa: ANN001, ANN202
+        for i, word in enumerate(words):
+            await asyncio.sleep(0.05)
+            told.append(word)
+            if on_delta:
+                on_delta(word if i == 0 else f" {word}")
+        return {"answer": " ".join(words), "intent": "other", "answered": True, "usedHits": [], "engine": "fake:m"}
+
+    monkeypatch.setattr(conversation, "generate_answer", slow_model)
+    call_id = _open_call(api, _seed_agent(sql))
+    agent = dict(zip([c[1] for c in sql("PRAGMA table_info(agents)")], sql("SELECT * FROM agents")[0], strict=True))
+
+    async def go() -> dict:
+        stop = asyncio.Event()
+        asyncio.get_running_loop().call_later(0.18, stop.set)  # the caller cuts in after ~3 words
+        return await conversation.run_turn(
+            tenant_id=TENANT,
+            call_id=call_id,
+            agent=agent,
+            utterance="Qarzim qancha?",
+            on_delta=lambda d: None,
+            stop=stop,
+        )
+
+    result = asyncio.run(go())
+    assert 1 <= len(result["reply"].split()) < len(words)  # stopped early, kept what was written
+    assert len(told) < len(words)  # the model really stopped
+    kept = result["reply"].split()
+    assert kept == words[: len(kept)]  # whole words only, in order: no half-written last word
+    assert _agent_text(sql, call_id)[-1] == result["reply"]
+
+
+def test_cut_keeps_only_the_share_heard(api, sql, voiced) -> None:  # noqa: ANN001
+    call_id = _open_call(api, _seed_agent(sql))
+    _events(api.post("/playground/turn", data={"callId": call_id, "text": "Kredit foizi qancha?"}))
+    full = _agent_text(sql, call_id)[-1]
+    n = len(full.split())
+    res = api.post("/playground/cut", json={"callId": call_id, "heard": 0.5})
+    assert res.status_code == 200 and res.json() == {"result": "cut" if n > 1 else "kept"}
+    if n > 1:
+        cut = _agent_text(sql, call_id)[-1]
+        assert cut.endswith("…") and len(cut[:-1].split()) == max(1, n // 2)
+        assert full.startswith(cut[:-1])
+
+
+def test_a_reply_nobody_heard_is_not_kept(api, sql, voiced) -> None:  # noqa: ANN001
+    call_id = _open_call(api, _seed_agent(sql))
+    _events(api.post("/playground/turn", data={"callId": call_id, "text": "Kredit foizi qancha?"}))
+    before = _agent_text(sql, call_id)
+    assert api.post("/playground/cut", json={"callId": call_id, "heard": 0}).json() == {"result": "removed"}
+    assert _agent_text(sql, call_id) == before[:-1]  # the greeting stays, the unheard reply is gone
+    # The caller's own words stay in the transcript.
+    assert sql("SELECT text FROM turns WHERE call_id = ? AND role = 'caller'", call_id)[-1] == ("Kredit foizi qancha?",)
+
+
+def test_cut_refusals(api, sql) -> None:  # noqa: ANN001
+    call_id = _open_call(api, _seed_agent(sql))
+    assert api.post("/playground/cut", json={"callId": "cal_x", "heard": 0.5}).status_code == 404
+    for heard in (-0.1, 1.5, "half", True, None):
+        assert api.post("/playground/cut", json={"callId": call_id, "heard": heard}).status_code == 400
+    assert api.post("/playground/cut", json={"callId": call_id, "heard": 1}).json() == {"result": "kept"}

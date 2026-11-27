@@ -236,7 +236,7 @@ export interface VoiceDebugEvent {
   phase: TurnPhase;
   turnId: number;
   kind: 'phase' | 'accepted' | 'rejected' | 'barge_in' | 'finalized';
-  reason?: RejectReason | 'silence' | 'maximum';
+  reason?: RejectReason | 'silence' | 'maximum' | 'model';
   level?: number;
   reference?: number;
 }

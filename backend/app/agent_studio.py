@@ -18,7 +18,7 @@ from app.jscompat import js_json, js_trim, utf16_slice
 from app.llm.choice import llm_options, safe_json, tenant_default_llm
 from app.llm.provider import engine_label
 from app.registry import ENGINES, llm_model_info
-from app.speech.speko import ELEVEN_VOICES, GEMINI_VOICES, SPEKO_TTS_MODELS, speko_voices
+from app.speech.speko import ELEVEN_VOICES, GEMINI_VOICES, SPEKO_TTS_MODELS, model_voices
 from app.speech.tts import tts_engines
 from app.voices import list_custom_voices
 
@@ -58,7 +58,7 @@ def agent_tts(draft: dict[str, Any]) -> tuple[str, str]:
     engine = engine_id if engine_id in SPEKO_TTS_MODELS else ""
     if not engine:
         return "", ""
-    voices = speko_voices(engine)
+    voices = model_voices(engine)
     voice = next((v["id"] for v in voices if v["id"] == draft["ttsVoiceId"]), voices[0]["id"])
     return engine, voice
 

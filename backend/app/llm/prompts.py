@@ -15,6 +15,7 @@ import regex as re
 from app.jscompat import JS_S, js_trim, utf16_slice
 from app.llm.goal_call import goal_block
 from app.llm.loan_call import calendar_block, identity_check, named_day
+from app.llm.loan_plan import plan_lines
 
 LANGUAGE_NAME = {"uz": "Uzbek", "ru": "Russian", "en": "English"}
 
@@ -194,13 +195,19 @@ def target_block(
     }
 
     loan_amount = target.get("loanAmount", "")
+    # L6, in the Playground: the parts of a split are worked out in code, not by the model.
+    from app.engine.live_turn import in_playground  # noqa: PLC0415 - engine imports the prompts
+
+    plan = plan_lines(target) if in_playground() else []
     confirmed_lines = (
         [
             "WHAT YOU KNOW AND MAY TELL THEM (they are confirmed):",
             f'- Amount they owe: {loan_amount}. Asked "how much?", say this amount plainly.' if loan_amount else "",
+            *plan,
             "- How and where to pay, and any options (such as paying in parts), are in the CALL INSTRUCTIONS",
-            "  below. Asked about them, explain clearly, step by step if useful; for a split, work out each",
-            "  part yourself and say it.",
+            "  below. Asked about them, explain clearly, step by step if useful; for a split, "
+            + ("say the figures above." if plan else "work out each"),
+            "" if plan else "  part yourself and say it.",
             "- Only for what is truly not in here (interest, penalties, account numbers) say a colleague",
             "  will clarify, and still help with everything you can.",
             "",

@@ -11,8 +11,10 @@ here must be identical, or dense search would silently degrade. That means:
 - additions happen in the same order (term insertion order, then bigrams).
 """
 
+import asyncio
 import math
 import struct
+import weakref
 
 from app.jscompat import f32, js_log, utf16_units
 from app.rag.text import char_ngrams, concept_of, stem, tokenize
@@ -135,3 +137,86 @@ async def hosted_embed(texts: list[str]) -> list[list[float]]:
     if not res.is_success:
         raise RuntimeError(f"Embedding request failed: {res.status_code}")
     return [l2normalize([f32(x) for x in d["embedding"]]) for d in res.json()["data"]]
+
+
+def query_deadline_s() -> float | None:
+    """How long a caller's question may wait for its OpenAI vector (EMBED_QUERY_DEADLINE_MS; 0 or off: no limit)."""
+    from app.env import env
+
+    raw = (env("EMBED_QUERY_DEADLINE_MS") or "").strip()
+    if raw.lower() == "off":
+        return None
+    try:
+        ms = float(raw) if raw else 300.0
+    except ValueError:
+        ms = 300.0
+    return ms / 1000 if ms > 0 else None
+
+
+_QUERY_CACHE: dict[tuple[str, str], tuple[float, list[list[float]]]] = {}
+QUERY_CACHE_TTL_S = 600.0
+BATCH_WAIT_S = 0.005  # questions asked this close together go to OpenAI as one request
+_batches: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, list[tuple[str, asyncio.Future]]]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _cache_key(query: str) -> tuple[str, str]:
+    from app.env import env
+
+    return (env("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"), query)
+
+
+async def _flush_batch(loop: asyncio.AbstractEventLoop) -> None:
+    import time
+
+    await asyncio.sleep(BATCH_WAIT_S)
+    batch = _batches.pop(loop, [])
+    texts = list(dict.fromkeys(q for q, _f in batch))
+    try:
+        vectors = await hosted_embed(texts)
+    except Exception as err:  # noqa: BLE001 - each waiting search falls back to words alone
+        for _q, fut in batch:
+            if not fut.done():
+                fut.set_exception(err)
+        return
+    by_text = dict(zip(texts, vectors, strict=False))
+    if len(_QUERY_CACHE) > 1000:
+        _QUERY_CACHE.clear()
+    for text, vec in by_text.items():
+        _QUERY_CACHE[_cache_key(text)] = (time.monotonic(), [vec])  # kept even if its search gave up
+    for q, fut in batch:
+        if not fut.done():
+            fut.set_result([by_text[q]] if q in by_text else [])
+
+
+async def _embed_together(query: str) -> list[list[float]]:
+    """The query's vector, fetched in one request with any other question asked within BATCH_WAIT_S."""
+    loop = asyncio.get_running_loop()
+    fut: asyncio.Future = loop.create_future()
+    batch = _batches.setdefault(loop, [])
+    batch.append((query, fut))
+    if len(batch) == 1:
+        loop.create_task(_flush_batch(loop))
+    return await fut
+
+
+async def hosted_embed_query(query: str) -> list[list[float]]:
+    """
+    The question's vector. The same question asked again within 10 minutes (the turn after its early
+    start, a repeated question) reuses it, and questions searched side by side (a follow-up and the same
+    words in context) share one request. In a Playground turn it waits at most `query_deadline_s` (about
+    0.3 s): slower raises TimeoutError and the search goes on with words alone.
+    """
+    import time
+
+    from app.engine.live_turn import in_playground
+
+    hit = _QUERY_CACHE.get(_cache_key(query))
+    if hit is not None and time.monotonic() - hit[0] < QUERY_CACHE_TTL_S:
+        return hit[1]
+    deadline = query_deadline_s() if in_playground() else None
+    if deadline is None:
+        return await _embed_together(query)
+    async with asyncio.timeout(deadline):
+        return await _embed_together(query)

@@ -1,8 +1,10 @@
 """
 Speko Router (router.speko.dev) — port of src/lib/speech/speko.ts: ElevenLabs
-and Gemini voices for TTS, Gemini and ElevenLabs Scribe for STT, behind one API
-key. The vendor is pinned (`routing.mode: explicit`) so a request never silently
-fails over to a vendor that cannot speak Uzbek.
+voices for TTS and ElevenLabs Scribe for STT, behind one API key (the sysadmin
+allows ElevenLabs only through Speko). The vendor is pinned (`routing.mode:
+explicit`) so a request never silently fails over to a vendor that cannot speak
+Uzbek. Gemini's speech models now come straight from Google (gemini_speech.py);
+Speko renders them only as the fallback when Google refuses a request.
 
 Env: SPEKO_API_KEY, SPEKO_BASE_URL (default https://router.speko.dev/v1),
 SPEKO_TTS_VOICE (an ElevenLabs voice id used when a request names none of ours).
@@ -18,16 +20,17 @@ import regex as re
 from app import http
 from app.env import env
 from app.jscompat import js_json, js_round, js_trim
-from app.speech.resample import StreamResampler
+from app.speech.gemini_speech import GEMINI_TTS_MODELS, GEMINI_TTS_RATE, GEMINI_VOICES, gemini_voice, is_gemini_tts
+from app.speech.resample import pcm_pieces, resampled
 from app.streams import error_body, read_until
 
 log = logging.getLogger("callmind.speko")
 
-# Gemini's TTS models (Google, through Speko). They render 24 kHz only (Speko refuses any other
-# rate with 415), so other rates are converted here (app/speech/resample.py).
-GEMINI_TTS_MODELS = ("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts")
-GEMINI_TTS_RATE = 24000
-SPEKO_TTS_MODELS = ("eleven_v3_conversational", "eleven_v4_turbo", *GEMINI_TTS_MODELS)
+ELEVEN_TTS_MODELS = ("eleven_v3_conversational", "eleven_v4_turbo")
+# Every cloud TTS model the app offers: ElevenLabs' (through Speko) and Gemini's (from Google, Speko as
+# the fallback). Gemini renders 24 kHz only (Speko refuses any other rate with 415); other rates are
+# converted (app/speech/resample.py).
+SPEKO_TTS_MODELS = (*ELEVEN_TTS_MODELS, *GEMINI_TTS_MODELS)
 
 # The first is the default. Nadya and Miron are native Russian voices; the rest native Uzbek.
 ELEVEN_VOICES = (
@@ -41,19 +44,6 @@ ELEVEN_VOICES = (
 )
 
 
-# Gemini's prebuilt voices that speak Uzbek well (all checked through Speko). The first is the default.
-GEMINI_VOICES = (
-    {"id": "Kore", "name": "Kore", "gender": "female", "note": "Firm"},
-    {"id": "Sulafat", "name": "Sulafat", "gender": "female", "note": "Warm"},
-    {"id": "Achernar", "name": "Achernar", "gender": "female", "note": "Soft"},
-    {"id": "Aoede", "name": "Aoede", "gender": "female", "note": "Breezy"},
-    {"id": "Charon", "name": "Charon", "gender": "male", "note": "Informative"},
-    {"id": "Orus", "name": "Orus", "gender": "male", "note": "Firm"},
-    {"id": "Iapetus", "name": "Iapetus", "gender": "male", "note": "Clear"},
-    {"id": "Puck", "name": "Puck", "gender": "male", "note": "Upbeat"},
-)
-
-
 def eleven_voice(voice_id: str | None = None) -> str:
     """`voice_id` when it is one of ours, else SPEKO_TTS_VOICE, else the first voice."""
     if voice_id and any(v["id"] == voice_id for v in ELEVEN_VOICES):
@@ -61,20 +51,14 @@ def eleven_voice(voice_id: str | None = None) -> str:
     return js_trim(env("SPEKO_TTS_VOICE")) or ELEVEN_VOICES[0]["id"]
 
 
-def is_gemini_tts(model: str) -> bool:
-    return model in GEMINI_TTS_MODELS
-
-
-def speko_voices(model: str) -> tuple[dict[str, str], ...]:
-    """The voices a Speko TTS model speaks with: Gemini's for the Gemini models, else ElevenLabs'."""
+def model_voices(model: str) -> tuple[dict[str, str], ...]:
+    """The voices a cloud TTS model speaks with: Gemini's for the Gemini models, else ElevenLabs'."""
     return GEMINI_VOICES if is_gemini_tts(model) else ELEVEN_VOICES
 
 
 def tts_voice(model: str, voice_id: str | None = None) -> str:
     """The voice to send for `model`: `voice_id` when that model has it, else the model's default."""
-    if is_gemini_tts(model):
-        return voice_id if voice_id and any(v["id"] == voice_id for v in GEMINI_VOICES) else GEMINI_VOICES[0]["id"]
-    return eleven_voice(voice_id)
+    return gemini_voice(voice_id) if is_gemini_tts(model) else eleven_voice(voice_id)
 
 
 SAMPLE_RATE = 8000
@@ -96,33 +80,6 @@ class SpekoError(Exception):
     def __init__(self, message: str, status: int = 502):
         super().__init__(message)
         self.status = status
-
-
-async def pcm_pieces(chunks: AsyncIterator[bytes], first_piece: int, piece: int) -> AsyncIterator[bytes]:
-    """Re-cut a byte stream: one piece once `first_piece` bytes are held, then `piece`; never split a sample."""
-    held = b""
-    first = True
-    async for chunk in chunks:
-        held = held + chunk if held else chunk
-        if len(held) >= (first_piece if first else piece):
-            whole = len(held) - (len(held) % 2)
-            yield held[:whole]
-            held = held[whole:]
-            first = False
-    whole = len(held) - (len(held) % 2)
-    if whole:
-        yield held[:whole]
-
-
-async def _resampled(chunks: AsyncIterator[bytes], src_rate: int, dst_rate: int) -> AsyncIterator[bytes]:
-    converter = StreamResampler(src_rate, dst_rate)
-    async for chunk in chunks:
-        out = converter.feed(chunk)
-        if out:
-            yield out
-    tail = converter.flush()
-    if tail:
-        yield tail
 
 
 async def speko_stream_pcm(
@@ -162,7 +119,7 @@ async def speko_stream_pcm(
             raise SpekoError(f"speko_{res.status_code}", 503 if res.status_code == 401 else 502)
         audio = read_until(res, deadline)
         if render_rate != sample_rate:
-            audio = _resampled(audio, render_rate, sample_rate)
+            audio = resampled(audio, render_rate, sample_rate)
         async for out in pcm_pieces(audio, first_piece, piece):
             yield out
     finally:
@@ -172,7 +129,7 @@ async def speko_stream_pcm(
 # ── speech-to-text ──────────────────────────────────────────────────
 
 SPEKO_STT_MODEL = "gemini-3.5-transcribe"
-# The streaming ("live") variant of the same model; sent as one finished utterance, like the others.
+# The streaming ("live") variant of the same model, through Speko: only the fallback now (Google first).
 SPEKO_LIVE_MODEL = "gemini-3.5-transcribe-live"
 SPEKO_SCRIBE_MODEL = "scribe_v2_realtime"
 # ElevenLabs' newer streaming model: word by word on the live socket (app/speech/speko_live.py), and

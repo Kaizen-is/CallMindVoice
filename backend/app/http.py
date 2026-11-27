@@ -20,7 +20,9 @@ def client() -> httpx.AsyncClient:
     if _client is None:
         _client = httpx.AsyncClient(
             transport=_transport,
-            timeout=httpx.Timeout(None, connect=10.0),
+            # A service that goes silent for a minute mid-request is cut off (the caller's fallback
+            # takes over); live turns have their own, much shorter deadlines.
+            timeout=httpx.Timeout(None, connect=10.0, read=60.0),
             # Idle connections are kept 5 minutes: callers pause between questions, and with 60 s the first
             # question after a pause reconnected to every service (measured 25 Nov: +0.4–1.5 s on that turn).
             limits=httpx.Limits(max_connections=200, max_keepalive_connections=50, keepalive_expiry=300),

@@ -31,7 +31,7 @@ import numpy as np
 from sqlalchemy import Connection
 
 from app import db
-from app.rag.embed import LOCAL_DIM, LOCAL_ENGINE_ID, hosted_embed, hosted_engine_id, local_embed
+from app.rag.embed import LOCAL_DIM, LOCAL_ENGINE_ID, hosted_embed_query, hosted_engine_id, local_embed
 from app.rag.retrieve import Corpus, RetrievalResult, build_corpus, rank
 from app.rag.text import normalize, stem, tokenize
 
@@ -306,7 +306,7 @@ async def query_vector(query: str, gc: GroupedCorpus) -> tuple[np.ndarray | None
     engine = hosted_engine_id()
     if engine and dim and dim != LOCAL_DIM:
         try:
-            vectors = await hosted_embed([query])
+            vectors = await hosted_embed_query(query)
         except Exception as err:  # noqa: BLE001 - words alone still search
             log.warning("query embedding failed: %s", err)
             return None, engine

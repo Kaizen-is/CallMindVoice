@@ -15,13 +15,17 @@ import type { Locale, UiLocale } from '@/lib/types';
 import { cn, fmtLatency } from '@/lib/utils';
 import { voiceInputAvailable } from '@/lib/catalog';
 import { micSupported, type RecordingResult } from '@/lib/audio';
-import { useVoiceSession, type UtteranceTiming, type VoiceState } from '@/hooks/use-voice-session';
+import { SILENCE_TIMEOUT_MS, useVoiceSession, type UtteranceTiming, type VoiceState } from '@/hooks/use-voice-session';
+import { isRealInterruption, pauseFor, sameWords } from '@/lib/voice/endpointing';
+import { FillerGate } from '@/lib/voice/filler-gate';
+import { CallSocket, callSocketUrl, socketFields } from '@/lib/voice/call-socket';
+import { NativePilot } from './native-pilot';
 import { useLiveTranscript } from '@/hooks/use-live-transcript';
 import { useWordReveal } from '@/hooks/use-word-reveal';
 import { playTtsStream } from '@/lib/tts-stream';
 import { decodePcm, speakWithBrowser, VoiceOut } from '@/app/demo/voice-out';
 import { IconHandset, IconHangUp } from '@/app/demo/icons';
-import { readCallEvents, type TurnDetail } from '@/lib/playground-shared';
+import { readCallEvents, type CallEvent, type TurnDetail } from '@/lib/playground-shared';
 import { ModelMenu } from '@/components/ui/model-menu';
 import {
   GEMINI_TTS,
@@ -114,17 +118,85 @@ function rememberedChat(agentId: string): string | null {
 
 /**
  * One voice turn's clock on the page (`performance.now()`): when the caller
- * really stopped talking, and when the phrase left for the server.
+ * really stopped talking, when the silence wait ended, and when the phrase
+ * left for the server.
  */
 interface TurnClock {
   speechEndedAt: number;
+  decidedAt: number;
   sentAt: number;
+  /** L3: the end-of-turn model at this phrase's pauses (scores 0–1), and whether it ended the phrase. */
+  model?: { end: number; mid: number; mids: number; used: boolean };
+}
+
+/** The page's own lap times of a turn, kept with the turn on the server (app/turn_timings.py). */
+const BROWSER_LAPS = [
+  'tmEnd',
+  'tmMid',
+  'tmMids',
+  'tmUsed',
+  'silenceWaitMs',
+  'endpointMs',
+  'mouthToEarMs',
+  'replyRecvMs',
+  'fillerAtMs',
+  'gapCount',
+  'gapMs',
+];
+
+function saveLaps(
+  callId: string,
+  turnId: string,
+  timings: Record<string, number>,
+  socket?: CallSocket | null,
+): Promise<unknown> {
+  const laps = Object.fromEntries(BROWSER_LAPS.filter((k) => timings[k] != null).map((k) => [k, timings[k]]));
+  if (socket?.open) return socket.timings(callId, turnId, laps);
+  return fetch(callApi('/playground/timings'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ callId, turnId, laps }),
+  }).catch(() => undefined);
 }
 
 /**
  * `?legacy=1` on the Playground's address voices turns the way they were
  * before the latency work, to compare both on the same agent.
  */
+/** Q7: how long a cut-in may wait for words before it counts as noise, and speech per character. */
+const CONFIRM_INTERRUPT_MS = 1800;
+const MS_PER_CHAR = 60;
+
+/**
+ * L3, the end-of-turn model: it always scores the phrase at each early pause (what it would decide is
+ * kept with the turn), but ends a phrase on its own only with ?turnModel=1 — on Uzbek it is not proven
+ * yet. ?turnModelSure=0.85 sets how sure it must be (default 0.9).
+ */
+function turnModelInCharge(): boolean {
+  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('turnModel') === '1';
+}
+
+function turnModelSure(): number {
+  const raw = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('turnModelSure');
+  const value = raw ? Number(raw) : NaN;
+  return value > 0 && value <= 1 ? value : 0.9;
+}
+
+/** ?native=1 shows the L8 pilot: the same agent answered natively by Gemini Live. */
+function nativePilotOn(): boolean {
+  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('native') === '1';
+}
+
+/** ?ws=0 keeps the call on separate requests (L2 off, for comparing). */
+function callSocketOn(): boolean {
+  return typeof window === 'undefined' || new URLSearchParams(window.location.search).get('ws') !== '0';
+}
+
+/** ?smartPause=0 goes back to the fixed end-of-phrase wait (for comparing). */
+function smartPause(): boolean {
+  return typeof window === 'undefined' || new URLSearchParams(window.location.search).get('smartPause') !== '0';
+}
+
 function legacyVoice(): boolean {
   return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('legacy') === '1';
 }
@@ -183,7 +255,7 @@ export function Playground({
   agents: Array<{ id: string; name: string; status: 'draft' | 'live' | 'paused' }>;
   allVoices: Array<{ id: string; name: string; group: 'builtin' | 'clone' | 'design' }>;
   elevenVoices: Array<{ id: string; name: string }>;
-  /** Gemini's voices, for the Gemini TTS models (through Speko). */
+  /** Gemini's voices, for the Gemini TTS models. */
   geminiVoices?: Array<{ id: string; name: string }>;
   locale: UiLocale;
   industry: string;
@@ -236,6 +308,26 @@ export function Playground({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAgentId]);
   const [callId, setCallId] = useState<string | null>(null);
+  // Bumped each time a turn's lap times are saved: the recent-turns summary reloads.
+  const [timingsTick, setTimingsTick] = useState(0);
+  // What the end-of-phrase wait is read from (Q4): the live words so far and the agent's last line.
+  const liveWordsRef = useRef('');
+  const lastAskedRef = useRef('');
+  // Talked over (Q7): the reply's audio so far (to know how much was heard), the interruption waiting
+  // for words to confirm it, and what the voice session calls when the caller cuts in.
+  const replyAudioRef = useRef<{ seq: number; startAt: number; endAt: number; chars: number; done: boolean } | null>(
+    null,
+  );
+  const interruptRef = useRef<{ seq: number; heard: number; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const interruptHandlerRef = useRef<() => void>(() => {});
+  const echoWarnedRef = useRef(false);
+  // L3: the model's scores at this phrase's early pauses, the pause they belong to, and whether it ended it.
+  const pauseScoresRef = useRef<number[]>([]);
+  const pauseSeqRef = useRef(0);
+  const modelEndedRef = useRef(false);
+  // L2: the call's one WebSocket (null: the call goes over separate requests, as before).
+  const socketRef = useRef<CallSocket | null>(null);
+  const [callSocket, setCallSocket] = useState<CallSocket | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   // Saved conversations with the selected agent, most recent first.
   const [chats, setChats] = useState<PlaygroundChat[]>([]);
@@ -354,6 +446,7 @@ export function Playground({
     getPhase: getVoicePhase,
     getTurnId: getVoiceTurnId,
     getSpeakerReference,
+    endPhraseNow,
   } = useVoiceSession({
     onUtterance: (recording, _turn, timing) => callUtteranceRef.current(recording, timing),
     onSpeculate: (recording) => callPrefetchRef.current(recording),
@@ -361,13 +454,26 @@ export function Playground({
       // Words the live stream caught during the agent's turn may be its own echo: this turn is
       // transcribed from the recording instead.
       bargedInRef.current = true;
-      silenceAgent();
+      interruptHandlerRef.current();
     },
     onError: (message) => toast.error(t('play.toast.micTitle', 'Microphone problem'), message),
     // The agent's own voice in the mic is not the caller talking (echo guard).
     getPlaybackLevel: () => outRef.current?.rms() ?? 0,
     onListeningQuiet: () => liveQuietResetRef.current(),
     onDebug: voiceDebugLog.onDebug,
+    // How long a pause ends the phrase, from the live words so far and the agent's last line (Q4).
+    silenceTimeoutMs: () =>
+      smartPause() ? pauseFor(liveWordsRef.current, lastAskedRef.current).ms : SILENCE_TIMEOUT_MS,
+    // Q10: echo cancellation is a request; without it the agent hears itself and cuts itself off.
+    onMicReady: (settings) => {
+      if (settings.echoCancellation === false && !echoWarnedRef.current) {
+        echoWarnedRef.current = true;
+        toast.error(
+          t('play.toast.noEchoTitle', 'Echo cancellation is off'),
+          t('play.toast.noEchoBody', 'This browser or microphone did not turn it on: use headphones, or the agent may hear itself.'),
+        );
+      }
+    },
   });
 
   // With the local streaming model picked, words appear while the caller is
@@ -380,12 +486,83 @@ export function Playground({
     engine: sttEngine,
     language: speechLang,
     active: LIVE_STT.has(sttEngine) && speech.stt[sttEngine] && isSessionActive && !muted,
+    agentId: selectedAgentId,
+    socket: callSocket,
   });
+  liveWordsRef.current = live.connected ? live.text : '';
+
+  /* ── talked over (Q7) ───────────────────────────────────────────── */
+
+  /** The share of the current reply's audio the caller has heard so far (0–1). */
+  const heardShare = (now: number): number => {
+    const audio = replyAudioRef.current;
+    if (!audio || audio.seq !== callSeqRef.current) return 0;
+    const played = now - audio.startAt;
+    if (played <= 0) return 0;
+    const received = Math.max(0, audio.endAt - audio.startAt);
+    // Until the reply is complete, its length is estimated from its text (as the phone line does).
+    const total = audio.done ? received : Math.max(received, audio.chars * MS_PER_CHAR);
+    return total > 0 ? Math.min(1, played / total) : 0;
+  };
+  /** A real interruption: the voice and the model stop together, and only what was heard is kept. */
+  const confirmInterruption = () => {
+    const pending = interruptRef.current;
+    interruptRef.current = null;
+    if (pending) clearTimeout(pending.timer);
+    const heard = pending ? pending.heard : heardShare(performance.now());
+    const id = callIdRef.current;
+    silenceAgent();
+    void outRef.current?.resume();
+    const share = Math.round(heard * 1000) / 1000;
+    if (id && socketRef.current?.open) void socketRef.current.cut(id, share);
+    else if (id) {
+      void fetch(callApi('/playground/cut'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callId: id, heard: share }),
+      }).catch(() => {});
+    }
+  };
+  /** No words came (the wind, a car, a cough) or only "ha": the agent goes on from where it paused. */
+  const resumeAfterNoise = () => {
+    const pending = interruptRef.current;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    interruptRef.current = null;
+    bargedInRef.current = false;
+    if (pending.seq !== callSeqRef.current) return; // the reply was replaced meanwhile
+    setAiSpeaking();
+    void outRef.current?.resume();
+  };
+  // Pause, then decide: with live words the agent's voice pauses on a cut-in and the words decide
+  // within CONFIRM_INTERRUPT_MS; without them (a recording-only model) it stops at once, as before.
+  interruptHandlerRef.current = () => {
+    const out = outRef.current;
+    if (!out || !(LIVE_STT.has(sttEngine) && live.connected) || interruptRef.current) {
+      confirmInterruption();
+      return;
+    }
+    const heard = heardShare(performance.now());
+    void out.ctx.suspend();
+    interruptRef.current = {
+      seq: callSeqRef.current,
+      heard,
+      timer: setTimeout(resumeAfterNoise, CONFIRM_INTERRUPT_MS),
+    };
+  };
+  useEffect(() => {
+    if (interruptRef.current && isRealInterruption(live.text)) confirmInterruption();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs on new live words only
+  }, [live.text]);
+  lastAskedRef.current = messages.findLast((m) => m.role === 'agent')?.text ?? '';
   // The agent's own voice is not the caller's words; drop it between turns — when the agent
-  // starts, and again when it has finished (its echo may have been streamed meanwhile).
+  // starts, and again when it has finished (its echo may have been streamed meanwhile). When the
+  // caller starts a phrase, words heard before it that no turn took up (the end of a sentence said
+  // over the agent, too late to interrupt it) are not the phrase's either.
   useEffect(() => {
     if (voiceState === 'ai_speaking' || voiceState === 'listening') live.reset();
-  }, [voiceState, live.reset]);
+    else if (voiceState === 'user_speaking') live.begin();
+  }, [voiceState, live.reset, live.begin]);
   // Listening with nobody speaking to the agent: whatever the streaming model picked up from the
   // room since the last reset is not the caller's next phrase. (It used to be sent along with it.)
   liveQuietResetRef.current = () => {
@@ -718,17 +895,33 @@ export function Playground({
    * reply and voice it as it arrives, fill the side panels, then hand the line
    * back to the caller.
    */
-  const exchange = async (res: Response, seq: number, userMsgId?: string, clock?: TurnClock) => {
+  const exchange = async (
+    res: Response | AsyncIterable<CallEvent>,
+    seq: number,
+    userMsgId?: string,
+    clock?: TurnClock,
+  ) => {
     const out = outRef.current!;
     // Measured on this page: when the filler and the reply's first audio
     // actually start playing, and any gaps between the reply's audio pieces.
     let fillerPlayAt = 0;
+    // The "one moment" line is held and plays only if the answer's voice is late (Q6).
+    let heldFiller: { pcm: string; rate?: number; bytes?: Uint8Array } | null = null;
+    const filler = new FillerGate(() => {
+      if (!heldFiller || seq !== callSeqRef.current) return;
+      const nowPage = performance.now();
+      const nowAudio = out.now;
+      const span = out.enqueue(heldFiller.bytes ?? decodePcm(heldFiller.pcm), heldFiller.rate);
+      if (span) fillerPlayAt ||= nowPage + (span.start - nowAudio) * 1000;
+    });
     let replyPlayAt = 0;
     let replyRecvAt = 0;
     let lastEnd = 0;
     let gapCount = 0;
     let gapMs = 0;
     let serverMs: Record<string, number> | undefined;
+    let turnId: string | null = null;
+    let replyDone = false;
     let agentMsgId = '';
     let replyText = '';
     let replyLang: Locale = speechLang;
@@ -743,7 +936,7 @@ export function Playground({
     };
 
     try {
-      for await (const event of readCallEvents(res)) {
+      for await (const event of res instanceof Response ? readCallEvents(res) : res) {
         if (seq !== callSeqRef.current) return dropPlaceholder();
         if (event.t === 'call') {
           callIdRef.current = event.callId;
@@ -767,30 +960,47 @@ export function Playground({
         } else if ((event.t === 'more' || event.t === 'final') && agentMsgId) {
           // The reply grows a sentence at a time as the model writes it.
           replyText = event.text;
-          if (event.t === 'final') serverMs = event.ms;
+          if (event.t === 'final') {
+            serverMs = event.ms;
+            turnId = event.turn ?? null;
+            replyDone = true;
+          }
+          const audio = replyAudioRef.current;
+          if (audio && audio.seq === seq) {
+            audio.chars = event.text.length;
+            audio.done = replyDone;
+          }
           const id = agentMsgId;
           setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: event.text } : x)));
-        } else if ((event.t === 'filler' || event.t === 'audio') && ttsEnabled) {
+        } else if (event.t === 'filler' && ttsEnabled) {
+          // Held until `afterMs` past the moment the turn left; the answer's voice cancels it.
+          heldFiller = event;
+          filler.offer((clock?.sentAt ?? performance.now()) + (event.afterMs ?? 1200) - performance.now());
+        } else if (event.t === 'audio' && ttsEnabled) {
+          filler.answer();
           const nowPage = performance.now();
           const nowAudio = out.now;
-          const span = out.enqueue(decodePcm(event.pcm), event.rate);
+          const span = out.enqueue(event.bytes ?? decodePcm(event.pcm), event.rate);
           if (span) {
             const playAt = nowPage + (span.start - nowAudio) * 1000;
-            if (event.t === 'filler') {
-              fillerPlayAt ||= playAt;
-            } else {
-              if (!replyPlayAt) {
-                replyPlayAt = playAt;
-                replyRecvAt = nowPage;
-              } else if (span.start - lastEnd > 0.015) {
-                // The voice ran dry and restarted: an audible gap.
-                gapCount += 1;
-                gapMs += (span.start - lastEnd) * 1000;
-              }
-              lastEnd = span.end;
+            if (!replyPlayAt) {
+              replyPlayAt = playAt;
+              replyRecvAt = nowPage;
+            } else if (span.start - lastEnd > 0.015) {
+              // The voice ran dry and restarted: an audible gap.
+              gapCount += 1;
+              gapMs += (span.start - lastEnd) * 1000;
             }
+            lastEnd = span.end;
+            replyAudioRef.current = {
+              seq,
+              startAt: replyPlayAt,
+              endAt: nowPage + (span.end - nowAudio) * 1000,
+              chars: replyText.length,
+              done: replyDone,
+            };
           }
-          if (event.t === 'audio' && span && !voiced) {
+          if (span && !voiced) {
             voiced = true;
             voiceWarnedRef.current = false;
             setThinking(false);
@@ -815,6 +1025,7 @@ export function Playground({
       if (seq !== callSeqRef.current) return dropPlaceholder(); // stopped on purpose
       dropped = true; // the line dropped mid-reply: what arrived still plays out
     }
+    filler.answer(); // the turn is over: a filler still waiting is not needed any more
     if (seq !== callSeqRef.current) return dropPlaceholder();
     callAbortRef.current = null;
     setThinking(false);
@@ -828,11 +1039,18 @@ export function Playground({
       }
       if (clock && replyPlayAt) {
         timings.mouthToEarMs = replyPlayAt - clock.speechEndedAt;
+        timings.silenceWaitMs = clock.decidedAt - clock.speechEndedAt;
         timings.endpointMs = clock.sentAt - clock.speechEndedAt;
         if (fillerPlayAt) timings.fillerAtMs = fillerPlayAt - clock.speechEndedAt;
         timings.gapCount = gapCount;
         timings.gapMs = gapMs;
         timings.replyRecvMs = replyRecvAt - clock.speechEndedAt;
+      }
+      if (clock?.model) {
+        timings.tmEnd = Math.round(clock.model.end * 1000);
+        timings.tmMid = Math.round(clock.model.mid * 1000);
+        timings.tmMids = clock.model.mids;
+        timings.tmUsed = clock.model.used ? 1 : 0;
       }
       const reply: PlaygroundReply = {
         ok: true,
@@ -842,6 +1060,9 @@ export function Playground({
         timings,
       };
       setMessages((m) => m.map((x) => (x.id === id ? { ...x, reply } : x)));
+      if (clock && replyPlayAt && turnId && callIdRef.current) {
+        void saveLaps(callIdRef.current, turnId, timings, socketRef.current).then(() => setTimingsTick((n) => n + 1));
+      }
     }
     if (dropped) toast.error(t('play.toast.answerFailTitle', 'Could not answer'), t('play.callDropped', 'The line dropped.'));
 
@@ -866,14 +1087,53 @@ export function Playground({
   /** How long to wait for a streaming model's last words once the phrase ends. */
   const liveFinishMs = finishWaitMs(sttEngine);
 
-  /** The caller paused: send the phrase ahead so it is already being transcribed. */
+  /**
+   * The caller paused (0.35 s): send the phrase ahead, so the server transcribes it and starts the
+   * answer while the pause lasts. With live words, those words, settled by the model, are the phrase.
+   * The turn uses that answer only when its own input is exactly the same (app/engine/early.py).
+   */
   callPrefetchRef.current = ({ wav, durationSec, rms }) => {
-    if (streamingStt()) return; // nothing to prefetch: the transcript is already live
-    if (callPhaseRef.current !== 'live' || !callIdRef.current || durationSec < 0.3 || rms < 0.0015 || wav.size <= 44) return;
-    void fetch(callApi('/playground/turn?prefetch=1'), { method: 'POST', body: callForm(wav) }).catch(() => {});
+    if (callPhaseRef.current !== 'live' || !callIdRef.current) return;
+    const ahead = (body: FormData) => {
+      const sock = socketRef.current;
+      if (sock?.open) void socketFields(body).then(({ fields, audio }) => sock.prefetch(fields, audio));
+      else void fetch(callApi('/playground/turn?prefetch=1'), { method: 'POST', body }).catch(() => {});
+    };
+    // After a barge-in the turn goes by the recording, not the live words: that is what goes ahead.
+    if (streamingStt() && !bargedInRef.current) {
+      // The words already on screen go ahead at once (Q5): the answer starts now, not after the model
+      // settles them. The server uses it when the settled words are the same words; only if they are
+      // not does the settled phrase go ahead in its place.
+      // L3: the end-of-turn model first (quick, no recogniser), then the flush that settles the words.
+      const pause = ++pauseSeqRef.current;
+      void live.endpoint().then((end) => {
+        if (!end || pause !== pauseSeqRef.current || callPhaseRef.current !== 'live') return;
+        pauseScoresRef.current.push(end.prob);
+        if (turnModelInCharge() && end.prob >= turnModelSure() && endPhraseNow()) modelEndedRef.current = true;
+      });
+      const onScreen = live.text.trim();
+      if (onScreen) ahead(callForm(wav, onScreen));
+      void live.flush().then((text) => {
+        if (!text || callPhaseRef.current !== 'live' || !callIdRef.current) return;
+        if (sameWords(text) !== sameWords(onScreen)) ahead(callForm(wav, text));
+      });
+      return;
+    }
+    if (durationSec < 0.3 || rms < 0.0015 || wav.size <= 44) return;
+    ahead(callForm(wav));
   };
 
   callUtteranceRef.current = async ({ wav, durationSec, rms }, timing) => {
+    const decidedAt = performance.now(); // the silence wait has just ended: the phrase is over
+    if (interruptRef.current) {
+      // They stopped before their words decided it (Q7): real words cut the agent off; none, or only
+      // "ha"/"mhm", and this was noise or listening — the agent's voice carries on.
+      if (isRealInterruption(live.text)) confirmInterruption();
+      else {
+        resumeAfterNoise();
+        return;
+      }
+    }
     // A cough, a click, or a phrase while the line is still connecting.
     if (callPhaseRef.current !== 'live' || !callIdRef.current || durationSec < 0.3 || rms < 0.0015 || wav.size <= 44) {
       if (callPhaseRef.current === 'live') resumeListening();
@@ -888,6 +1148,15 @@ export function Playground({
     bargedInRef.current = false;
     const streamedText = streamingStt() && !bargedIn ? await live.finish(liveFinishMs) : '';
     if (streamedText || bargedIn) live.reset();
+    // L3: the last score is the pause that ended the phrase; any before it, pauses the caller went on after.
+    const scores = pauseScoresRef.current;
+    pauseScoresRef.current = [];
+    pauseSeqRef.current++;
+    const modelUsed = modelEndedRef.current;
+    modelEndedRef.current = false;
+    const model = scores.length
+      ? { end: scores[scores.length - 1], mid: Math.max(0, ...scores.slice(0, -1)), mids: scores.length - 1, used: modelUsed }
+      : undefined;
     if (seq !== callSeqRef.current) return;
     setMessages((m) => [...m, { id: userMsgId, role: 'caller', text: streamedText || '…', interim: !streamedText }]);
     setThinking(true);
@@ -895,26 +1164,66 @@ export function Playground({
     const controller = new AbortController();
     callAbortRef.current = controller;
     let res: Response | null = null;
+    let viaSocket: AsyncIterable<CallEvent> | null = null;
+    let socketStatus = 0;
     const clock: TurnClock | undefined = timing
-      ? { speechEndedAt: timing.speechEndedAt, sentAt: performance.now() }
+      ? { speechEndedAt: timing.speechEndedAt, decidedAt, sentAt: performance.now(), model }
       : undefined;
-    // A 409 means the previous turn is still being written down — a moment's wait.
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        res = await fetch(callApi('/playground/turn'), {
-          method: 'POST',
-          body: callForm(wav, streamedText),
-          signal: controller.signal,
-        });
-      } catch {
-        res = null;
+    const sock = socketRef.current;
+    if (sock?.open) {
+      // L2: the turn on the call's socket. Its first event tells a refusal (409 busy, 410 ended) apart.
+      const { fields, audio } = await socketFields(callForm(wav, streamedText));
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const sent = sock.turn(fields, audio);
+        controller.signal.addEventListener('abort', () => sock.abort(sent.seq));
+        const iterator = sent.events[Symbol.asyncIterator]();
+        const first = await iterator.next();
+        const head = first.value as (CallEvent & { status?: number }) | undefined;
+        socketStatus = head?.t === 'error' ? (head.status ?? 500) : 200;
+        if (socketStatus === 409) {
+          await new Promise((r) => setTimeout(r, 350));
+          continue;
+        }
+        if (socketStatus === 200 && head) {
+          viaSocket = {
+            [Symbol.asyncIterator]: () => {
+              let gaveHead = false;
+              return {
+                next: () =>
+                  gaveHead ? iterator.next() : ((gaveHead = true), Promise.resolve({ value: head, done: false })),
+              };
+            },
+          };
+        }
         break;
       }
-      if (res.status !== 409) break;
-      await new Promise((r) => setTimeout(r, 350));
+    } else {
+      // A 409 means the previous turn is still being written down — a moment's wait.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          res = await fetch(callApi('/playground/turn'), {
+            method: 'POST',
+            body: callForm(wav, streamedText),
+            signal: controller.signal,
+          });
+        } catch {
+          res = null;
+          break;
+        }
+        if (res.status !== 409) break;
+        await new Promise((r) => setTimeout(r, 350));
+      }
     }
     if (seq !== callSeqRef.current) {
       setMessages((m) => m.filter((x) => x.id !== userMsgId));
+      return;
+    }
+    if (viaSocket) {
+      await exchange(viaSocket, seq, userMsgId, clock);
+      return;
+    }
+    if (socketStatus === 410) {
+      hangUpCall();
       return;
     }
 
@@ -961,12 +1270,22 @@ export function Playground({
       }),
       signal: controller.signal,
     }).catch(() => null);
-    const [micReady, res] = await Promise.all([startSession({ context: out.ctx }), call]);
-    if (seq !== callSeqRef.current) return; // hung up while connecting
+    const opening = callSocketOn() ? CallSocket.open(callSocketUrl()) : Promise.resolve(null);
+    const [micReady, res, sock] = await Promise.all([startSession({ context: out.ctx }), call, opening]);
+    if (seq !== callSeqRef.current) {
+      sock?.close();
+      return; // hung up while connecting
+    }
+    socketRef.current?.close();
+    socketRef.current = sock;
+    setCallSocket(sock);
 
     if (!micReady || !res?.ok || !res.body) {
       controller.abort();
       callAbortRef.current = null;
+      socketRef.current?.close();
+      socketRef.current = null;
+      setCallSocket(null);
       stopSession();
       setThinking(false);
       setCallPhase('idle');
@@ -992,6 +1311,9 @@ export function Playground({
     if (id) {
       void fetch(callApi('/playground/end'), { method: 'POST', body: hangUpBody(id), keepalive: true }).catch(() => {});
     }
+    socketRef.current?.close();
+    socketRef.current = null;
+    setCallSocket(null);
     outRef.current?.tone('hangup');
     setCallPhase('idle');
     // The transcript stays on screen; the next message or call starts a new chat.
@@ -1324,7 +1646,10 @@ export function Playground({
               {messages.map((m) => (
                 <Bubble key={m.id} msg={m} t={t} />
               ))}
-              {live.text && voiceState !== 'ai_speaking' && <LiveWords text={live.text} t={t} />}
+              {/* Only while a phrase is under way: words in between belong to no turn. */}
+              {live.text && (voiceState === 'user_speaking' || voiceState === 'processing') && (
+                <LiveWords text={live.text} t={t} />
+              )}
 
               {thinking && (
                 <div className="flex items-center gap-2 text-[12.5px] text-ink-3">
@@ -1672,6 +1997,9 @@ export function Playground({
             )}
           </Card>
 
+          {nativePilotOn() && <NativePilot agentId={selectedAgentId} lang={speechLang} t={t} />}
+          <TimingSummary tick={timingsTick} t={t} />
+
           <Card>
             <h3 className="text-[14px] font-semibold text-ink">{t('play.sourcesUsed', 'Sources used')}</h3>
             {lastReply?.citations?.length ? (
@@ -1737,6 +2065,13 @@ function Bubble({ msg, t }: { msg: Msg; t: Translate }) {
                 {t('play.toOperator', '→ operator')}
               </span>
             )}
+            {msg.reply.promise && (
+              <span className="rounded-full bg-success-soft px-2 py-0.5 text-success" title={msg.reply.promise.label}>
+                {t('play.promise', 'Promise to pay')}: {msg.reply.promise.date}
+                {msg.reply.promise.amountText ? ` · ${msg.reply.promise.amountText}` : ''}
+                {msg.reply.promise.parts > 1 ? ` (1/${msg.reply.promise.parts})` : ''}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -1776,7 +2111,15 @@ function TurnWaterfall({ timings, t }: { timings: Record<string, number>; t: Tra
   const at = (offset: number | undefined) => (offset == null ? undefined : endpoint + offset);
   const sttEnd = at(timings.srv_stt);
   const marks: Array<{ key: string; label: string; at: number | undefined }> = [
-    { key: 'endpoint', label: t('play.wf.endpoint', 'Silence wait (end of speech)'), at: endpoint },
+    { key: 'silence', label: t('play.wf.silence', 'Silence wait'), at: timings.silenceWaitMs },
+    {
+      key: 'endpoint',
+      label:
+        timings.silenceWaitMs != null
+          ? t('play.wf.words', 'Words final')
+          : t('play.wf.endpoint', 'Silence wait (end of speech)'),
+      at: endpoint,
+    },
     { key: 'stt', label: t('play.wf.stt', 'Speech-to-text'), at: sttEnd },
     {
       key: 'retrieval',
@@ -1841,6 +2184,142 @@ function TurnWaterfall({ timings, t }: { timings: Record<string, number>; t: Tra
         </div>
       </div>
     </div>
+  );
+}
+
+interface TimingSummaryData {
+  turns: number;
+  steps: Array<{ key: string; p50: number | null; p95: number | null }>;
+  total: { p50: number | null; p95: number | null };
+  earlyShare: number | null;
+  fillerShare: number | null;
+  /** L3: what the end-of-turn model said on these turns (null: it scored none). */
+  turnModel: {
+    turns: number;
+    sure: number;
+    endsSure: number;
+    pausedTurns: number;
+    cutOffs: number | null;
+    used: number;
+  } | null;
+  llms: string[];
+  ttsEngines: string[];
+}
+
+/** The summary's steps (app/turn_timings.py STEPS), labelled as in the turn waterfall. */
+const SUMMARY_STEPS: Record<string, [string, string]> = {
+  silence: ['play.wf.silence', 'Silence wait'],
+  words: ['play.wf.words', 'Words final'],
+  stt: ['play.wf.stt', 'Speech-to-text'],
+  search: ['play.wf.retrieval', 'Knowledge search'],
+  llm: ['play.wf.llm', 'AI first words'],
+  segment: ['play.wf.segment', 'First phrase ready'],
+  voice: ['play.wf.tts', 'Voice first audio'],
+  play: ['play.wf.play', 'Network + playback'],
+};
+
+/**
+ * Typical (half the turns are faster) and worst (95% are faster) time per step over the recent
+ * timed voice turns, optionally for one LLM or one voice model. Saved per turn, so it survives reloads.
+ */
+function TimingSummary({ tick, t }: { tick: number; t: Translate }) {
+  const [llm, setLlm] = useState('');
+  const [tts, setTts] = useState('');
+  const [data, setData] = useState<TimingSummaryData | null>(null);
+  useEffect(() => {
+    let current = true;
+    const q = new URLSearchParams();
+    if (llm) q.set('llm', llm);
+    if (tts) q.set('tts', tts);
+    const query = q.toString();
+    fetch(callApi(`/playground/timings${query ? `?${query}` : ''}`))
+      .then((r) => (r.ok ? (r.json() as Promise<TimingSummaryData>) : null))
+      .then((d) => {
+        if (current) setData(d);
+      })
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [tick, llm, tts]);
+  const pct = (share: number | null) => (share == null ? '—' : `${Math.round(share * 100)}%`);
+  return (
+    <Card>
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-[14px] font-semibold text-ink">{t('play.sum.title', 'Recent turns')}</h3>
+        {data && data.turns > 0 && (
+          <span className="text-[11.5px] text-ink-3">
+            {t('play.sum.turns', '{n} timed turns').replace('{n}', String(data.turns))}
+          </span>
+        )}
+      </div>
+      {data && (data.llms.length > 1 || data.ttsEngines.length > 1 || llm || tts) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Select value={llm} onChange={(e) => setLlm(e.target.value)} className="h-8 w-auto text-[12px]">
+            <option value="">{t('play.sum.allModels', 'All LLMs')}</option>
+            {data.llms.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </Select>
+          <Select value={tts} onChange={(e) => setTts(e.target.value)} className="h-8 w-auto text-[12px]">
+            <option value="">{t('play.sum.allVoices', 'All voices')}</option>
+            {data.ttsEngines.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+      {data && data.turns > 0 ? (
+        <div className="mt-3">
+          <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1 text-[11.5px]">
+            <span className="text-ink-3">{t('play.sum.step', 'Step')}</span>
+            <span className="text-right text-ink-3">{t('play.sum.typical', 'Typical')}</span>
+            <span className="text-right text-ink-3">{t('play.sum.worst', 'Worst 5%')}</span>
+            {data.steps.map((s) => {
+              const [key, fallback] = SUMMARY_STEPS[s.key] ?? [s.key, s.key];
+              return (
+                <div key={s.key} className="contents">
+                  <span className="text-ink-2">{t(key, fallback)}</span>
+                  <span className="text-right text-ink-2 tabular">{fmtLatency(s.p50)}</span>
+                  <span className="text-right text-ink-2 tabular">{fmtLatency(s.p95)}</span>
+                </div>
+              );
+            })}
+            <span className="pt-1 font-medium text-ink">{t('play.metric.mouthToEar', 'You stopped → agent spoke')}</span>
+            <span className="pt-1 text-right font-medium text-ink tabular">{fmtLatency(data.total.p50)}</span>
+            <span className="pt-1 text-right font-medium text-ink tabular">{fmtLatency(data.total.p95)}</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-3">
+            <span>
+              {t('play.sum.early', 'Early answer used')}: {pct(data.earlyShare)}
+            </span>
+            <span>
+              {t('play.sum.filler', 'Filler played')}: {pct(data.fillerShare)}
+            </span>
+          </div>
+          {data.turnModel && (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-ink-3">
+              {t(
+                'play.sum.turnModel',
+                'Turn model ({n} turns): sure the caller had finished {ends} · sure too early at a pause {cuts} · ended the phrase {used}',
+              )
+                .replace('{n}', String(data.turnModel.turns))
+                .replace('{ends}', pct(data.turnModel.endsSure))
+                .replace('{cuts}', pct(data.turnModel.cutOffs))
+                .replace('{used}', pct(data.turnModel.used))}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="mt-3 text-[13px] text-ink-3">
+          {t('play.sum.empty', "Talk to the agent and each turn's timings are saved here.")}
+        </p>
+      )}
+    </Card>
   );
 }
 

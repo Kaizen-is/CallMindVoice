@@ -49,6 +49,28 @@ def test_js_json_orders_integer_keys_like_javascript() -> None:
     assert list(json.loads(js_json(days))) == ["0", "1", "6", "10", "x", "01"]
 
 
+def test_gemini_3_8_flash_is_not_offered_and_a_stored_choice_falls_back(data_dir, sql) -> None:  # noqa: ANN001
+    """Taken out 2026-11-25 (Google kept answering it with 503): no picker, lab or benchmark offers it,
+    and an agent or account still set to it answers with the next choice down."""
+    from app.llm.choice import agent_llm, llm_options, set_tenant_default_llm, tenant_default_llm
+    from app.registry import LLM_MODELS
+
+    gone = "gemini:gemini-3.8-flash"
+    assert gone not in [o["id"] for o in llm_options()]
+    assert gone not in [m.id for m in LLM_MODELS]
+    assert "gemini:gemini-3.5-flash-lite" in [m.id for m in LLM_MODELS]
+
+    _seed_user(sql)
+    tenant = "ten_test000000000001"
+    sql("UPDATE tenants SET settings_json = ? WHERE id = ?", json.dumps({"llmModel": gone}), tenant)
+    assert tenant_default_llm(tenant) is None
+    assert not set_tenant_default_llm(tenant, gone)
+    assert agent_llm({"llm_model": gone, "tenant_id": tenant}) is None
+
+    assert set_tenant_default_llm(tenant, "gemini:gemini-3.5-flash-lite")
+    assert agent_llm({"llm_model": gone, "tenant_id": tenant}) == "gemini:gemini-3.5-flash-lite"
+
+
 # ── refusals ────────────────────────────────────────────────────────
 
 

@@ -8,6 +8,7 @@ Every function returns None on any failure so the provider can fall back.
 """
 
 import asyncio
+import hashlib
 import logging
 import math
 from collections.abc import Callable
@@ -91,6 +92,20 @@ def json_object(raw: str) -> str | None:
     return raw[start : end + 1] if start >= 0 and end > start else None
 
 
+def _cache_key(system: str) -> dict[str, str]:
+    """
+    Q11, Playground turns: the agent's system prompt is the same on every turn (about 1.3k tokens), and
+    OpenAI reuses it (billed as cached input) when requests carry the same `prompt_cache_key` — without
+    one it was never reused (measured 2026-11-27: 0 of 1,315 tokens; with it 1,152 from the 2nd turn).
+    The key follows the prompt, so an edited agent starts a new one. OpenAI itself only.
+    """
+    from app.engine.live_turn import in_playground
+
+    if not in_playground() or env("OPENAI_BASE_URL"):
+        return {}
+    return {"prompt_cache_key": "callmind-" + hashlib.sha1(system.encode("utf-8")).hexdigest()[:20]}
+
+
 async def openai_json_stream(
     system: str, user: str, on_answer: Callable[[str], None] | None = None, call: LlmCall | None = None
 ) -> str | None:
@@ -109,6 +124,7 @@ async def openai_json_stream(
         "max_completion_tokens": 500,
         "response_format": ANSWER_FORMAT,
         **sampling_for(model),
+        **_cache_key(system),
     }
     try:
         async with asyncio.timeout(_timeout_s()):

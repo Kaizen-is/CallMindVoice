@@ -170,12 +170,14 @@ def test_filler_rotates_and_skips_greetings(monkeypatch: pytest.MonkeyPatch) -> 
     assert pv.filler_for(AGENT, "call-f", "Assalomu alaykum", PICK) is None  # a greeting gets no "let me check"
     first = pv.filler_for(AGENT, "call-f", "Kredit foizi qancha?", PICK)
     pv.filler_for(AGENT, "call-f", "Muddat qancha?", PICK)
-    assert first == {"pcm": "AQI="}
-    assert seen == ["Bir daqiqa.", "Hozir tekshiraman."]
+    assert first == {"pcm": "AQI=", "afterMs": 1200}
+    assert seen == ["Hmm, bir soniya.", "Bir qarab ko'ray."]  # the Playground's own short lines (Q6)
     assert pv.filler_for(AGENT, "call-g", "Kredit foizi qancha?", pv.VoicePick("brb", "")) == {
         "pcm": "AQI=",
         "rate": 24000,
+        "afterMs": 1200,
     }
+    assert pv.filler_for(AGENT, "call-f", "Ha, rahmat.", PICK) is None  # a short reply: its answer is quick
 
 
 def test_prefetched_transcript_is_reused_once(monkeypatch: pytest.MonkeyPatch) -> None:

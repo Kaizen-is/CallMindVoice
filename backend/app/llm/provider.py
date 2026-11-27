@@ -180,6 +180,69 @@ def _ms_since(started: float) -> float:
     return (time.perf_counter() - started) * 1000
 
 
+class _Voice:
+    """One model's streamed answer, held back until it is the model that speaks (`go_live`)."""
+
+    def __init__(self, on_delta: Callable[[str], None] | None) -> None:
+        self.on_delta = on_delta
+        self.text = ""
+        self.held: list[str] = []
+        self.live = False
+        self.spoke = asyncio.Event()
+        self.started = time.perf_counter()
+        self.first_ms: list[float] = []
+
+    def relay(self, delta: str) -> None:
+        self.text += delta
+        if not self.first_ms:
+            self.first_ms.append(_ms_since(self.started))
+        self.spoke.set()
+        if self.live:
+            if self.on_delta:
+                self.on_delta(delta)
+        else:
+            self.held.append(delta)
+
+    def go_live(self) -> None:
+        self.live = True
+        if self.on_delta:
+            for delta in self.held:
+                self.on_delta(delta)
+        self.held.clear()
+
+
+def _ms_setting(name: str, default: int) -> float | None:
+    """A time setting in ms from the environment, in seconds; 0 or `off` turns it off (None)."""
+    raw = js_trim(env(name) or "")
+    if raw.lower() == "off":
+        return None
+    try:
+        ms = float(raw) if raw else float(default)
+    except ValueError:
+        ms = float(default)
+    return ms / 1000 if ms > 0 else None
+
+
+def _backup_joins_after_s() -> float | None:
+    """How long the chosen model may stay silent before the backup model starts too (LLM_BACKUP_AFTER_MS)."""
+    return _ms_setting("LLM_BACKUP_AFTER_MS", 1500)
+
+
+def _give_up_after_s() -> float:
+    """When neither model has said a word, the local engine answers (LLM_GIVE_UP_MS, from the start)."""
+    return _ms_setting("LLM_GIVE_UP_MS", 3000) or 3.0
+
+
+async def _first_of(signals: list, tasks: list, timeout: float) -> None:
+    """Wait until one signal fires or one task ends, or `timeout` passes; the tasks keep running."""
+    waiters = [asyncio.ensure_future(s) for s in signals]
+    try:
+        await asyncio.wait([*waiters, *tasks], timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for w in waiters:
+            w.cancel()
+
+
 async def generate_answer(inp: GenerateInput, on_delta: Callable[[str], None] | None = None) -> dict[str, Any]:
     """
     `{answer, intent, answered, usedHits, engine}`. `on_delta`, when given, receives the spoken
@@ -281,35 +344,10 @@ async def _answer_once(
             "engine": engine_tag,
         }
 
-    async def rescue(reason: str) -> dict[str, Any]:
-        """
-        The chosen model failed before any of its answer went out: answer with the fallback model,
-        streamed the same way, and only if that fails too with the local engine.
-        """
-        model = fallback_model()
-        backup_client = claude.client() if model and not (active == "anthropic" and sel[1] == model) else None
-        if not model or backup_client is None:
-            return _local(inp)
-        log.warning("[llm] %s failed before answering (%s); answering with %s", engine, reason, model)
-        backup = LlmCall(model=model)
-        started = time.perf_counter()
-        first_ms: list[float] = []
-        streamed = [""]
-        raw: str | None = None
-        try:
-            if on_delta and inp.stream is not False:
-
-                def relay(delta: str) -> None:
-                    if not first_ms:
-                        first_ms.append(_ms_since(started))
-                    streamed[0] += delta
-                    on_delta(delta)
-
-                raw = await claude.json_stream(model, system, user, relay, backup)
-            else:
-                raw, _ = await claude.answer_once(model, system, user, backup)
-        except Exception as err:  # noqa: BLE001
-            log.warning("[llm] fallback failed: %s", err)
+    def finish_backup(
+        raw: str | None, streamed: str, backup: LlmCall, started: float, first_ms: list[float], model: str
+    ) -> dict[str, Any]:
+        """The backup model's answer (or the local engine's, when it gave none), with its usage row."""
         tag = f"claude:{model}{FALLBACK_TAG}"
         out: dict[str, Any] | None = None
         try:
@@ -318,8 +356,8 @@ async def _answer_once(
                 out = finalize(parsed, tag)  # type: ignore[arg-type]
         except _Unreadable:
             pass
-        if out is None and js_trim(streamed[0]):
-            out = {"answer": js_trim(streamed[0]), "intent": intent, "answered": True, "usedHits": [], "engine": tag}
+        if out is None and js_trim(streamed):
+            out = {"answer": js_trim(streamed), "intent": intent, "answered": True, "usedHits": [], "engine": tag}
         record_usage(
             UsageEntry(
                 kind="llm",
@@ -337,6 +375,34 @@ async def _answer_once(
         )
         return out if out is not None else _local(inp)
 
+    def backup_model_for_this_turn() -> str | None:
+        model = fallback_model()
+        if not model or claude.client() is None or (active == "anthropic" and sel[1] == model):
+            return None
+        return model
+
+    async def rescue(reason: str) -> dict[str, Any]:
+        """
+        The chosen model failed before any of its answer went out: answer with the fallback model,
+        streamed the same way, and only if that fails too with the local engine.
+        """
+        model = backup_model_for_this_turn()
+        if not model:
+            return _local(inp)
+        log.warning("[llm] %s failed before answering (%s); answering with %s", engine, reason, model)
+        backup = LlmCall(model=model)
+        voice = _Voice(on_delta)
+        voice.go_live()
+        raw: str | None = None
+        try:
+            if on_delta and inp.stream is not False:
+                raw = await claude.json_stream(model, system, user, voice.relay, backup)
+            else:
+                raw, _ = await claude.answer_once(model, system, user, backup)
+        except Exception as err:  # noqa: BLE001
+            log.warning("[llm] fallback failed: %s", err)
+        return finish_backup(raw, voice.text, backup, voice.started, voice.first_ms, model)
+
     # Gemini and Claude stream only for a caller that voices the answer as it comes.
     stream_others = bool(on_delta) and inp.stream is not False
     claude_client = claude.client() if active == "anthropic" else None
@@ -347,21 +413,64 @@ async def _answer_once(
         or (active == "gemini" and stream_others)
         or (active == "anthropic" and stream_others and claude_client is not None)
     ):
-        streamed = [""]
 
-        def relay_main(delta: str) -> None:
-            streamed[0] += delta
-            if on_delta:
-                on_delta(delta)
+        async def main_stream(relay: Callable[[str], None]) -> str | None:
+            if active == "anthropic":
+                return await claude.json_stream(sel[1], system, user, relay, call)
+            if active == "openai":
+                return await openai.openai_json_stream(system, user, relay, call)
+            if active == "gemini":
+                return await gemini.gemini_json_stream(system, user, relay, call)
+            return await ollama.ollama_json_stream(system, user, relay, call)
 
-        if active == "anthropic":
-            raw = await claude.json_stream(sel[1], system, user, relay_main, call)
-        elif active == "openai":
-            raw = await openai.openai_json_stream(system, user, relay_main, call)
-        elif active == "gemini":
-            raw = await gemini.gemini_json_stream(system, user, relay_main, call)
+        main = _Voice(on_delta)
+        join_s = _backup_joins_after_s()
+        model = backup_model_for_this_turn() if stream_others and join_s is not None else None
+        if model is None:
+            main.go_live()
+            raw = await main_stream(main.relay)
         else:
-            raw = await ollama.ollama_json_stream(system, user, relay_main, call)
+            # A caller is waiting for the first word: if the chosen model has not said one by `join_s`,
+            # the backup model starts too and whichever speaks first answers; if neither has by the
+            # give-up time, the local engine does. A model that spoke is never interrupted.
+            loop = asyncio.get_running_loop()
+            begun = loop.time()
+            main_task = asyncio.ensure_future(main_stream(main.relay))
+            backup_task: asyncio.Future | None = None
+            try:
+                await _first_of([main.spoke.wait()], [main_task], join_s)
+                if not main.spoke.is_set() and not main_task.done():
+                    log.warning("[llm] %s silent for %.1f s; %s starts too", engine, join_s, model)
+                    backup = LlmCall(model=model)
+                    voice = _Voice(on_delta)
+                    backup_task = asyncio.ensure_future(claude.json_stream(model, system, user, voice.relay, backup))
+                    give_up_at = begun + _give_up_after_s()
+                    while not main.spoke.is_set() and not voice.spoke.is_set():
+                        running = [x for x in (main_task, backup_task) if not x.done()]
+                        left = give_up_at - loop.time()
+                        if not running or left <= 0:
+                            break
+                        await _first_of([main.spoke.wait(), voice.spoke.wait()], running, left)
+                    if not main.spoke.is_set():
+                        main_task.cancel()
+                        if voice.spoke.is_set():
+                            voice.go_live()
+                            try:
+                                raw_backup = await backup_task
+                            except Exception as err:  # noqa: BLE001
+                                log.warning("[llm] backup stream broke: %s", err)
+                                raw_backup = None
+                            return finish_backup(raw_backup, voice.text, backup, voice.started, voice.first_ms, model)
+                        log.warning("[llm] neither %s nor %s spoke in time; the local engine answers", engine, model)
+                        backup_task.cancel()
+                        return finish_backup(None, "", backup, voice.started, voice.first_ms, model)
+                    backup_task.cancel()
+                main.go_live()
+                raw = await main_task
+            finally:
+                for task in (main_task, backup_task):
+                    if task is not None and not task.done():
+                        task.cancel()
         try:
             parsed = _parse_answer(raw)
             if _has_answer(parsed):
@@ -369,9 +478,9 @@ async def _answer_once(
         except _Unreadable:
             pass
         # The stream broke after part of the answer went out: keep what was said.
-        if js_trim(streamed[0]):
+        if js_trim(main.text):
             return {
-                "answer": js_trim(streamed[0]),
+                "answer": js_trim(main.text),
                 "intent": intent,
                 "answered": True,
                 "usedHits": [],
@@ -445,19 +554,30 @@ async def summarize_call(turns: list[dict[str, str]], language: str, reason: str
     transcript = "\n".join(f"{'CALLER' if t['role'] == 'caller' else 'AI'}: {t['text']}" for t in turns)
     user = f"Escalation reason: {reason}\n\nTranscript:\n{transcript}"
 
-    if active in ("gemini", "ollama", "openai"):
+    async def written() -> str | None:
         if active == "ollama":
-            text = await ollama.ollama_text(system, user, 300, call)
-        elif active == "openai":
-            text = await openai.openai_text(system, user, 300, call)
-        else:
-            text = await gemini.gemini_text(system, user, 300, call)
-        return js_trim(text) if text and js_trim(text) else fallback
+            return await ollama.ollama_text(system, user, 300, call)
+        if active == "openai":
+            return await openai.openai_text(system, user, 300, call)
+        if active == "gemini":
+            return await gemini.gemini_text(system, user, 300, call)
+        if claude.client() is None:
+            return None
+        return await claude.text(sel[1], system, user, 300)
 
-    if claude.client() is None:
-        return fallback
+    # The hand-off is written while the caller waits for the reply: a slow model gets the local summary.
+    from app.engine.live_turn import in_playground
+
+    deadline = _ms_setting("SUMMARY_DEADLINE_MS", 2000) if in_playground() else None
     try:
-        text = await claude.text(sel[1], system, user, 300)
+        if deadline is None:
+            text = await written()
+        else:
+            async with asyncio.timeout(deadline):
+                text = await written()
+    except TimeoutError:
+        log.warning("[llm] hand-off summary took over %.1f s; the local summary is used", deadline)
+        return fallback
     except Exception:  # noqa: BLE001
         return fallback
     return js_trim(text) if text and js_trim(text) else fallback

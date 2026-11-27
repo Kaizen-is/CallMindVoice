@@ -12,6 +12,7 @@ server actions as they were before the port):
 """
 
 import asyncio
+import dataclasses
 import hashlib
 import io
 import json
@@ -32,7 +33,7 @@ from app.ids import now_iso
 from app.speech import zipformer
 from app.speech.scoring import normalize_for_scoring, score
 from app.speech.tts import pcm_to_wav
-from tests.conftest import _reset_provider_state
+from tests.conftest import _reset_provider_state, llm_list_as_recorded
 
 GOLDEN = json.loads((Path(__file__).parent / "fixtures" / "golden_agents.json").read_text(encoding="utf-8"))
 
@@ -45,14 +46,27 @@ NEW_SINCE_PORT = {"speko_live", "scribe_live", "gemini-3.8-flash-tts", "gemini-3
 @pytest.fixture(autouse=True)
 def _engines_as_recorded(monkeypatch: pytest.MonkeyPatch) -> None:
     from app import agent_studio, custom_voices, registry
-    from app.speech import speko
+    from app.speech import gemini_speech, speko
 
-    engines = tuple(e for e in registry.ENGINES if e.id not in NEW_SINCE_PORT)
+    # gemini-3.5 went through Speko in the TypeScript; from Google since 2026-11-25.
+    recorded = {"speko": {"setup": "SPEKO_API_KEY", "via": "Speko"}}
+    engines = tuple(
+        dataclasses.replace(e, **recorded.get(e.id, {})) for e in registry.ENGINES if e.id not in NEW_SINCE_PORT
+    )
     for module in (registry, agent_studio, custom_voices, benchmark, model_lab):
         monkeypatch.setattr(module, "ENGINES", engines)
     speko_models = tuple(m for m in speko.SPEKO_TTS_MODELS if m not in NEW_SINCE_PORT)
     monkeypatch.setattr(speko, "SPEKO_TTS_MODELS", speko_models)
     monkeypatch.setattr(agent_studio, "SPEKO_TTS_MODELS", speko_models)
+    monkeypatch.setattr(gemini_speech, "GEMINI_TTS_MODELS", ())
+    llm_list_as_recorded(monkeypatch)
+    # The working-hours check reads the real clock: pinned to a weekday morning in Tashkent (inside the
+    # recorded agents' hours), so the replay does not escalate "after_hours" when run in the evening.
+    from app.engine import conversation
+
+    real_hours = conversation.is_within_hours
+    morning = datetime(2026, 11, 25, 6, 0, tzinfo=UTC)  # Wednesday 11:00 in Tashkent
+    monkeypatch.setattr(conversation, "is_within_hours", lambda hours, at=None: real_hours(hours, at or morning))
 
 
 def _brb_stt_as_recorded(node: Any) -> None:
@@ -72,11 +86,13 @@ def _as_recorded(view: dict[str, Any]) -> dict[str, Any]:
     """A page's data without the fields added after the port (the Gemini voices and STT choice)."""
     _brb_stt_as_recorded(view)
     view.pop("geminiVoices", None)
+    if isinstance(view.get("speech"), dict):
+        view["speech"].pop("gemini", None)  # the TTS page's Gemini readiness (Google's key)
     stt = view.get("speech", {}).get("stt") if isinstance(view.get("speech"), dict) else None
     if isinstance(stt, dict):
         stt.pop("gemini_live", None)
         stt.pop("scribe_live", None)
-        # The live-words address now also serves the streaming Speko models (not only Zipformer).
+        # The live-words address now also serves the streaming cloud models (not only Zipformer).
         if not stt.get("local"):
             view["speech"]["streamUrl"] = None
     return view

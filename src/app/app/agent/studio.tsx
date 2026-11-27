@@ -80,7 +80,7 @@ export function AgentStudio({
   /** The Speko models (ElevenLabs, Gemini) and the BRB model an agent can speak with. */
   ttsModels?: Array<{ id: string; name: string; pricePerMin: number | null; ready: boolean; setup: string }>;
   elevenVoices?: Array<{ id: string; name: string; note: string }>;
-  /** Gemini's voices, for the Gemini TTS models (through Speko). */
+  /** Gemini's voices, for the Gemini TTS models. */
   geminiVoices?: Array<{ id: string; name: string; note: string }>;
 }) {
   const router = useRouter();
@@ -317,7 +317,7 @@ export function AgentStudio({
                     value={draft.ttsEngine}
                     onChange={(e) => {
                       const engine = e.target.value;
-                      // A Speko model keeps its voice when it has it, or starts on its first one
+                      // A cloud model keeps its voice when it has it, or starts on its first one
                       // (ElevenLabs and Gemini have different voices); own TTS and the BRB model
                       // (one voice) have none to pick.
                       const voices = speakersOf(engine);

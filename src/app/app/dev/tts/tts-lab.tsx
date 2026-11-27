@@ -11,7 +11,7 @@ import { ModelMenu } from '@/components/ui/model-menu';
 import { useToast } from '@/components/ui/overlays';
 import { IconAlert, IconCode, IconDownload, IconSparkle, IconVolume } from '@/components/icons';
 import { TimeAgo } from '@/components/ui/time-ago';
-import { modelOptions, TTS_MODELS, useTtsChoice, voiceProviderOf, type TtsChoice } from '@/lib/speech-models';
+import { GEMINI_TTS, modelOptions, TTS_MODELS, useTtsChoice, voiceProviderOf, type TtsChoice } from '@/lib/speech-models';
 import { pcmToWav, playTtsStream } from '@/lib/tts-stream';
 
 const CLONE = '__clone__';
@@ -44,7 +44,8 @@ export function TtsLab({
   /** Gemini's voices (the Gemini TTS models, through Speko — the same key as ElevenLabs). */
   geminiVoices?: VoiceOpt[];
   history: SpeechTest[];
-  speech: { tts: boolean; eleven: boolean; brb: boolean };
+  /** Which engines this server can run; `gemini`: Gemini's voices (Google, Speko as the fallback). */
+  speech: { tts: boolean; eleven: boolean; brb: boolean; gemini?: boolean };
 }) {
   const t = translator(locale);
   const toast = useToast();
@@ -56,9 +57,18 @@ export function TtsLab({
   const readiness = useMemo(
     () =>
       Object.fromEntries(
-        TTS_MODELS.map((m) => [m.id, m.id === 'default' ? speech.tts : m.id === 'brb' ? speech.brb : speech.eleven]),
+        TTS_MODELS.map((m) => [
+          m.id,
+          m.id === 'default'
+            ? speech.tts
+            : m.id === 'brb'
+              ? speech.brb
+              : GEMINI_TTS.has(m.id)
+                ? (speech.gemini ?? speech.eleven)
+                : speech.eleven,
+        ]),
       ) as Record<TtsChoice, boolean>,
-    [speech.tts, speech.brb, speech.eleven],
+    [speech.tts, speech.brb, speech.eleven, speech.gemini],
   );
   const [engine, setEngine] = useTtsChoice(readiness);
   const provider = voiceProviderOf(engine);
@@ -174,7 +184,7 @@ export function TtsLab({
               <h3 className="text-[14px] font-semibold text-ink">{t('dev.tts.title')}</h3>
             </div>
 
-            {!speech.tts && !speech.eleven && !speech.brb ? (
+            {!speech.tts && !speech.eleven && !speech.brb && !speech.gemini ? (
               <EmptyState
                 icon={<IconAlert size={20} />}
                 title={t('dev.tts.notConfiguredTitle')}

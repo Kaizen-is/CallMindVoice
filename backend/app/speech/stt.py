@@ -7,7 +7,7 @@ The STT layer — port of src/lib/speech/stt.ts. Turns one caller utterance
 Uzbek-primary agent and the better transcript wins — the caller waits for the
 slower one, never both. Without Whisper, Gemini covers the non-Uzbek side and
 stands in when Kotib is down. By name: GAPI (`gapi`), Zipformer in-process
-(`local`), gemini-3.5 via Speko (`gemini`), ElevenLabs Scribe via Speko
+(`local`), gemini-3.5 from Google, Speko the fallback (`gemini`), ElevenLabs Scribe via Speko
 (`scribe`), BRB Whisper through the BRB speech proxy (`brb`).
 """
 
@@ -27,6 +27,7 @@ from app.speech.brb import STT_MODEL as BRB_STT_MODEL
 from app.speech.brb import brb_configured, brb_transcribe
 from app.speech.denoise import denoise
 from app.speech.gapi import gapi_configured, gapi_transcribe
+from app.speech.gemini_speech import GeminiSpeechError, gemini_speech_configured, gemini_transcribe_once
 from app.speech.numbers import uzbek_numbers_to_digits
 from app.speech.speko import (
     SPEKO_GEMINI_ROUTE,
@@ -75,8 +76,8 @@ def stt_engines() -> dict[str, bool]:
         "auto": bool(env("STT_TRANSCRIBE_URL") or env("WHISPER_TRANSCRIBE_URL")),
         "gapi": gapi_configured(),
         "local": zipformer.zipformer_available(),
-        "gemini": speko_configured(),
-        "gemini_live": speko_configured(),
+        "gemini": gemini_speech_configured() or speko_configured(),
+        "gemini_live": gemini_speech_configured() or speko_configured(),
         "scribe": speko_configured(),
         "scribe_live": speko_configured(),
         "brb": brb_configured(),
@@ -94,8 +95,8 @@ def stt_engine_ids() -> dict[str, bool]:
         "whisper": bool(env("WHISPER_TRANSCRIBE_URL")),
         "gapi": gapi_configured(),
         "local": zipformer.zipformer_available(),
-        "speko": speko_configured(),
-        "speko_live": speko_configured(),
+        "speko": gemini_speech_configured() or speko_configured(),
+        "speko_live": gemini_speech_configured() or speko_configured(),
         "gemini": has_gemini(),
         "scribe": speko_configured(),
         "scribe_live": speko_configured(),
@@ -219,15 +220,30 @@ async def _local_zipformer(audio: bytes) -> Transcript:
     return await _logged("local", "uzbek-zipformer", audio, work)
 
 
+async def _google_first(audio: bytes, language: str | None, route: dict[str, str]) -> str:
+    """
+    gemini-3.5 (or gemini-3.5 live as one finished utterance): Google's own transcription model (the
+    live model takes a stream, not a file), Speko's `route` when Google refuses or is not set up.
+    """
+    if gemini_speech_configured():
+        try:
+            return await gemini_transcribe_once(audio)  # the recording as it came (a WAV)
+        except Exception as err:  # noqa: BLE001
+            if not speko_configured() or (isinstance(err, GeminiSpeechError) and not err.fallback):
+                raise
+            log.warning("[stt] gemini-3.5 live: Google failed (%s), transcribing through Speko", err)
+    return await speko_transcribe(wav_to_pcm16k(audio), language, route)
+
+
 async def _speko_gemini(audio: bytes, language: str | None = None, live: bool = False) -> Transcript:
-    """gemini-3.5 through Speko; `live` = its streaming variant (engine `speko_live` in the usage log)."""
+    """gemini-3.5 from Google first, Speko the fallback; `live` = its streaming variant (engine `speko_live`)."""
     engine, model, route = (
         ("speko_live", SPEKO_LIVE_MODEL, SPEKO_LIVE_ROUTE) if live else ("speko", SPEKO_STT_MODEL, SPEKO_GEMINI_ROUTE)
     )
 
     async def work() -> Transcript:
         try:
-            text = await speko_transcribe(wav_to_pcm16k(audio), language, route)
+            text = await _google_first(audio, language, route)
         except Exception as err:
             raise SttError(f"{model}: {err or 'failed'}" if live else f"gemini-3.5: {err or 'failed'}") from err
         return (

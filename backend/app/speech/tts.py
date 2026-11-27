@@ -1,7 +1,8 @@
 """
 The TTS layer — port of src/lib/speech/tts.ts. Every voice is rendered here:
-the own TTS server's `generate_v2/stream` (8 kHz s16le as it is generated) or
-ElevenLabs through Speko. On top of it:
+the own TTS server's `generate_v2/stream` (8 kHz s16le as it is generated),
+ElevenLabs through Speko, or Gemini straight from Google (Speko as its fallback).
+On top of it:
 
 1. A disk cache shared with the TypeScript app: `data/tts-cache/<sha1>.pcm`,
    sha1 over `spoken text + ' ' + voice descriptor`, written tmp + rename. The
@@ -30,8 +31,9 @@ from app import http
 from app.config import get_settings
 from app.env import env, env_raw
 from app.jscompat import js_number_str, js_round, js_trim, utf16_len
-from app.speech import brb, speko
+from app.speech import brb, gemini_speech, speko
 from app.speech.normalize import normalize_for_speech, split_for_speech
+from app.speech.resample import pcm_pieces
 from app.streams import error_body, read_until
 from app.usage_log import UsageEntry, record_usage
 from app.voices import ResolvedVoice, build_tts_form, resolve_voice
@@ -58,11 +60,14 @@ def _internal_configured() -> bool:
 
 def tts_engines() -> dict[str, bool]:
     """Which engines this deployment can run (`default` = the own TTS server, `brb` = our model via the VPN)."""
-    ready = speko.speko_configured()
+    eleven = speko.speko_configured()
+    # Gemini: Google with GEMINI_API_KEY, or Speko alone (the fallback route) when only it is set.
+    gemini = gemini_speech.gemini_speech_configured() or eleven
     return {
         "default": _internal_configured(),
         "brb": brb.brb_configured(),
-        **{m: ready for m in speko.SPEKO_TTS_MODELS},
+        **{m: eleven for m in speko.ELEVEN_TTS_MODELS},
+        **{m: gemini for m in gemini_speech.GEMINI_TTS_MODELS},
     }
 
 
@@ -189,7 +194,7 @@ async def _stream_pcm(
             log.warning("[tts] stream %s: %s", res.status_code, await error_body(res, 160))
             raise TtsError("tts_stream_failed", 502)
         # A stream cut short raises while reading, so reaching the end means the audio is complete.
-        async for out in speko.pcm_pieces(read_until(res, deadline), first_piece, piece):
+        async for out in pcm_pieces(read_until(res, deadline), first_piece, piece):
             yield out
     finally:
         await res.aclose()
@@ -218,6 +223,28 @@ async def _raw_engine_pcm(text: str, voice: ResolvedVoice, opts: SynthOptions) -
             async for piece in pieces:
                 yield piece
         return
+    if gemini_speech.is_gemini_tts(engine) and gemini_speech.gemini_speech_configured():
+        sent = False
+        try:
+            async with aclosing(
+                gemini_speech.gemini_tts_stream(
+                    text, engine, gemini_speech.gemini_voice(opts.voice_id), _rate(opts), opts.quick_start
+                )
+            ) as pieces:
+                async for piece in pieces:
+                    sent = True
+                    yield piece
+            return
+        except Exception as err:
+            # Refused or unreachable before any audio (the free plan's per-minute limit, an outage):
+            # Speko renders the same model and voice, when it is set up. Audio already out cannot be
+            # redone elsewhere.
+            refused = isinstance(err, gemini_speech.GeminiSpeechError)
+            if sent or (refused and not err.fallback) or not speko.speko_configured():
+                if refused:
+                    raise TtsError(str(err), err.status) from err
+                raise
+            log.warning("[tts] %s: Google failed (%s), rendering through Speko", engine, err or type(err).__name__)
     try:
         async with aclosing(
             speko.speko_stream_pcm(

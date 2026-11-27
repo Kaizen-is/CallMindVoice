@@ -41,10 +41,21 @@ export interface TurnDetail {
   answered: boolean;
   escalate: string | null;
   summary?: string;
+  /** L6: the promise to pay this turn settled (date, sum), checked in code. */
+  promise?: TurnPromise;
   timings: Record<string, number>;
   citations: Array<{ documentTitle: string; heading: string | null; snippet: string; score: number }>;
   retrieval: { strategy: string; totalChunks: number; hits: Array<Record<string, unknown>> };
   engine: string;
+}
+
+export interface TurnPromise {
+  date: string;
+  label: string;
+  amount: number | null;
+  amountText: string | null;
+  parts: number;
+  ofTotal: number | null;
 }
 
 /** An agent as the Playground call needs it: who it is, and whom it calls (if anyone). */

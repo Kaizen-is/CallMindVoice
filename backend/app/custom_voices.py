@@ -212,7 +212,13 @@ def dev_tts_page(session: Session) -> dict[str, Any]:
         "elevenVoices": [{"id": v["id"], "name": v["name"]} for v in ELEVEN_VOICES],
         "geminiVoices": [{"id": v["id"], "name": v["name"]} for v in GEMINI_VOICES],
         "history": list_speech_tests(tenant_id, "tts"),
-        "speech": {"tts": own_tts_configured(), "eleven": speko_configured(), "brb": brb_configured()},
+        "speech": {
+            "tts": own_tts_configured(),
+            "eleven": speko_configured(),
+            "brb": brb_configured(),
+            # Gemini voices: from Google (GEMINI_API_KEY), or Speko alone as the fallback route.
+            "gemini": tts_engines().get("gemini-3.8-flash-tts", False),
+        },
     }
 
 

@@ -14,9 +14,9 @@ export type SttChoice = 'auto' | 'gapi' | 'local' | 'gemini' | 'gemini_live' | '
 /** Engines that stream: the caller's words appear while they speak (/api/speech/live). */
 export const LIVE_STT: ReadonlySet<string> = new Set(['local', 'gemini_live', 'scribe_live']);
 
-/** How long to wait for a streaming model's last words once the phrase ends. */
+/** How long to wait for a streaming model's last words once the phrase ends (normally 0.1–0.4 s). */
 export function liveFinishMs(engine: string): number {
-  return engine === 'gemini_live' ? 1600 : engine === 'scribe_live' ? 1200 : 900;
+  return engine === 'gemini_live' || engine === 'scribe_live' ? 1200 : 900;
 }
 
 export type TtsChoice =
@@ -27,15 +27,15 @@ export type TtsChoice =
   | 'gemini-3.8-flash-tts'
   | 'gemini-3.8-flash-lite-tts';
 
-/** The Gemini TTS models (through Speko): they speak with Gemini's own voices, not ElevenLabs'. */
+/** The Gemini TTS models (from Google, Speko the fallback): they speak with Gemini's own voices. */
 export const GEMINI_TTS: ReadonlySet<string> = new Set(['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts']);
 
 export const STT_MODELS: Array<{ id: SttChoice; name: string; detail: string; setup: string }> = [
   { id: 'auto', name: 'Own STT', detail: 'CallMind', setup: 'STT_TRANSCRIBE_URL' },
   { id: 'gapi', name: 'GAPI', detail: 'gapi.uz', setup: 'GAPIAPI' },
   { id: 'local', name: 'Zipformer', detail: 'in-app · live', setup: 'models/uzbek-zipformer' },
-  { id: 'gemini', name: 'gemini-3.5', detail: 'Google · Speko', setup: 'SPEKO_API_KEY' },
-  { id: 'gemini_live', name: 'gemini-3.5 live', detail: 'Google · Speko · live, by phrase', setup: 'SPEKO_API_KEY' },
+  { id: 'gemini', name: 'gemini-3.5', detail: 'Google', setup: 'GEMINI_API_KEY' },
+  { id: 'gemini_live', name: 'gemini-3.5 live', detail: 'Google · live, word by word', setup: 'GEMINI_API_KEY' },
   { id: 'scribe', name: 'ElevenLabs Scribe', detail: 'ElevenLabs · Speko', setup: 'SPEKO_API_KEY' },
   {
     id: 'scribe_live',
@@ -51,8 +51,8 @@ export const TTS_MODELS: Array<{ id: TtsChoice; name: string; detail: string; se
   { id: 'default', name: 'Own TTS', detail: 'CallMind', setup: 'TTS_BASE_URL' },
   { id: 'eleven_v4_turbo', name: 'ElevenLabs v4 Turbo', detail: 'Speko', setup: 'SPEKO_API_KEY' },
   { id: 'eleven_v3_conversational', name: 'ElevenLabs v3', detail: 'Speko', setup: 'SPEKO_API_KEY' },
-  { id: 'gemini-3.8-flash-tts', name: 'Gemini 3.8 Flash TTS', detail: 'Google · Speko', setup: 'SPEKO_API_KEY' },
-  { id: 'gemini-3.8-flash-lite-tts', name: 'Gemini 3.8 Flash-Lite TTS', detail: 'Google · Speko', setup: 'SPEKO_API_KEY' },
+  { id: 'gemini-3.8-flash-tts', name: 'Gemini 3.8 Flash TTS', detail: 'Google', setup: 'GEMINI_API_KEY' },
+  { id: 'gemini-3.8-flash-lite-tts', name: 'Gemini 3.8 Flash-Lite TTS', detail: 'Google', setup: 'GEMINI_API_KEY' },
   // Last, so it is never the starting pick while the proxy is reachable only over the VPN.
   { id: 'brb', name: 'BRB TTS', detail: 'own model · VPN', setup: 'BRB_SPEECH_LOGIN' },
 ];

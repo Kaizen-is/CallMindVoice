@@ -35,6 +35,10 @@ dependencies = [
 zipformer = [
   "sherpa-onnx>=2.0",
 ]
+# The Playground's end-of-turn model (L3, app/speech/turn_model.py; data/models/smart-turn-v3.2-cpu.onnx).
+turn = [
+  "onnxruntime>=1.32",
+]
 dev = [
   "pytest>=8",
   "ruff>=0.5",

@@ -26,7 +26,7 @@ from app.auth import COOKIE, encode_session
 from app.ids import parse_iso
 from app.jscompat import js_json
 from app.routers import dashboard_views
-from tests.conftest import SECRET
+from tests.conftest import SECRET, llm_list_as_recorded
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "golden_workspace.json").read_text(encoding="utf-8"))
 NOW_ISO = FIXTURE["now"]
@@ -156,6 +156,7 @@ def seeded(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(workspace, "now_iso", lambda: NOW_ISO)
     monkeypatch.setattr(audit, "now_iso", lambda: NOW_ISO)
+    llm_list_as_recorded(monkeypatch)
     for name, view in VIEWS.items():
         monkeypatch.setattr(dashboard_views, f"{name}_view", view)
     return data_dir

@@ -21,7 +21,14 @@ from sqlalchemy import Connection
 
 from app import db
 from app.jscompat import JS_S, js_log, js_max, js_min, utf16_len, utf16_slice
-from app.rag.embed import LOCAL_ENGINE_ID, cosine, hosted_embed, hosted_engine_id, local_embed, unpack_vector
+from app.rag.embed import (
+    LOCAL_ENGINE_ID,
+    cosine,
+    hosted_embed_query,
+    hosted_engine_id,
+    local_embed,
+    unpack_vector,
+)
 from app.rag.text import expand_terms, stem, stems, tokenize
 
 K1 = 1.4
@@ -304,7 +311,7 @@ async def retrieve_async(tenant_id: str, query: str, *, top_k: int = 5, min_scor
     if not corpus.rows or engine is None:
         return rank(corpus, query, top_k=top_k, min_score=min_score)
     try:
-        vectors = await hosted_embed([query])
+        vectors = await hosted_embed_query(query)
     except Exception:  # noqa: BLE001 - lexical ranking still answers
         return rank(corpus, query, top_k=top_k, min_score=min_score, engine_id=engine, use_dense=False)
     qv = vectors[0] if vectors else None

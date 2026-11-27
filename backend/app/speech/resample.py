@@ -1,13 +1,14 @@
 """
 Streaming resampling of 16-bit mono PCM with an anti-aliasing low-pass filter.
 
-Gemini TTS (through Speko) only renders 24 kHz, while phone calls and some pages want 8 or
-16 kHz. Plain interpolation would fold everything above the new Nyquist frequency back into
+Gemini TTS only renders 24 kHz, while phone calls and some pages want 8 or 16 kHz. Plain
+interpolation would fold everything above the new Nyquist frequency back into
 the speech (a hiss and a "muffled" edge); this polyphase filter (windowed sinc, Blackman)
 removes it first. It keeps state between pieces, so a stream can be converted piece by piece
 and gives the same samples as converting it in one go.
 """
 
+from collections.abc import AsyncIterator
 from math import gcd
 
 import numpy as np
@@ -90,3 +91,31 @@ def resample_pcm16(pcm: bytes, src_rate: int, dst_rate: int) -> bytes:
         return pcm
     r = StreamResampler(src_rate, dst_rate)
     return r.feed(pcm) + r.flush()
+
+
+async def resampled(chunks: AsyncIterator[bytes], src_rate: int, dst_rate: int) -> AsyncIterator[bytes]:
+    """A stream of 16-bit mono PCM pieces, converted from `src_rate` to `dst_rate` as it goes."""
+    converter = StreamResampler(src_rate, dst_rate)
+    async for chunk in chunks:
+        out = converter.feed(chunk)
+        if out:
+            yield out
+    tail = converter.flush()
+    if tail:
+        yield tail
+
+
+async def pcm_pieces(chunks: AsyncIterator[bytes], first_piece: int, piece: int) -> AsyncIterator[bytes]:
+    """Re-cut a byte stream: one piece once `first_piece` bytes are held, then `piece`; never split a sample."""
+    held = b""
+    first = True
+    async for chunk in chunks:
+        held = held + chunk if held else chunk
+        if len(held) >= (first_piece if first else piece):
+            whole = len(held) - (len(held) % 2)
+            yield held[:whole]
+            held = held[whole:]
+            first = False
+    whole = len(held) - (len(held) % 2)
+    if whole:
+        yield held[:whole]

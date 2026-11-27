@@ -76,6 +76,8 @@ export interface PlaygroundReply {
   answered?: boolean;
   escalate?: string | null;
   summary?: string;
+  /** L6: the promise to pay the turn settled (Playground voice calls). */
+  promise?: { date: string; label: string; amount: number | null; amountText: string | null; parts: number };
   timings?: Record<string, number>;
   citations?: Array<{ documentTitle: string; heading: string | null; snippet: string; score: number }>;
   retrieval?: { strategy: string; totalChunks: number; hits: Array<Record<string, unknown>> };

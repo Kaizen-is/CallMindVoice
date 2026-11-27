@@ -12,7 +12,7 @@ import pkgutil
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app import benchmark, routers, schema
+from app import benchmark, routers, schema, warm
 from app.auth import ApiKeyError
 from app.config import get_settings
 from app.routers import live, playground, speech, system, telephony
@@ -59,3 +59,4 @@ app = create_app()
 # that missed a migration gets it), then the deploy benchmark, once per site build, in the background.
 app.include_router(schema.startup_router)
 app.include_router(benchmark.startup_router)
+app.include_router(warm.startup_router)

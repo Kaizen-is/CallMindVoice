@@ -137,6 +137,18 @@ export function joinRecordings(parts: RawAudio[]): RecordingResult {
   return finish(pcm, parts.reduce((n, p) => n + p.durationSec, 0));
 }
 
+/**
+ * The moments before the recorder started (src/lib/voice/preroll.ts), as the first piece of a
+ * recording: resampled to 16 kHz like the rest. It adds no length to the phrase (`durationSec` 0), so
+ * the checks on a phrase's length are unchanged; the silence trim drops it where it was only quiet.
+ */
+export async function preRollPiece(samples: Float32Array, sampleRate: number): Promise<RawAudio> {
+  if (!samples.length) return { pcm: new Float32Array(0), durationSec: 0 };
+  const buffer = new AudioBuffer({ length: samples.length, numberOfChannels: 1, sampleRate });
+  buffer.copyToChannel(new Float32Array(samples), 0);
+  return { pcm: await resampleProper(buffer, TARGET_RATE), durationSec: 0 };
+}
+
 async function decode16k(blob: Blob): Promise<RawAudio> {
   const buf = await blob.arrayBuffer();
   const Ctx =
@@ -204,7 +216,8 @@ async function resampleProper(decoded: AudioBuffer, to: number): Promise<Float32
   return rendered.getChannelData(0);
 }
 
-function encodeWav(samples: Float32Array, sampleRate: number, gain = 1): Blob {
+/** 16-bit PCM mono WAV of these samples (clipped to ±1 after `gain`). */
+export function encodeWav(samples: Float32Array, sampleRate: number, gain = 1): Blob {
   const view = new DataView(new ArrayBuffer(44 + samples.length * 2));
   const str = (off: number, s: string) => {
     for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));

@@ -201,7 +201,10 @@ async def playground_opening(agent: dict[str, Any], lang: str) -> str | None:
                     time_zone=agent_hours(agent)["timezone"],
                     llm=agent_llm(agent),
                     goal=goal,
-                )
+                ),
+                # Streamed (and not voiced) so a silent model gets the backup race of a live turn:
+                # the person is waiting on the line for this first sentence.
+                lambda _delta: None,
             )
             # The local engine knows nothing of the person: greet, and ask the model next time.
             if out["engine"] == "local":
@@ -283,6 +286,8 @@ def turn_detail(result: dict[str, Any]) -> dict[str, Any]:
     }
     if "summary" in result:
         detail["summary"] = result["summary"]
+    if "promise" in result:
+        detail["promise"] = result["promise"]  # L6: the promise to pay this turn settled
     detail.update(
         {
             "timings": result["timings"],

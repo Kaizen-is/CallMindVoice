@@ -59,8 +59,8 @@ busy machine run it on its own.
 | `app/rag/` | Knowledge base: text folding, embeddings (local, or OpenAI), chunking, ranking; `ingest.py` (uploads, pages, pasted text, FAQ → indexed chunks); `pdf_text.py` (PDF text laid out exactly as pdf.js/unpdf did, on pdfminer.six) |
 | `app/knowledge.py`, `app/starter_packs.py` | The knowledge base's console actions, page data and public API; the starter packs |
 | `app/llm/` | Answers: prompts, Gemini / Claude (SDK) / OpenAI / Ollama with streaming, the Claude Haiku fallback, the local engine, the loan-call identity check and calendar |
-| `app/speech/` | STT (Kotib, Whisper, GAPI, Zipformer, Speko gemini-3.5 / Scribe, Gemini, BRB Whisper), TTS (own server, ElevenLabs voices via Speko, BRB) with the shared disk cache, number words, spoken-form text |
-| `app/engine/` | The turn (`run_turn`), call start / end / billing, the live event bus, the call simulator, demo history |
+| `app/speech/` | STT (Kotib, Whisper, GAPI, Zipformer, gemini-3.5, Scribe via Speko, Gemini, BRB Whisper), live words (Zipformer; gemini-3.5-transcribe-live straight from Google, word by word; Scribe v3 Live via Speko), TTS (own server, Gemini 3.8 voices from Google, ElevenLabs via Speko, BRB) with the shared disk cache, number words, spoken-form text. Gemini's speech uses `GEMINI_API_KEY` (`gemini_speech.py`, `gemini_live.py`); Speko renders the same models when Google refuses a request, or for everything with `GEMINI_SPEECH_VIA=speko` |
+| `app/engine/` | The turn (`run_turn`, `plan_reply`), the Playground's early start (`early.py`: the answer begins at the caller's 0.35 s pause and is used only when the turn's input is identical), call start / end / billing, the live event bus, the call simulator, demo history |
 | `app/telephony.py` | The phone bridge's secret check, which agent answers a dialled number, telephony status |
 | `app/playground.py`, `app/playground_voice.py`, `app/playground_chats.py` | The Playground call and its saved chats |
 | `app/demo.py`, `app/logistics.py`, `app/logistics_data.py` | The public demos (`/demo`, `/logistics`): per-address limits, demo calls (never billed), the logistics shipment lookup |
@@ -82,8 +82,8 @@ busy machine run it on its own.
 | `/api/core/diagnostics/ndjson`, `/sse` | `GET /diagnostics/…` | streaming checks (login required) |
 | (site, `src/lib/auth.ts`) | `GET /session` (`account.py`) | who is signed in: `{user, tenant}` or null |
 | (sign-in pages) | `POST /actions/{signIn,signUp,signOut,setLocale,setPublicLocale}Action` | login, sign-up (new company), sign-out, language |
-| `/api/playground/{call,turn,end}` | `POST /playground/…` (`playground.py`) | the Playground voice call (NDJSON; `?prefetch=1` → 202; end → 204) |
-| `/api/speech/live`, `/api/stream` | `POST /speech/live`, `GET /stream` (`live.py`) | live Zipformer words; SSE feed of call events (wallboard, inbox) |
+| `/api/playground/{call,turn,end}` | `POST /playground/…` (`playground.py`) | the Playground voice call (NDJSON; `?prefetch=1` → 202: transcribe / take the settled live words and start the answer early; end → 204) |
+| `/api/speech/live`, `/api/stream` | `POST /speech/live`, `GET /stream` (`live.py`) | live words (Zipformer, Gemini from Google, Scribe via Speko; ops feed / flush / finish / begin / reset / close); SSE feed of call events (wallboard, inbox) |
 | `/api/speech/tts`, `/api/speech/stt`, `/api/models/stt` | `speech.py` | TTS (WAV or 16-bit PCM stream), STT, the STT lab |
 | `/api/telephony/bridge/{turn,filler,end}` | `telephony.py` | the phone bridge (`x-bridge-secret`) |
 | `/api/demo/{call,turn,end}`, `/api/logistics/{call,turn,end}` | `demo.py`, `logistics.py` | the public demos (no login; per-address limits) |

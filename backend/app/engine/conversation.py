@@ -8,25 +8,34 @@ Playground both call this, so the Playground is a true rehearsal of a call.
 """
 
 import asyncio
+import contextlib
+import dataclasses
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 from app import db
 from app.engine.bus import publish
+from app.engine.live_turn import in_playground, is_small_talk, last_facts, remember_facts, smart_search_on
 from app.ids import new_id, now_iso
 from app.jscompat import js_fixed_number, js_json, js_round, js_trim, utf16_len, utf16_slice
 from app.llm.choice import agent_llm, safe_json
 from app.llm.goal_call import agent_goal
+from app.llm.loan_plan import promise_from_turn
+from app.llm.local import classify_intent
 from app.llm.prompts import GenerateInput
 from app.llm.provider import engine_name, generate_answer, sentiment_of, summarize_call
 from app.rag.library import knowledge_tenant
-from app.rag.retrieve import retrieve_async
+from app.rag.retrieve import RetrievalResult, retrieve_async
 from app.rag.routing import has_grouped_knowledge, retrieve_routed
 from app.rag.text import detect_language, stems
 from app.webhooks import dispatch_webhook
+
+if TYPE_CHECKING:
+    from app.engine.early import EarlyAnswer
 
 DEFAULT_ESCALATION = {
     "onLowConfidence": True,
@@ -165,21 +174,8 @@ def _ms(started: float) -> float:
     return (time.perf_counter() - started) * 1000
 
 
-async def run_turn(
-    *,
-    tenant_id: str,
-    call_id: str,
-    agent: dict[str, Any],
-    utterance: str,
-    stt_ms: float | None = None,
-    persist: bool = True,
-    target: dict[str, Any] | None = None,
-    context: Context | None = None,
-    on_delta: Callable[[str], None] | None = None,
-    stream_llm: bool | None = None,
-) -> dict[str, Any]:
-    """One turn. Returns the TurnResult shape of conversation.ts (camelCase keys)."""
-    t0 = time.perf_counter()
+def read_call(tenant_id: str, call_id: str) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
+    """The call's row and its transcript so far (every role, in order)."""
     with db.connect() as conn:
         call = db.fetch_one(conn, "SELECT * FROM calls WHERE id = :id AND tenant_id = :t", id=call_id, t=tenant_id)
         history = [
@@ -188,11 +184,45 @@ async def run_turn(
                 conn, "SELECT role, text FROM turns WHERE call_id = :id ORDER BY ordinal ASC", id=call_id
             )
         ]
-    # System bookkeeping turns (e.g. __unanswered__) are not dialogue: never shown to the model.
-    model_history = [t for t in history if t["role"] in ("caller", "agent")]
+    return call, history
 
+
+def dialogue(history: list[dict[str, str]]) -> list[dict[str, str]]:
+    """System bookkeeping turns (e.g. __unanswered__) are not dialogue: never shown to the model."""
+    return [t for t in history if t["role"] in ("caller", "agent")]
+
+
+@dataclass
+class ReplyPlan:
+    """What one reply is generated from: the knowledge-base lookup and the model's whole input."""
+
+    retrieval: RetrievalResult
+    retrieval_ms: float
+    generate: GenerateInput
+
+
+def _recent_caller_lines(model_history: list[dict[str, str]]) -> list[str]:
+    return [js_trim(t["text"]) for t in model_history if t["role"] == "caller"][-2:]
+
+
+async def plan_reply(
+    *,
+    tenant_id: str,
+    agent: dict[str, Any],
+    utterance: str,
+    model_history: list[dict[str, str]],
+    target: dict[str, Any],
+    context: Context | None = None,
+    stream_llm: bool | None = None,
+    call_id: str | None = None,
+) -> ReplyPlan:
+    """
+    Everything the model's answer depends on, read before it is written. A function of these
+    arguments, the knowledge base and the call's remembered topic (grouped knowledge: app.rag.routing,
+    keyed by `call_id`): the early start (app/engine/early.py) runs it ahead of the turn. An early start
+    that is then discarded may have updated that topic from the same caller's phrase.
+    """
     language = detect_language(utterance)
-    policy = agent_escalation(agent)
     threshold = agent["confidence_threshold"] if agent.get("confidence_threshold") is not None else 0.55
 
     # retrieval — in the agent's knowledge base (its own company's, or a shared library: app.rag.library);
@@ -209,7 +239,19 @@ async def run_turn(
         return await retrieve_async(kb_tenant, query, top_k=5)
 
     t_retrieve = time.perf_counter()
-    if routed and model_history:
+    # Q3 (Playground turns, app.engine.live_turn): a phrase with no question in it skips the search, and
+    # a follow-up's two searches run side by side instead of one after the other.
+    smart = smart_search_on()
+    if smart and is_small_talk(utterance):
+        # "ha", "rahmat", "xo'p"…: nothing to look up. The facts of the call's last search stay in front of
+        # the model, since an "ha" often accepts what those facts offered ("kurslarni aytaymi?" → "ha").
+        previous = last_facts(call_id)
+        retrieval = (
+            dataclasses.replace(previous, took_ms=0.0, strategy=f"reused:{previous.strategy}")
+            if previous is not None
+            else RetrievalResult(hits=[], confidence=0.0, took_ms=0.0, strategy="skipped:small_talk", total_chunks=0)
+        )
+    elif routed and model_history:
         # Grouped search (Python only): a follow-up ("Uning foizi qancha?", "o'rtada yechib olsam bo'ladimi?")
         # rarely names its subject, and a generic page can match the bare words confidently — the retry below
         # then never runs and the answer comes from the wrong page. So the bare question and the question in
@@ -225,11 +267,17 @@ async def run_turn(
             retrieval = bare
         else:
             retrieval = in_context if in_context.hits else bare
+    elif smart and model_history and (recent := [t for t in _recent_caller_lines(model_history) if t]):
+        # The follow-up below, searched at the same time as the bare question rather than after it.
+        bare, contextual = await asyncio.gather(search(utterance), search("\n".join([*recent, utterance])))
+        retrieval = contextual if bare.confidence < threshold and contextual.confidence > bare.confidence else bare
     else:
         retrieval = await search(utterance)
+    if smart:
+        remember_facts(call_id, retrieval)
     # Short follow-ups ("dam olish kunlari-chi?") may not repeat the subject: if the lookup is weak,
     # retry once with the two most recent caller turns and keep the more confident one.
-    if not routed and model_history and retrieval.confidence < threshold:
+    if not smart and not routed and model_history and retrieval.confidence < threshold:
         recent = [js_trim(t["text"]) for t in model_history if t["role"] == "caller"][-2:]
         recent = [t for t in recent if t]
         if recent:
@@ -239,12 +287,12 @@ async def run_turn(
     retrieval_ms = _ms(t_retrieve)
 
     # generation
-    target = target if target is not None else agent_target(agent)
     goal = agent_goal(agent)
     caller_lines = [*(t["text"] for t in model_history if t["role"] == "caller"), utterance]
-    t_gen = time.perf_counter()
-    generated = await generate_answer(
-        GenerateInput(
+    return ReplyPlan(
+        retrieval=retrieval,
+        retrieval_ms=retrieval_ms,
+        generate=GenerateInput(
             question=utterance,
             hits=retrieval.hits,
             confidence=retrieval.confidence,
@@ -262,9 +310,119 @@ async def run_turn(
             goal=goal,
             **_lookup_for(context, caller_lines),
         ),
-        on_delta,
     )
-    llm_ms = _ms(t_gen)
+
+
+async def _until_stopped(work: Any, stop: asyncio.Event | None) -> Any:
+    """`work`'s result, or None when `stop` is set first (the work is then cancelled)."""
+    if stop is None:
+        return await work
+    task = asyncio.ensure_future(work)
+    waiter = asyncio.ensure_future(stop.wait())
+    try:
+        done, _ = await asyncio.wait({task, waiter}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        waiter.cancel()
+    if task in done:
+        return task.result()
+    task.cancel()
+    with contextlib.suppress(BaseException):
+        await task
+    return None
+
+
+async def run_turn(
+    *,
+    tenant_id: str,
+    call_id: str,
+    agent: dict[str, Any],
+    utterance: str,
+    stt_ms: float | None = None,
+    persist: bool = True,
+    target: dict[str, Any] | None = None,
+    context: Context | None = None,
+    on_delta: Callable[[str], None] | None = None,
+    stream_llm: bool | None = None,
+    early: "EarlyAnswer | None" = None,
+    stop: asyncio.Event | None = None,
+) -> dict[str, Any]:
+    """
+    One turn. Returns the TurnResult shape of conversation.ts (camelCase keys).
+
+    `stop` (Playground, Q7): set when the caller talks over the reply. The model stops writing at once
+    and the turn is written down with what it had written; the Playground then cuts it to what was heard.
+
+    `early`: an answer the Playground started while the caller paused (app/engine/early.py). It is
+    used only when it was started from exactly this turn's input — the same words, transcript so
+    far, agent and target — so the reply is the one this turn would have written; otherwise it is
+    cancelled and the reply is written here as usual.
+    """
+    t0 = time.perf_counter()
+    call, history = read_call(tenant_id, call_id)
+    model_history = dialogue(history)
+
+    language = detect_language(utterance)
+    policy = agent_escalation(agent)
+    target = target if target is not None else agent_target(agent)
+    goal = agent_goal(agent)
+
+    # retrieval and generation
+    written = [""]  # what the model wrote so far (a turn stopped mid-answer keeps it)
+
+    def relay(delta: str) -> None:
+        written[0] += delta
+        on_delta(delta)  # type: ignore[misc]
+
+    t_gen = time.perf_counter()
+    stopped = False
+    adopting = (
+        early is not None and context is None and early.matches(utterance, model_history, agent, target, stream_llm)
+    )
+    if adopting:
+        adopted = await _until_stopped(early.adopt(relay if on_delta else None), stop)  # type: ignore[union-attr]
+        if adopted is None:
+            stopped = True
+            plan = early.plan  # type: ignore[union-attr]
+        else:
+            plan, generated, llm_ms = adopted
+    else:
+        if early is not None:
+            early.cancel()
+        plan = None
+    if plan is None:
+        plan = await plan_reply(
+            tenant_id=tenant_id,
+            agent=agent,
+            utterance=utterance,
+            model_history=model_history,
+            target=target,
+            context=context,
+            stream_llm=stream_llm,
+            call_id=call_id,
+        )
+    if not adopting:
+        t_gen = time.perf_counter()
+        answer = await _until_stopped(generate_answer(plan.generate, relay if on_delta else None), stop)
+        if answer is None:
+            stopped = True
+        else:
+            generated = answer
+            llm_ms = _ms(t_gen)
+    if stopped:
+        # Talked over: the answer is what had been written when the caller cut in, without a last word
+        # the model may have been in the middle of ("…besh mil").
+        llm_ms = _ms(t_gen)
+        so_far = written[0]
+        if so_far and not so_far[-1].isspace() and so_far[-1] not in ".!?,;:…»)\"'":
+            so_far = so_far.rsplit(None, 1)[0] if len(so_far.split()) > 1 else ""
+        generated = {
+            "answer": js_trim(so_far),
+            "intent": classify_intent(utterance),
+            "answered": True,
+            "usedHits": [],
+            "engine": engine_name(agent_llm(agent)),
+        }
+    retrieval, retrieval_ms = plan.retrieval, plan.retrieval_ms
 
     # escalation decisioning
     sentiment = sentiment_of(utterance)
@@ -316,70 +474,79 @@ async def run_turn(
 
     if persist:
         stamp = now_iso()
-        with db.transaction() as tx:
-            db.execute(
-                tx,
-                """INSERT INTO turns (id, tenant_id, call_id, ordinal, role, text, language, confidence,
-                     citations_json, timings_json, latency_ms, created_at)
-                   VALUES (:id, :t, :call, :ord, 'caller', :text, :lang, NULL, '[]', '{}', NULL, :at)""",
-                id=new_id("trn"),
-                t=tenant_id,
-                call=call_id,
-                ord=ordinal,
-                text=utterance,
-                lang=language,
-                at=stamp,
-            )
-            db.execute(
-                tx,
-                """INSERT INTO turns (id, tenant_id, call_id, ordinal, role, text, language, confidence,
-                     citations_json, timings_json, latency_ms, created_at)
-                   VALUES (:id, :t, :call, :ord, 'agent', :text, :lang, :conf, :cit, :tim, :lat, :at)""",
-                id=new_id("trn"),
-                t=tenant_id,
-                call=call_id,
-                ord=ordinal + 1,
-                text=generated["answer"],
-                lang=language,
-                conf=retrieval.confidence,
-                cit=js_json(citations),
-                tim=js_json(timings),
-                lat=timings["totalMs"],
-                at=stamp,
-            )
-            if not generated["answered"]:
+
+        def save() -> None:
+            with db.transaction() as tx:
                 db.execute(
                     tx,
-                    """INSERT INTO turns (id, tenant_id, call_id, ordinal, role, text, created_at)
-                       VALUES (:id, :t, :call, :ord, 'system', '__unanswered__', :at)""",
+                    """INSERT INTO turns (id, tenant_id, call_id, ordinal, role, text, language, confidence,
+                         citations_json, timings_json, latency_ms, created_at)
+                       VALUES (:id, :t, :call, :ord, 'caller', :text, :lang, NULL, '[]', '{}', NULL, :at)""",
                     id=new_id("trn"),
                     t=tenant_id,
                     call=call_id,
-                    ord=ordinal + 2,
+                    ord=ordinal,
+                    text=utterance,
+                    lang=language,
                     at=stamp,
                 )
-                _record_gap(tx, tenant_id, utterance, retrieval.confidence)
-            # The call's headline intent is the first substantive one (not greeting / goodbye / affirm).
-            substantive = generated["intent"] not in ("greeting", "goodbye", "affirm")
-            db.execute(
-                tx,
-                """UPDATE calls SET turns = turns + 1, language = :lang,
-                     intent = CASE WHEN :subst = 1 AND (intent IS NULL OR intent IN ('greeting','goodbye','affirm'))
-                                   THEN :intent ELSE COALESCE(intent, :intent2) END,
-                     confidence = :conf, sentiment = :sent, first_response_ms = COALESCE(first_response_ms, :frm),
-                     status = CASE WHEN status = 'ringing' THEN 'active' ELSE status END,
-                     answered_at = COALESCE(answered_at, :at)
-                   WHERE id = :id""",
-                lang=language,
-                subst=1 if substantive else 0,
-                intent=generated["intent"],
-                intent2=generated["intent"],
-                conf=retrieval.confidence,
-                sent=sentiment,
-                frm=timings["totalMs"],
-                at=stamp,
-                id=call_id,
-            )
+                db.execute(
+                    tx,
+                    """INSERT INTO turns (id, tenant_id, call_id, ordinal, role, text, language, confidence,
+                         citations_json, timings_json, latency_ms, created_at)
+                       VALUES (:id, :t, :call, :ord, 'agent', :text, :lang, :conf, :cit, :tim, :lat, :at)""",
+                    id=new_id("trn"),
+                    t=tenant_id,
+                    call=call_id,
+                    ord=ordinal + 1,
+                    text=generated["answer"],
+                    lang=language,
+                    conf=retrieval.confidence,
+                    cit=js_json(citations),
+                    tim=js_json(timings),
+                    lat=timings["totalMs"],
+                    at=stamp,
+                )
+                if not generated["answered"]:
+                    db.execute(
+                        tx,
+                        """INSERT INTO turns (id, tenant_id, call_id, ordinal, role, text, created_at)
+                           VALUES (:id, :t, :call, :ord, 'system', '__unanswered__', :at)""",
+                        id=new_id("trn"),
+                        t=tenant_id,
+                        call=call_id,
+                        ord=ordinal + 2,
+                        at=stamp,
+                    )
+                    _record_gap(tx, tenant_id, utterance, retrieval.confidence)
+                # The call's headline intent is the first substantive one (not greeting / goodbye / affirm).
+                substantive = generated["intent"] not in ("greeting", "goodbye", "affirm")
+                db.execute(
+                    tx,
+                    """UPDATE calls SET turns = turns + 1, language = :lang,
+                         intent = CASE WHEN :subst = 1 AND (intent IS NULL OR intent IN ('greeting','goodbye','affirm'))
+                                       THEN :intent ELSE COALESCE(intent, :intent2) END,
+                         confidence = :conf, sentiment = :sent, first_response_ms = COALESCE(first_response_ms, :frm),
+                         status = CASE WHEN status = 'ringing' THEN 'active' ELSE status END,
+                         answered_at = COALESCE(answered_at, :at)
+                       WHERE id = :id""",
+                    lang=language,
+                    subst=1 if substantive else 0,
+                    intent=generated["intent"],
+                    intent2=generated["intent"],
+                    conf=retrieval.confidence,
+                    sent=sentiment,
+                    frm=timings["totalMs"],
+                    at=stamp,
+                    id=call_id,
+                )
+
+        # L7, in the Playground: the SQLite commit runs off the event loop; on it, every other call on the
+        # server waited. Elsewhere it stays in line, as the TypeScript ran it (the event order is pinned).
+        if in_playground():
+            await asyncio.to_thread(save)
+        else:
+            save()
 
     summary: str | None = None
     if escalate and persist:
@@ -436,6 +603,12 @@ async def run_turn(
     )
     if retrieval.extra.get("routing"):  # grouped search only: which shelf was searched, and why
         result["retrievalDebug"]["routing"] = retrieval.extra["routing"]
+    if is_loan_call and in_playground():
+        # L6: a day the caller named and the reply said back is a promise to pay, written down as data.
+        caller_said = [*(h["text"] for h in history if h["role"] == "caller"), utterance]
+        promise = promise_from_turn(target, caller_said, generated["answer"])
+        if promise is not None:
+            result["promise"] = promise
     return result
 
 

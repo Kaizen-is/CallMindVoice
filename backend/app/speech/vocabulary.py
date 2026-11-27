@@ -135,3 +135,37 @@ def echoes_prompt(text: str, prompt: str) -> bool:
     if len(said) < 3 or not prompt:
         return False
     return f" {' '.join(said)} " in f" {' '.join(_PUNCT.sub(' ', prompt.lower()).split())} "
+
+
+# Words of a loan or bank call that Uzbek recognisers mishear (Q9; "qarzim" heard as "qarsim").
+CALL_TERMS = (
+    "qarz", "qarzim", "qarzingiz", "qarzdorlik", "to'lov", "to'lovni", "so'm", "muddat", "muddati",
+    "kredit", "foiz", "penya", "karta", "Humo", "Uzcard", "filial", "oylik", "ertaga",
+)  # fmt: skip
+MAX_LIVE_WORDS = 40
+
+
+def live_words(tenant_id: str, agent: dict[str, Any] | None = None) -> list[str]:
+    """
+    The words a live recogniser is biased towards (Gemini live `customVocabulary`): the call terms
+    above, the agent's and company's names and its knowledge base's names (`recognition_words`), and
+    the name of the person the agent calls. Never raises.
+    """
+    words: list[str] = list(CALL_TERMS)
+    words += recognition_words(tenant_id, agent)
+    target = (agent or {}).get("target_json") or ""
+    try:
+        import json
+
+        full_name = js_trim(str((json.loads(target) if target else {}).get("fullName") or ""))
+    except (TypeError, ValueError):
+        full_name = ""
+    words += [w for w in full_name.split() if len(w) > 1]
+    seen: set[str] = set()
+    out: list[str] = []
+    for word in words:
+        key = word.lower()
+        if word and key not in seen:
+            seen.add(key)
+            out.append(word)
+    return out[:MAX_LIVE_WORDS]

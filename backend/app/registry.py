@@ -37,11 +37,12 @@ ENGINES: tuple[EngineInfo, ...] = (
     EngineInfo(
         "stt", "local", "Zipformer", "Open model (sherpa-onnx)", "app", True, ("uz",), 0, "models/uzbek-zipformer"
     ),
-    EngineInfo(
-        "stt", "speko", "gemini-3.5", "Google", "cloud", False, ("uz", "ru", "en"), 0.005, "SPEKO_API_KEY", via="Speko"
-    ),
-    # The streaming variant of gemini-3.5: in the Playground it streams (a phrase at a time, as soon as
-    # the caller pauses; app/speech/speko_live.py), elsewhere it gets one finished utterance.
+    # Gemini's speech comes straight from Google with GEMINI_API_KEY (app/speech/gemini_speech.py, since
+    # 2026-11-25); Speko renders the same models only when Google refuses a request, or with
+    # GEMINI_SPEECH_VIA=speko. The ids keep their Speko-era names: stored choices and usage rows use them.
+    EngineInfo("stt", "speko", "gemini-3.5", "Google", "cloud", False, ("uz", "ru", "en"), 0.005, "GEMINI_API_KEY"),
+    # The streaming variant of gemini-3.5: word by word from Google (app/speech/gemini_live.py), a phrase at
+    # a time through Speko (app/speech/speko_live.py); one finished utterance elsewhere.
     EngineInfo(
         "stt",
         "speko_live",
@@ -51,8 +52,7 @@ ENGINES: tuple[EngineInfo, ...] = (
         True,
         ("uz", "ru", "en"),
         None,
-        "SPEKO_API_KEY",
-        via="Speko",
+        "GEMINI_API_KEY",
     ),
     EngineInfo(
         "stt",
@@ -114,8 +114,8 @@ ENGINES: tuple[EngineInfo, ...] = (
         "SPEKO_API_KEY",
         via="Speko",
     ),
-    # Gemini's TTS through Speko (24 kHz only; other rates converted in app/speech/resample.py).
-    # Speko's model list carries no prices yet: None until they are known.
+    # Gemini's TTS from Google (24 kHz only; other rates converted in app/speech/resample.py), Speko the
+    # fallback (app/speech/gemini_speech.py). Prices: None until set here.
     EngineInfo(
         "tts",
         "gemini-3.8-flash-tts",
@@ -125,8 +125,7 @@ ENGINES: tuple[EngineInfo, ...] = (
         True,
         ("uz", "ru", "en"),
         None,
-        "SPEKO_API_KEY",
-        via="Speko",
+        "GEMINI_API_KEY",
     ),
     EngineInfo(
         "tts",
@@ -137,8 +136,7 @@ ENGINES: tuple[EngineInfo, ...] = (
         True,
         ("uz", "ru", "en"),
         None,
-        "SPEKO_API_KEY",
-        via="Speko",
+        "GEMINI_API_KEY",
     ),
 )
 
@@ -193,8 +191,7 @@ LLM_MODELS: tuple[LlmModelInfo, ...] = (
     _llm("anthropic", "claude-opus-5-5", "Claude Opus 5.5", 4, 20),
     _llm("anthropic", "claude-sonnet-5-5", "Claude Sonnet 5.5", 2, 10),
     _llm("anthropic", "claude-haiku-5-5", "Claude Haiku 5.5", 0.1, 0.5),
-    # Gemini 3.8 Flash doubles to $1.50 / $7.50 on 2027-01-01.
-    _llm("gemini", "gemini-3.8-flash", "Gemini 3.8 Flash", 0.75, 3.75),
+    # Gemini 3.8 Flash is left out on purpose (2026-11-25): Google kept answering it with 503 "high demand".
     _llm("gemini", "gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", 0.3, 2.5),
     _llm("gemini", "gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite", 0.25, 1.5),
     _llm("ollama", "gemma4:31b", "Gemma 4 31B", None, None),
